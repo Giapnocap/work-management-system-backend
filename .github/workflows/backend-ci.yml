@@ -1,0 +1,217 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MSSQL_SA_PASSWORD: CiOnlyStrongPassword123!
+      JWT_KEY: CiOnlyJwtSigningKeyAtLeast32CharactersLong123
+      DEMO_SEED_ENABLED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore WorkManagementSystem.sln
+
+      - name: Verify formatting
+        run: dotnet format WorkManagementSystem.sln --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build WorkManagementSystem.sln --configuration Release --no-restore --warnaserror
+
+      - name: Test
+        run: >-
+          dotnet test WorkManagementSystem.sln
+          --configuration Release
+          --no-build
+          --no-restore
+          --logger "trx;LogFileName=backend-tests.trx"
+          --results-directory TestResults
+
+      - name: Verify migration model
+        run: >-
+          dotnet ef migrations has-pending-model-changes
+          --configuration Release
+          --no-build
+
+      - name: Publish
+        run: >-
+          dotnet publish WorkManagementSystem.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --output artifacts/publish
+          -p:UseAppHost=false
+
+      - name: Validate Docker Compose
+        run: docker compose -f compose.yml config --quiet
+
+      - name: Build container stack
+        run: docker compose build api migrate
+
+      - name: Start SQL Server, migrate and API
+        run: docker compose up --detach --no-build
+
+      - name: Verify container HTTP workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8080/health/ready > /tmp/ready.txt; then
+              break
+            fi
+
+            if [[ "$attempt" == "30" ]]; then
+              echo "API readiness check timed out."
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          grep -q "Healthy" /tmp/ready.txt
+
+          ADMIN_TOKEN="$(
+            curl --fail --silent \
+              --header "Content-Type: application/json" \
+              --data '{"username":"demo.admin","password":"Demo@123456"}' \
+              http://localhost:8080/api/auth/login | jq --raw-output .
+          )"
+          MANAGER_TOKEN="$(
+            curl --fail --silent \
+              --header "Content-Type: application/json" \
+              --data '{"username":"demo.manager","password":"Demo@123456"}' \
+              http://localhost:8080/api/auth/login | jq --raw-output .
+          )"
+          USER_TOKEN="$(
+            curl --fail --silent \
+              --header "Content-Type: application/json" \
+              --data '{"username":"demo.employee1","password":"Demo@123456"}' \
+              http://localhost:8080/api/auth/login | jq --raw-output .
+          )"
+
+          test -n "$ADMIN_TOKEN"
+          test -n "$MANAGER_TOKEN"
+          test -n "$USER_TOKEN"
+
+          curl --fail --silent \
+            --header "Authorization: Bearer $ADMIN_TOKEN" \
+            http://localhost:8080/api/kpi-periods \
+            | jq --exit-status 'length > 0' > /dev/null
+
+          curl --fail --silent \
+            --header "Authorization: Bearer $MANAGER_TOKEN" \
+            http://localhost:8080/api/projects \
+            | jq --exit-status 'length > 0' > /dev/null
+
+          user_create_status="$(
+            curl --silent --output /tmp/user-create.json --write-out "%{http_code}" \
+              --request POST \
+              --header "Authorization: Bearer $USER_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data '{"name":"Forbidden project"}' \
+              http://localhost:8080/api/projects
+          )"
+          test "$user_create_status" = "403"
+
+          anonymous_status="$(
+            curl --silent --output /tmp/anonymous.json --write-out "%{http_code}" \
+              http://localhost:8080/api/projects
+          )"
+          test "$anonymous_status" = "401"
+
+      - name: Verify SQL migration and demo seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_container="$(docker compose ps --quiet sqlserver)"
+
+          docker exec "$sql_container" bash -c '
+            sqlcmd="/opt/mssql-tools18/bin/sqlcmd"
+            if [[ ! -x "$sqlcmd" ]]; then
+              sqlcmd="/opt/mssql-tools/bin/sqlcmd"
+            fi
+
+            if [[ ! -x "$sqlcmd" ]]; then
+              echo "sqlcmd was not found in the SQL Server container."
+              exit 1
+            fi
+
+            migration_count="$(
+              "$sqlcmd" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W \
+                -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.__EFMigrationsHistory;"
+            )"
+            latest_migration="$(
+              "$sqlcmd" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W \
+                -Q "SET NOCOUNT ON; SELECT TOP (1) MigrationId FROM WorkManagementDB.dbo.__EFMigrationsHistory ORDER BY MigrationId DESC;"
+            )"
+            user_count="$(
+              "$sqlcmd" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W \
+                -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.Users;"
+            )"
+            project_count="$(
+              "$sqlcmd" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W \
+                -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.Projects;"
+            )"
+            kpi_period_count="$(
+              "$sqlcmd" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W \
+                -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.KpiPeriods;"
+            )"
+
+            test "$migration_count" -eq 38
+            test "$latest_migration" = "20260726121632_PreserveHistoricalKpiSnapshots"
+            test "$user_count" -eq 4
+            test "$project_count" -gt 0
+            test "$kpi_period_count" -gt 0
+          '
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop container stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: TestResults
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-management-backend
+          path: artifacts/publish
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,27 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace WorkManagementSystem.Application.DTOs
+{
+    public class UserDto
+    {
+        public Guid Id { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string EmployeeCode { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public Guid? UnitId { get; set; }
+        public bool IsApproved { get; set; }
+        public string? PhoneNumber { get; set; }
+    }
+
+    public class UpdateUserDto
+    {
+        [Required]
+        [RegularExpression("^(User|Manager)$", ErrorMessage = "Role chi co the la User hoac Manager.")]
+        public string Role { get; set; } = string.Empty;
+        public Guid? UnitId { get; set; }
+        public Guid? OldManagerId { get; set; }
+        public string? OldManagerAction { get; set; }
+        public Guid? OldManagerNewUnitId { get; set; }
+    }
+}
