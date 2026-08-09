@@ -52,7 +52,7 @@ $employeeHeaders = @{ Authorization = "Bearer $employeeToken" }
 $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 ```
 
-`POST /api/auth/login` returns the encoded access token as a JSON string. This backend currently uses access tokens only; it does not expose a refresh-token endpoint.
+`POST /api/auth/login` returns the encoded access token as a string. Depending on HTTP content negotiation, clients can receive a plain-text body or a JSON string. This backend currently uses access tokens only; it does not expose a refresh-token endpoint.
 
 ## 2. Resolve The Employee
 

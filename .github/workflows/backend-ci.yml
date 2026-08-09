@@ -109,6 +109,7 @@ jobs:
           login() {
             local username="$1"
             local response
+            local token
 
             response="$(
               curl --fail-with-body --silent --show-error \
@@ -117,9 +118,20 @@ jobs:
                 http://localhost:8080/api/auth/login
             )"
 
-            jq --exit-status --raw-output \
-              'if type == "string" and length > 0 then . else error("Login response must be a non-empty JSON string.") end' \
-              <<< "$response"
+            if token="$(jq --exit-status --raw-output \
+              'select(type == "string" and length > 0)' \
+              <<< "$response" 2> /dev/null)"; then
+              :
+            else
+              token="$response"
+            fi
+
+            if [[ ! "$token" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]]; then
+              echo "Login response must contain a valid JWT access token." >&2
+              return 1
+            fi
+
+            printf '%s' "$token"
           }
 
           assert_non_empty_array() {
