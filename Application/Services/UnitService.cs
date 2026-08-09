@@ -63,13 +63,12 @@ namespace WorkManagementSystem.Application.Services
 
         public async Task<List<UserDto>> GetUsers(Guid unitId, CancellationToken cancellationToken = default)
         {
-            var userIdsFromMapping = await _userUnitRepo.QueryReadOnly()
+            var mappedUserIds = _userUnitRepo.QueryReadOnly()
                 .Where(x => x.UnitId == unitId)
-                .Select(x => x.UserId)
-                .ToListAsync(cancellationToken);
+                .Select(x => x.UserId);
 
             var users = await _userRepo.QueryReadOnly()
-                .Where(u => (u.UnitId == unitId || userIdsFromMapping.Contains(u.Id))
+                .Where(u => (u.UnitId == unitId || mappedUserIds.Contains(u.Id))
                             && u.IsApproved
                             && !u.IsDeleted)
                 .Select(u => new UserDto

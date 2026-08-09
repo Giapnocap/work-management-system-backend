@@ -290,23 +290,21 @@ namespace WorkManagementSystem.Application.Services
             string roleForPeriod,
             CancellationToken cancellationToken)
         {
-            var assignedTaskIds = await _assigneeRepo.QueryReadOnly()
+            var assignedTaskIds = _assigneeRepo.QueryReadOnly()
                 .Where(a => a.UserId == userId)
-                .Select(a => a.TaskId)
-                .ToListAsync(cancellationToken);
+                .Select(a => a.TaskId);
 
-            var tasks = await _taskRepo.QueryReadOnly()
+            var taskQuery = _taskRepo.QueryReadOnly()
                 .Where(t => assignedTaskIds.Contains(t.Id) && !t.IsDeleted)
                 .Where(t => !filterUnitId.HasValue || t.UnitId == filterUnitId.Value)
-                .Where(t => t.CreatedAt <= to && (!t.CompletedAt.HasValue || t.CompletedAt.Value >= from))
-                .ToListAsync(cancellationToken);
-
-            var taskIds = tasks.Select(t => t.Id).ToList();
+                .Where(t => t.CreatedAt <= to && (!t.CompletedAt.HasValue || t.CompletedAt.Value >= from));
+            var eligibleTaskIds = taskQuery.Select(task => task.Id);
+            var tasks = await taskQuery.ToListAsync(cancellationToken);
 
             var progressList = await _context.Progresses
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(p => p.UserId == userId && (taskIds.Contains(p.TaskId)))
+                .Where(p => p.UserId == userId && eligibleTaskIds.Contains(p.TaskId))
                 .Where(p => p.UpdatedAt >= from && p.UpdatedAt <= to)
                 .ToListAsync(cancellationToken);
 

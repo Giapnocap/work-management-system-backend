@@ -96,7 +96,7 @@ namespace WorkManagementSystem.Application.Services
             }
             else
             {
-                var accessibleTaskIds = await GetAccessibleTaskIdsForUser(requester, cancellationToken);
+                var accessibleTaskIds = BuildAccessibleTaskIdsQuery(requester);
                 query = query.Where(task => accessibleTaskIds.Contains(task.Id));
             }
 
@@ -172,28 +172,24 @@ namespace WorkManagementSystem.Application.Services
             }
         }
 
-        private async Task<List<Guid>> GetAccessibleTaskIdsForUser(
-            User user,
-            CancellationToken cancellationToken)
+        private IQueryable<Guid> BuildAccessibleTaskIdsQuery(User user)
         {
-            var directTaskIds = await _assigneeRepo.QueryReadOnly()
+            var directTaskIds = _assigneeRepo.QueryReadOnly()
                 .Where(assignee => assignee.UserId == user.Id)
-                .Select(assignee => assignee.TaskId)
-                .ToListAsync(cancellationToken);
+                .Select(assignee => assignee.TaskId);
 
             if (!user.UnitId.HasValue)
-                return directTaskIds.Distinct().ToList();
+                return directTaskIds.Distinct();
 
             var unitId = user.UnitId.Value;
-            var unitTaskIds = await _assigneeRepo.QueryReadOnly()
+            var unitTaskIds = _assigneeRepo.QueryReadOnly()
                 .Where(assignee =>
                     assignee.UnitId == unitId &&
                     !_assigneeRepo.QueryReadOnly().Any(direct =>
                         direct.TaskId == assignee.TaskId && direct.UserId.HasValue))
-                .Select(assignee => assignee.TaskId)
-                .ToListAsync(cancellationToken);
+                .Select(assignee => assignee.TaskId);
 
-            return directTaskIds.Union(unitTaskIds).Distinct().ToList();
+            return directTaskIds.Union(unitTaskIds);
         }
     }
 }

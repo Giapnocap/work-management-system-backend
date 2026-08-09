@@ -162,17 +162,16 @@ namespace WorkManagementSystem.Application.Services
             if (!await _accessService.CanAccessTask(taskId, userId, cancellationToken: cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen danh dau da xem.");
 
-            var commentIds = await _repo.QueryReadOnly()
-                .Where(c => c.TaskId == taskId && !c.IsDeleted)
-                .Select(c => c.Id)
+            var unseenCommentIds = await _repo.QueryReadOnly()
+                .Where(comment =>
+                    comment.TaskId == taskId &&
+                    !comment.IsDeleted &&
+                    !_seenRepo.QueryReadOnly().Any(seen =>
+                        seen.UserId == userId && seen.CommentId == comment.Id))
+                .Select(comment => comment.Id)
                 .ToListAsync(cancellationToken);
 
-            var existingSeenIds = await _seenRepo.QueryReadOnly()
-                .Where(s => s.UserId == userId && commentIds.Contains(s.CommentId))
-                .Select(s => s.CommentId)
-                .ToListAsync(cancellationToken);
-
-            foreach (var commentId in commentIds.Except(existingSeenIds))
+            foreach (var commentId in unseenCommentIds)
             {
                 await _seenRepo.AddAsync(new CommentSeen
                 {

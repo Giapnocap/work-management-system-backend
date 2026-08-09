@@ -86,24 +86,23 @@ namespace WorkManagementSystem.Application.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == unitId.Value, cancellationToken);
 
-            var members = await _context.Users
+            var memberQuery = _context.Users
                 .Where(u => u.UnitId == unitId.Value && u.Role != SystemRoles.Manager && u.IsApproved && !u.IsDeleted)
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
+                .AsNoTracking();
 
-            var memberIds = members.Select(m => m.Id).ToList();
+            var memberIds = memberQuery.Select(member => member.Id);
+            var members = await memberQuery.ToListAsync(cancellationToken);
 
-            var taskIds = await _context.TaskAssignees
+            var taskIds = _context.TaskAssignees
                 .Where(ta => ta.UserId.HasValue && memberIds.Contains(ta.UserId.Value))
                 .Select(ta => ta.TaskId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
+                .Distinct();
 
-            var tasks = await _context.Tasks
+            var taskQuery = _context.Tasks
                 .Where(t => t.UnitId == unitId.Value && taskIds.Contains(t.Id))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var scopedTaskIds = tasks.Select(task => task.Id).ToList();
+                .AsNoTracking();
+            var scopedTaskIds = taskQuery.Select(task => task.Id);
+            var tasks = await taskQuery.ToListAsync(cancellationToken);
 
             var assignees = await _context.TaskAssignees
                 .Where(a => a.UserId.HasValue && memberIds.Contains(a.UserId.Value))

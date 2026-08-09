@@ -130,9 +130,7 @@ namespace WorkManagementSystem.Application.Services
                     (!history.EffectiveTo.HasValue || history.EffectiveTo.Value >= period.StartDate))
                 .Select(history => history.UserId);
 
-            var candidateUserIds = await activeUserIds
-                .Union(historicalUserIds)
-                .ToListAsync(cancellationToken);
+            var candidateUserIds = activeUserIds.Union(historicalUserIds);
 
             var users = await _context.Users
                 .IgnoreQueryFilters()

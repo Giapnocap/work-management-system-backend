@@ -64,13 +64,12 @@ namespace WorkManagementSystem.Application.Services
             if (manager?.UnitId == null) return new List<UserDto>();
 
             var unitId = manager.UnitId.Value;
-            var userIdsFromMapping = await _userUnitRepo.QueryReadOnly()
+            var mappedUserIds = _userUnitRepo.QueryReadOnly()
                 .Where(uu => uu.UnitId == unitId)
-                .Select(uu => uu.UserId)
-                .ToListAsync(cancellationToken);
+                .Select(uu => uu.UserId);
 
             var users = await _repo.QueryReadOnly()
-                .Where(u => (u.UnitId == unitId || userIdsFromMapping.Contains(u.Id) || u.UnitId == null)
+                .Where(u => (u.UnitId == unitId || mappedUserIds.Contains(u.Id) || u.UnitId == null)
                             && u.Role != SystemRoles.Admin
                             && u.IsApproved
                             && !u.IsDeleted)
