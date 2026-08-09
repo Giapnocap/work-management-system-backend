@@ -19,31 +19,30 @@ The backend owns authentication, authorization, department-scoped task workflow,
 
 ## Architecture
 
+This repository is a **layered modular monolith**: one ASP.NET Core runtime project and one xUnit test project. `API`, `Application`, `Domain`, and `Infrastructure` are logical folder and namespace boundaries inside the runtime assembly, not separately deployed services.
+
 ```text
-API
-+-- Controllers        # HTTP endpoints
-+-- Middlewares        # Error handling, security headers, request correlation
-+-- Hubs               # SignalR discussion hub
+Client -> API -> Application -> Domain
+                    ^             ^
+                    |             |
+                Infrastructure ---+
 
-Application
-+-- DTOs               # Request/response contracts
-+-- Interfaces         # Service contracts
-+-- Services           # Business logic
-+-- Exceptions         # Application-level exceptions
-+-- Mappings           # AutoMapper profile
-
-Domain
-+-- Entities           # EF Core entities
-+-- Enums              # Workflow status and priority enums
-
-Infrastructure
-+-- Data               # AppDbContext and model configuration
-+-- Repositories       # Generic repository abstraction
+Program.cs is the composition root for every layer.
 ```
+
+Architecture tests prevent Application from referencing API/Infrastructure and prevent controllers from using data-access types directly. The application layer still uses EF Core query abstractions through `IAppDbContext`, so the project does not claim complete persistence ignorance or full Clean Architecture.
+
+See the [architecture and dependency guide](docs/architecture.md).
+
+## Prerequisites
+
+- .NET 8 SDK (`global.json` pins `8.0.400` and allows a later .NET 8 feature band).
+- SQL Server for local execution, or Docker Desktop with Compose v2.
+- The repository-local EF Core CLI restored with `dotnet tool restore`.
 
 ## Local Configuration
 
-`appsettings.json` contains safe default placeholders. Keep machine-specific, non-secret settings in `appsettings.Local.json`, which is ignored by git.
+`appsettings.json` contains non-secret defaults and does not contain a JWT signing key. Keep machine-specific, non-secret settings in `appsettings.Local.json`, which is ignored by git.
 
 Create it from the example file:
 
@@ -66,14 +65,15 @@ Example `appsettings.Local.json`:
 }
 ```
 
-Development secrets are loaded from .NET User Secrets. Environment variables and command-line arguments have higher precedence and should be used by deployed environments.
+Development secrets are loaded from .NET User Secrets. If `Jwt:Key` is omitted in Development, the API creates an ephemeral key and existing tokens become invalid after restart. Environment variables and command-line arguments have higher precedence and should be used by deployed environments.
 
 ## Run Locally
 
 ```powershell
-dotnet restore
-dotnet ef database update
-dotnet run
+dotnet tool restore
+dotnet restore .\WorkManagementSystem.sln
+dotnet ef database update --project .\WorkManagementSystem.csproj
+dotnet run --launch-profile https
 ```
 
 Swagger:
@@ -83,6 +83,8 @@ https://localhost:7231/swagger
 ```
 
 Swagger includes JWT Bearer support, role notes for protected endpoints, API tags, XML comments when available, and default error responses for validation/auth/server failures.
+
+For a new checkout, configuration precedence, verification commands, and troubleshooting, use the [clean-clone and local setup guide](docs/getting-started.md).
 
 ## Run With Docker
 
@@ -169,6 +171,8 @@ Admin setup -> Manager creates project -> Manager creates task
 
 See [business rules](docs/business-rules.md).
 
+An executable PowerShell walkthrough is available in [sample API workflow](docs/api-workflow.md).
+
 ## Database
 
 The data model is configured in `Infrastructure/Data/AppDbContext.cs`.
@@ -196,11 +200,15 @@ Response shape:
 
 ```json
 {
-  "message": "Human-readable error message",
+  "type": "https://httpstatuses.com/400",
+  "title": "Human-readable error message",
+  "status": 400,
+  "detail": "",
+  "instance": "/api/resource",
   "code": "business_error",
+  "message": "Human-readable error message",
   "traceId": "0HN...",
-  "details": "",
-  "errors": null
+  "errors": {}
 }
 ```
 
@@ -239,30 +247,47 @@ Current coverage focuses on core backend rules:
 - Controller route and role authorization contracts.
 - Swagger/OpenAPI documentation for JWT, roles, and common error responses.
 - Shared pagination normalization with a maximum page size guard.
+- HTTP integration tests booting the real `Program.cs` pipeline through `WebApplicationFactory<Program>`.
 - HTTP integration flow covering login, project creation, task creation, evidence upload, progress submission, manager review, task approval, and KPI read.
 - HTTP integration authorization test proving normal users cannot create projects or tasks.
 - HTTP integration flow proving account deletion revokes the old JWT while locked KPI remains visible to the authorized historical manager.
+- SQL Server integration tests for migrations from zero, unique/foreign-key/check constraints, transaction rollback, and optimistic concurrency.
 
 See [testing guide](docs/testing.md).
+
+## Known Limitations
+
+- The logical layers compile into one deployable assembly; they are not independently versioned class libraries or microservices.
+- Authentication uses short-lived JWT access tokens plus database-backed `TokenVersion` revocation. There is no refresh-token flow.
+- SQL Server is the only supported relational provider.
+- Uploads use a private local/container volume. There is no object-storage adapter or antivirus engine; built-in validation is defense in depth only.
+- SignalR notifications are in-process and best effort. There is no distributed backplane, message broker, or transactional outbox.
+- API routes are not versioned yet.
+- KPI rules are project-specific policy and require validation against a real organization's HR policy before production use.
+- The repository provides CI, container builds, and deployment checks, but no production CD workflow or cloud infrastructure definition.
 
 ## Continuous Integration
 
 GitHub Actions runs the following release gate for every push and pull request:
 
-- Restore the repository-local `dotnet-ef` tool and NuGet dependencies.
+- Restore the repository-local `dotnet-ef` tool and audit all direct/transitive NuGet dependencies, failing when vulnerability data is unavailable or an advisory is found.
 - Verify formatting.
 - Build Release with warnings treated as errors.
-- Run all backend tests and retain the TRX report.
+- Run unit and HTTP integration tests and retain the TRX report.
+- Start SQL Server and require the relational integration suite to pass.
 - Fail when the EF Core model has changes without a migration.
 - Publish the backend artifact.
 - Validate Compose and build both runtime and migration container targets.
 - Start a disposable SQL Server, apply the complete migration bundle from an empty database, and seed the demo dataset.
-- Verify API readiness, JWT login, role authorization, the latest migration, and expected demo records before tearing the stack down.
+- Verify API/database/upload readiness, Docker health, JWT login, role authorization, the latest migration, and expected demo records before tearing the stack down.
 
 ## Documentation Map
 
+- [Architecture](docs/architecture.md): actual dependency direction, request flow, and runtime topology.
+- [Getting started](docs/getting-started.md): clean clone, local SQL Server, Docker Compose, and verification.
 - [Business rules](docs/business-rules.md): role permissions and workflow rules.
 - [Database overview](docs/database.md): entities, relationships, constraints, and migration notes.
+- [Sample API workflow](docs/api-workflow.md): repeatable project-to-task-to-review walkthrough.
 - [API error contract](docs/api-errors.md): standard error response shape.
 - [Testing guide](docs/testing.md): test categories and commands.
 - [Production checklist](docs/production-checklist.md): deployment configuration and runtime checks.

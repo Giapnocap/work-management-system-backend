@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
-using WorkManagementSystem.Infrastructure.Data;
 using ProgressStatus = WorkManagementSystem.Domain.Enums.ProgressStatus;
 using TaskStatus = WorkManagementSystem.Domain.Enums.TaskStatus;
 
@@ -9,37 +8,57 @@ namespace WorkManagementSystem.Application.Services
 {
     public class DashboardService : IDashboardService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public DashboardService(AppDbContext context)
+        public DashboardService(IAppDbContext context)
         {
             _context = context;
         }
 
         public async Task<DashboardDto> GetDashboard(CancellationToken cancellationToken = default)
         {
-            var tasks = await _context.Tasks.AsNoTracking().ToListAsync(cancellationToken);
-            var units = await _context.Units.AsNoTracking().ToListAsync(cancellationToken);
+            var taskCounts = await _context.Tasks
+                .AsNoTracking()
+                .GroupBy(task => task.UnitId)
+                .Select(group => new
+                {
+                    UnitId = group.Key,
+                    Total = group.Count(),
+                    Pending = group.Count(task => task.Status == TaskStatus.NotStarted),
+                    InProgress = group.Count(task => task.Status == TaskStatus.InProgress),
+                    Submitted = group.Count(task => task.Status == TaskStatus.Submitted),
+                    Approved = group.Count(task => task.Status == TaskStatus.Approved)
+                })
+                .ToListAsync(cancellationToken);
+
+            var units = await _context.Units
+                .AsNoTracking()
+                .Select(unit => new { unit.Id, unit.Name })
+                .ToListAsync(cancellationToken);
+
+            var taskCountsByUnit = taskCounts
+                .Where(count => count.UnitId.HasValue)
+                .ToDictionary(count => count.UnitId!.Value);
 
             return new DashboardDto
             {
-                TotalTasks = tasks.Count,
+                TotalTasks = taskCounts.Sum(count => count.Total),
                 TotalUsers = await _context.Users.CountAsync(cancellationToken),
                 TotalUnits = units.Count,
 
-                TaskPending = tasks.Count(t => t.Status == TaskStatus.NotStarted),
-                TaskInProgress = tasks.Count(t => t.Status == TaskStatus.InProgress),
-                TaskApproved = tasks.Count(t => t.Status == TaskStatus.Approved),
+                TaskPending = taskCounts.Sum(count => count.Pending),
+                TaskInProgress = taskCounts.Sum(count => count.InProgress),
+                TaskApproved = taskCounts.Sum(count => count.Approved),
                 RejectedReports = await _context.Progresses
                     .CountAsync(progress => progress.Status == ProgressStatus.Rejected, cancellationToken),
-                ReportSubmitted = tasks.Count(t => t.Status == TaskStatus.Submitted),
+                ReportSubmitted = taskCounts.Sum(count => count.Submitted),
 
                 UnitSummaries = units.Select((u, index) => new UnitSummaryDto
                 {
                     UnitName = u.Name,
                     UnitCode = $"UNIT-{(index + 1):D2}",
-                    TotalTasks = tasks.Count(t => t.UnitId == u.Id),
-                    ApprovedTasks = tasks.Count(t => t.UnitId == u.Id && t.Status == TaskStatus.Approved)
+                    TotalTasks = taskCountsByUnit.TryGetValue(u.Id, out var count) ? count.Total : 0,
+                    ApprovedTasks = taskCountsByUnit.TryGetValue(u.Id, out count) ? count.Approved : 0
                 }).ToList()
             };
         }
@@ -68,7 +87,7 @@ namespace WorkManagementSystem.Application.Services
                 .FirstOrDefaultAsync(u => u.Id == unitId.Value, cancellationToken);
 
             var members = await _context.Users
-                .Where(u => u.UnitId == unitId.Value && u.Role != "Manager" && u.IsApproved && !u.IsDeleted)
+                .Where(u => u.UnitId == unitId.Value && u.Role != SystemRoles.Manager && u.IsApproved && !u.IsDeleted)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 

@@ -61,6 +61,28 @@ public class DatabaseModelTests
     }
 
     [Fact]
+    public void OperationalQueries_HaveSupportingIndexes()
+    {
+        using var context = TestFactory.CreateDbContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        AssertHasIndex<TaskAssignee>(model, nameof(TaskAssignee.UserId), nameof(TaskAssignee.TaskId));
+        AssertHasIndex<TaskAssignee>(model, nameof(TaskAssignee.UnitId), nameof(TaskAssignee.TaskId));
+        AssertHasIndex<Progress>(model, nameof(Progress.TaskId), nameof(Progress.UpdatedAt));
+        AssertHasIndex<Progress>(
+            model,
+            nameof(Progress.UserId),
+            nameof(Progress.Status),
+            nameof(Progress.UpdatedAt),
+            nameof(Progress.TaskId));
+        AssertHasIndex<KpiResult>(model, nameof(KpiResult.PeriodId), nameof(KpiResult.UnitId));
+        AssertHasIndex<UserWorkHistory>(
+            model,
+            nameof(UserWorkHistory.UnitId),
+            nameof(UserWorkHistory.EffectiveFrom));
+    }
+
+    [Fact]
     public void CriticalRelationships_AvoidCascadeDeletes()
     {
         using var context = TestFactory.CreateDbContext();
@@ -117,6 +139,16 @@ public class DatabaseModelTests
         AssertRequiredWithMaxLength<KpiResult>(model, nameof(KpiResult.UnitNameSnapshot), 200);
     }
 
+    [Fact]
+    public void UploadFile_StoresBoundedRelativeStorageMetadata()
+    {
+        using var context = TestFactory.CreateDbContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        AssertRequiredWithMaxLength<UploadFile>(model, nameof(UploadFile.FileName), 200);
+        AssertRequiredWithMaxLength<UploadFile>(model, nameof(UploadFile.StorageKey), 255);
+    }
+
     private static void AssertContainsCheckConstraint<TEntity>(IModel model, string constraintName)
     {
         var entityType = model.FindEntityType(typeof(TEntity))
@@ -133,6 +165,15 @@ public class DatabaseModelTests
         Assert.Contains(entityType.GetIndexes(), index =>
             index.IsUnique &&
             index.Properties.Select(p => p.Name).SequenceEqual(propertyNames));
+    }
+
+    private static void AssertHasIndex<TEntity>(IModel model, params string[] propertyNames)
+    {
+        var entityType = model.FindEntityType(typeof(TEntity))
+            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} not found.");
+
+        Assert.Contains(entityType.GetIndexes(), index =>
+            index.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
     }
 
     private static void AssertHasUniqueFilteredIndex<TEntity>(

@@ -6,7 +6,7 @@ The backend has an xUnit test project:
 WorkManagementSystem.Tests/
 ```
 
-Most service and HTTP integration tests use EF Core InMemory so local test runs do not touch the real SQL Server database. CI also runs a separate relational smoke test against a disposable SQL Server container.
+Service tests use EF Core InMemory where relational behavior is not relevant. HTTP integration tests boot the real application entry point through `WebApplicationFactory<Program>` and replace only the database provider with an isolated InMemory database. SQL Server integration tests cover behavior that cannot be proven by InMemory or SQLite.
 
 ## Run Tests
 
@@ -15,9 +15,19 @@ dotnet restore .\WorkManagementSystem.sln
 dotnet test .\WorkManagementSystem.sln --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false
 ```
 
+Without `WMS_TEST_SQLSERVER_CONNECTION`, the SQL Server category is reported as skipped. To run it against a disposable or dedicated test instance:
+
+```powershell
+$env:WMS_TEST_SQLSERVER_CONNECTION = "Server=localhost,14333;Database=master;User Id=sa;Password=<test-password>;Encrypt=True;TrustServerCertificate=True"
+dotnet test .\WorkManagementSystem.Tests\WorkManagementSystem.Tests.csproj --filter "Category=SqlServer"
+Remove-Item Env:WMS_TEST_SQLSERVER_CONNECTION
+```
+
+The fixture creates a uniquely named database, applies every migration, runs the tests, and drops the database. Never point this variable at a production server account.
+
 ## CI Release Gate
 
-The repository includes `.github/workflows/backend-ci.yml`. It verifies formatting, builds with warnings as errors, runs the full test suite, checks migration drift, publishes an artifact, and validates the complete Compose stack.
+The repository includes `.github/workflows/backend-ci.yml`. It audits direct and transitive NuGet dependencies, verifies formatting, builds with warnings as errors, runs unit/HTTP tests, runs the SQL Server category against the Compose database, checks migration drift, publishes an artifact, and validates the complete Compose stack. Audit retrieval failures and `NU1901`-`NU1904` vulnerability findings fail the restore gate.
 
 The EF CLI version is locked in `.config/dotnet-tools.json`:
 
@@ -26,19 +36,33 @@ dotnet tool restore
 dotnet ef migrations has-pending-model-changes --configuration Release --no-build
 ```
 
-### Relational Container Smoke Test
+### SQL Server Relational Tests
+
+The `Category=SqlServer` suite runs against a uniquely named database and verifies:
+
+1. All migrations apply from an empty database.
+2. Duplicate usernames are rejected by the unique index.
+3. Invalid memberships are rejected by foreign keys.
+4. Invalid KPI date ranges are rejected by the check constraint.
+5. Failed multi-step operations roll back persisted changes.
+6. SQL Server `rowversion` rejects stale updates and prevents lost updates.
+
+CI always supplies the SQL connection string, so skipped relational tests cannot make the pipeline falsely green.
+
+### Runtime Container Smoke Test
 
 CI performs the database and runtime checks that EF Core InMemory cannot cover:
 
 1. Start a fresh SQL Server container.
 2. Run the non-root EF migration bundle against an empty database.
 3. Start the API only after migration completion.
-4. Wait for `/health/ready`.
+4. Wait for `/health/ready` and require the Docker container health status to become `healthy`.
 5. Login as Admin, Manager, and User with real JWT authentication.
 6. Verify Admin can read KPI periods and Manager can read projects.
 7. Verify User project creation returns `403` and anonymous project access returns `401`.
 8. Verify SQL migration history reached the expected latest migration and demo seed records exist.
-9. Remove the containers and disposable volumes even when a check fails.
+9. Stop SQL Server and verify liveness remains `200` while readiness becomes `503`.
+10. Remove the containers and disposable volumes even when a check fails.
 
 This relational gate caught a historical migration that referenced task date columns missing from an empty database, a failure that model-drift checks and InMemory tests could not reproduce.
 
@@ -49,10 +73,13 @@ Run the full suite to obtain the current test count. The count is intentionally 
 ### Auth
 
 - Registration creates a pending account.
-- Password is hashed.
+- Password policy is shared by registration, reset, and change flows.
+- Password is hashed with the configured BCrypt work factor, and older hashes are upgraded after login.
 - Duplicate username is blocked.
 - Pending users cannot login.
 - Approved users receive a JWT token.
+- Changing `TokenVersion` invalidates a previously issued JWT.
+- SignalR task groups reject authenticated users who cannot access the task.
 
 ### Task Service
 
@@ -81,7 +108,8 @@ Run the full suite to obtain the current test count. The count is intentionally 
 - Original file names are sanitized before metadata persistence.
 - File metadata is saved only after the physical file is accepted.
 - A failed database save cleans up the physical file.
-- Persisted paths outside the upload root cannot be downloaded.
+- Rooted or traversal storage keys cannot be downloaded.
+- Aged orphan files are reconciled against persisted storage keys while recent files are preserved.
 - Download uses authorization-aware metadata and does not expose server file paths in public DTOs.
 
 ### KPI
@@ -127,6 +155,14 @@ Run the full suite to obtain the current test count. The count is intentionally 
 - Admin workflow endpoints require the `Admin` role.
 - Removed project board endpoints stay removed from the public API surface.
 
+### HTTP Response Contract
+
+- Validation, authentication, authorization, not-found, conflict, rate-limit, and server failures use the same `application/problem+json` shape.
+- Resource creation returns `201 Created`.
+- Deletion and commands without response data return `204 No Content`.
+- Task and progress pagination use typed `PagedResult<T>` contracts while preserving the JSON fields `total`, `page`, `size`, and `data`.
+- Task history endpoints expose DTOs rather than persistence entities.
+
 ### Pagination
 
 - Invalid page and size values fall back to safe defaults.
@@ -137,13 +173,16 @@ Run the full suite to obtain the current test count. The count is intentionally 
 
 - A safe client correlation ID is reused in the request trace and response header.
 - An unsafe correlation ID is rejected in favor of the server trace identifier.
+- Authenticated request logs carry a structured `UserId` property.
+- Liveness is isolated from database/upload readiness, while readiness verifies both dependencies.
 - Client-aborted requests are not converted into false HTTP 500 responses.
 - Cancellation reaches Auth database queries.
 - Batched task DTO mapping keeps assignees, uploads, and subtasks isolated by task.
 
 ### HTTP Integration Workflow
 
-- Test server boots an in-memory ASP.NET Core API over HTTP.
+- `WebApplicationFactory<Program>` boots the same ASP.NET Core middleware, authentication, authorization, routing, and DI pipeline used by the application.
+- Only `AppDbContext` is replaced with an isolated InMemory provider for fast HTTP workflow tests.
 - Login uses real JWT authentication.
 - Manager creates a project.
 - Manager creates a task linked to that project.

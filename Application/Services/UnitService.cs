@@ -4,7 +4,6 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -17,6 +16,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly IMapper _mapper;
         private readonly ITransactionManager _transactionManager;
         private readonly IAuditService _auditService;
+        private readonly IAppDbContext _context;
 
         public UnitService(
             IGenericRepository<Unit> repo,
@@ -25,7 +25,8 @@ namespace WorkManagementSystem.Application.Services
             IStaffMovementService staffMovementService,
             IMapper mapper,
             ITransactionManager transactionManager,
-            IAuditService auditService)
+            IAuditService auditService,
+            IAppDbContext context)
         {
             _repo = repo;
             _userUnitRepo = userUnitRepo;
@@ -34,12 +35,13 @@ namespace WorkManagementSystem.Application.Services
             _mapper = mapper;
             _transactionManager = transactionManager;
             _auditService = auditService;
+            _context = context;
         }
 
         public async Task<List<UnitDto>> GetAll(CancellationToken cancellationToken = default)
             => _mapper.Map<List<UnitDto>>(await _repo.QueryReadOnly().ToListAsync(cancellationToken));
 
-        public async Task<UnitDto?> GetMyUnit(Guid userId, CancellationToken cancellationToken = default)
+        public async Task<UnitDto> GetMyUnit(Guid userId, CancellationToken cancellationToken = default)
         {
             var userUnit = await _userUnitRepo.QueryReadOnly()
                 .Include(x => x.Unit)
@@ -52,10 +54,11 @@ namespace WorkManagementSystem.Application.Services
             if (user?.UnitId != null)
             {
                 var unit = await _repo.GetByIdAsync(user.UnitId.Value, cancellationToken);
-                return _mapper.Map<UnitDto>(unit);
+                if (unit != null)
+                    return _mapper.Map<UnitDto>(unit);
             }
 
-            return null;
+            throw new NotFoundException("Ban chua thuoc don vi nao.");
         }
 
         public async Task<List<UserDto>> GetUsers(Guid unitId, CancellationToken cancellationToken = default)
@@ -85,6 +88,18 @@ namespace WorkManagementSystem.Application.Services
             return users;
         }
 
+        public async Task<List<UserDto>> GetVisibleUsers(
+            Guid unitId,
+            Guid requesterId,
+            CancellationToken cancellationToken = default)
+        {
+            var requester = await GetActiveRequester(requesterId, cancellationToken);
+            if (requester.Role != SystemRoles.Admin && requester.UnitId != unitId)
+                throw new ForbiddenException("Ban khong co quyen xem thanh vien phong ban nay.");
+
+            return await GetUsers(unitId, cancellationToken);
+        }
+
         public async Task<UnitDto> Create(
             CreateUnitDto dto,
             Guid? changedBy = null,
@@ -102,13 +117,13 @@ namespace WorkManagementSystem.Application.Services
                 changedBy,
                 new { unit.Name },
                 cancellationToken);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return _mapper.Map<UnitDto>(unit);
         }
 
         public async Task<UnitDto> Update(
             Guid id,
-            CreateUnitDto dto,
+            UpdateUnitDto dto,
             Guid? changedBy = null,
             CancellationToken cancellationToken = default)
         {
@@ -120,6 +135,7 @@ namespace WorkManagementSystem.Application.Services
             var oldName = unit.Name;
             unit.Name = dto.Name;
             _repo.Update(unit);
+            _context.SetOriginalRowVersion(unit, ConcurrencyToken.Require(dto.RowVersion));
             if (oldName != unit.Name)
             {
                 await _auditService.RecordAsync(
@@ -130,7 +146,7 @@ namespace WorkManagementSystem.Application.Services
                     new { OldName = oldName, NewName = unit.Name },
                     cancellationToken);
             }
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return _mapper.Map<UnitDto>(unit);
         }
 
@@ -158,7 +174,7 @@ namespace WorkManagementSystem.Application.Services
                 changedBy,
                 new { unit.Name },
                 cancellationToken);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public Task AddMember(
@@ -199,7 +215,7 @@ namespace WorkManagementSystem.Application.Services
                 DateTime.UtcNow,
                 cancellationToken: cancellationToken);
 
-            await _userRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public Task RemoveMember(
@@ -214,6 +230,26 @@ namespace WorkManagementSystem.Application.Services
                     return true;
                 },
                 cancellationToken);
+
+        public async Task AddMemberForRequester(
+            Guid unitId,
+            Guid userId,
+            Guid requesterId,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureAdmin(requesterId, cancellationToken);
+            await AddMember(unitId, userId, requesterId, cancellationToken);
+        }
+
+        public async Task RemoveMemberForRequester(
+            Guid unitId,
+            Guid userId,
+            Guid requesterId,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureAdmin(requesterId, cancellationToken);
+            await RemoveMember(unitId, userId, requesterId, cancellationToken);
+        }
 
         private async Task RemoveMemberCore(
             Guid unitId,
@@ -243,7 +279,27 @@ namespace WorkManagementSystem.Application.Services
                 DateTime.UtcNow,
                 cancellationToken: cancellationToken);
 
-            await _userRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task<User> GetActiveRequester(
+            Guid requesterId,
+            CancellationToken cancellationToken)
+        {
+            return await _userRepo.QueryReadOnly()
+                .FirstOrDefaultAsync(user =>
+                    user.Id == requesterId &&
+                    user.IsApproved &&
+                    !user.IsDeleted,
+                    cancellationToken)
+                ?? throw new NotFoundException("User not found.");
+        }
+
+        private async Task EnsureAdmin(Guid requesterId, CancellationToken cancellationToken)
+        {
+            var requester = await GetActiveRequester(requesterId, cancellationToken);
+            if (requester.Role != SystemRoles.Admin)
+                throw new ForbiddenException("Chi Admin moi duoc quan ly thanh vien phong ban.");
         }
     }
 }

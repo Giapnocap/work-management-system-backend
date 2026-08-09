@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
 using ProgressStatusEnum = WorkManagementSystem.Domain.Enums.ProgressStatus;
 using TaskPriorityEnum = WorkManagementSystem.Domain.Enums.TaskPriority;
@@ -14,34 +15,38 @@ namespace WorkManagementSystem.Infrastructure.Data
         private const string DemoPassword = "Demo@123456";
         private static readonly DateTime SeedTime = new(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        public static async Task SeedAsync(IServiceProvider services, ILogger? logger = null)
+        public static async Task SeedAsync(
+            IServiceProvider services,
+            ILogger? logger = null,
+            CancellationToken cancellationToken = default)
         {
             var configuration = services.GetRequiredService<IConfiguration>();
             if (!configuration.GetValue<bool>("DemoSeed:Enabled"))
                 return;
 
             var context = services.GetRequiredService<AppDbContext>();
+            var passwordHashService = services.GetRequiredService<IPasswordHashService>();
 
             if (configuration.GetValue<bool>("DemoSeed:ApplyMigrations"))
-                await context.Database.MigrateAsync();
+                await context.Database.MigrateAsync(cancellationToken);
 
-            var unit = await GetOrCreateUnitAsync(context);
-            var admin = await GetOrCreateUserAsync(context, "demo.admin", "Demo Admin", "DEMO0001", "Admin", null);
-            var manager = await GetOrCreateUserAsync(context, "demo.manager", "Demo Manager", "DEMO0002", "Manager", unit.Id);
-            var employeeA = await GetOrCreateUserAsync(context, "demo.employee1", "Demo Employee 1", "DEMO0003", "User", unit.Id);
-            var employeeB = await GetOrCreateUserAsync(context, "demo.employee2", "Demo Employee 2", "DEMO0004", "User", unit.Id);
+            var unit = await GetOrCreateUnitAsync(context, cancellationToken);
+            var admin = await GetOrCreateUserAsync(context, passwordHashService, "demo.admin", "Demo Admin", "DEMO0001", SystemRoles.Admin, null, cancellationToken);
+            var manager = await GetOrCreateUserAsync(context, passwordHashService, "demo.manager", "Demo Manager", "DEMO0002", SystemRoles.Manager, unit.Id, cancellationToken);
+            var employeeA = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee1", "Demo Employee 1", "DEMO0003", SystemRoles.User, unit.Id, cancellationToken);
+            var employeeB = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee2", "Demo Employee 2", "DEMO0004", SystemRoles.User, unit.Id, cancellationToken);
 
-            await EnsureMembershipAsync(context, manager.Id, unit.Id);
-            await EnsureMembershipAsync(context, employeeA.Id, unit.Id);
-            await EnsureMembershipAsync(context, employeeB.Id, unit.Id);
+            await EnsureMembershipAsync(context, manager.Id, unit.Id, cancellationToken);
+            await EnsureMembershipAsync(context, employeeA.Id, unit.Id, cancellationToken);
+            await EnsureMembershipAsync(context, employeeB.Id, unit.Id, cancellationToken);
 
-            await EnsureActiveWorkHistoryAsync(context, admin, null);
-            await EnsureActiveWorkHistoryAsync(context, manager, unit.Id);
-            await EnsureActiveWorkHistoryAsync(context, employeeA, unit.Id);
-            await EnsureActiveWorkHistoryAsync(context, employeeB, unit.Id);
+            await EnsureActiveWorkHistoryAsync(context, admin, null, cancellationToken);
+            await EnsureActiveWorkHistoryAsync(context, manager, unit.Id, cancellationToken);
+            await EnsureActiveWorkHistoryAsync(context, employeeA, unit.Id, cancellationToken);
+            await EnsureActiveWorkHistoryAsync(context, employeeB, unit.Id, cancellationToken);
 
-            var project = await GetOrCreateProjectAsync(context, unit.Id, manager.Id);
-            var period = await GetOrCreateCurrentMonthPeriodAsync(context);
+            var project = await GetOrCreateProjectAsync(context, unit.Id, manager.Id, cancellationToken);
+            _ = await GetOrCreateCurrentMonthPeriodAsync(context, cancellationToken);
 
             await EnsureTaskAsync(
                 context,
@@ -54,7 +59,8 @@ namespace WorkManagementSystem.Infrastructure.Data
                 TaskPriorityEnum.High,
                 SeedTime.AddDays(2),
                 SeedTime.AddDays(4),
-                ProgressStatusEnum.Approved);
+                ProgressStatusEnum.Approved,
+                cancellationToken);
 
             await EnsureTaskAsync(
                 context,
@@ -67,7 +73,8 @@ namespace WorkManagementSystem.Infrastructure.Data
                 TaskPriorityEnum.Medium,
                 SeedTime.AddDays(3),
                 SeedTime.AddDays(12),
-                ProgressStatusEnum.InProgress);
+                ProgressStatusEnum.InProgress,
+                cancellationToken);
 
             await EnsureTaskAsync(
                 context,
@@ -80,7 +87,8 @@ namespace WorkManagementSystem.Infrastructure.Data
                 TaskPriorityEnum.Medium,
                 SeedTime.AddDays(4),
                 SeedTime.AddDays(9),
-                ProgressStatusEnum.Submitted);
+                ProgressStatusEnum.Submitted,
+                cancellationToken);
 
             await EnsureTaskAsync(
                 context,
@@ -93,16 +101,19 @@ namespace WorkManagementSystem.Infrastructure.Data
                 TaskPriorityEnum.Low,
                 SeedTime.AddDays(5),
                 SeedTime.AddDays(18),
-                null);
+                null,
+                cancellationToken);
 
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken);
             logger?.LogInformation("Demo seed data ensured for the configured demo accounts.");
         }
 
-        private static async Task<Unit> GetOrCreateUnitAsync(AppDbContext context)
+        private static async Task<Unit> GetOrCreateUnitAsync(
+            AppDbContext context,
+            CancellationToken cancellationToken)
         {
             var unit = await context.Units.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Name == "Demo Engineering");
+                .FirstOrDefaultAsync(u => u.Name == "Demo Engineering", cancellationToken);
 
             if (unit != null)
             {
@@ -121,14 +132,16 @@ namespace WorkManagementSystem.Infrastructure.Data
 
         private static async Task<User> GetOrCreateUserAsync(
             AppDbContext context,
+            IPasswordHashService passwordHashService,
             string username,
             string fullName,
             string employeeCode,
             string role,
-            Guid? unitId)
+            Guid? unitId,
+            CancellationToken cancellationToken)
         {
             var user = await context.Users.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Username == username);
+                .FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
             var userAlreadyExisted = user != null;
 
             if (user == null)
@@ -137,7 +150,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 {
                     Id = Guid.NewGuid(),
                     Username = username,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(DemoPassword),
+                    PasswordHash = passwordHashService.Hash(DemoPassword),
                     JoinedUnitAt = SeedTime
                 };
                 context.Users.Add(user);
@@ -165,10 +178,14 @@ namespace WorkManagementSystem.Infrastructure.Data
             return user;
         }
 
-        private static async Task EnsureMembershipAsync(AppDbContext context, Guid userId, Guid unitId)
+        private static async Task EnsureMembershipAsync(
+            AppDbContext context,
+            Guid userId,
+            Guid unitId,
+            CancellationToken cancellationToken)
         {
             var membership = await context.UserUnits.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(uu => uu.UserId == userId);
+                .FirstOrDefaultAsync(uu => uu.UserId == userId, cancellationToken);
 
             if (membership == null)
             {
@@ -185,10 +202,16 @@ namespace WorkManagementSystem.Infrastructure.Data
             }
         }
 
-        private static async Task EnsureActiveWorkHistoryAsync(AppDbContext context, User user, Guid? unitId)
+        private static async Task EnsureActiveWorkHistoryAsync(
+            AppDbContext context,
+            User user,
+            Guid? unitId,
+            CancellationToken cancellationToken)
         {
             var activeHistory = await context.UserWorkHistories.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(h => h.UserId == user.Id && h.EffectiveTo == null);
+                .FirstOrDefaultAsync(
+                    h => h.UserId == user.Id && h.EffectiveTo == null,
+                    cancellationToken);
 
             if (activeHistory != null)
             {
@@ -208,10 +231,16 @@ namespace WorkManagementSystem.Infrastructure.Data
             });
         }
 
-        private static async Task<Project> GetOrCreateProjectAsync(AppDbContext context, Guid unitId, Guid managerId)
+        private static async Task<Project> GetOrCreateProjectAsync(
+            AppDbContext context,
+            Guid unitId,
+            Guid managerId,
+            CancellationToken cancellationToken)
         {
             var project = await context.Projects.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(p => p.UnitId == unitId && p.Name == "Demo Workflow Project");
+                .FirstOrDefaultAsync(
+                    p => p.UnitId == unitId && p.Name == "Demo Workflow Project",
+                    cancellationToken);
 
             if (project != null)
             {
@@ -232,14 +261,18 @@ namespace WorkManagementSystem.Infrastructure.Data
             return project;
         }
 
-        private static async Task<KpiPeriod> GetOrCreateCurrentMonthPeriodAsync(AppDbContext context)
+        private static async Task<KpiPeriod> GetOrCreateCurrentMonthPeriodAsync(
+            AppDbContext context,
+            CancellationToken cancellationToken)
         {
             var now = DateTime.UtcNow;
             var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
             var end = start.AddMonths(1).AddTicks(-1);
 
             var period = await context.KpiPeriods
-                .FirstOrDefaultAsync(p => p.StartDate == start && p.EndDate == end);
+                .FirstOrDefaultAsync(
+                    p => p.StartDate == start && p.EndDate == end,
+                    cancellationToken);
 
             if (period != null)
                 return period;
@@ -269,10 +302,13 @@ namespace WorkManagementSystem.Infrastructure.Data
             TaskPriorityEnum priority,
             DateTime createdAt,
             DateTime dueDate,
-            ProgressStatusEnum? progressStatus)
+            ProgressStatusEnum? progressStatus,
+            CancellationToken cancellationToken)
         {
             var task = await context.Tasks.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(t => t.ProjectId == projectId && t.Title == title);
+                .FirstOrDefaultAsync(
+                    t => t.ProjectId == projectId && t.Title == title,
+                    cancellationToken);
 
             if (task == null)
             {
@@ -299,7 +335,9 @@ namespace WorkManagementSystem.Infrastructure.Data
             task.IsDeleted = false;
 
             var hasAssignee = await context.TaskAssignees.IgnoreQueryFilters()
-                .AnyAsync(a => a.TaskId == task.Id && a.UserId == assigneeId);
+                .AnyAsync(
+                    a => a.TaskId == task.Id && a.UserId == assigneeId,
+                    cancellationToken);
 
             if (!hasAssignee)
             {
@@ -314,7 +352,9 @@ namespace WorkManagementSystem.Infrastructure.Data
             if (progressStatus.HasValue)
             {
                 var progress = await context.Progresses.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(p => p.TaskId == task.Id && p.UserId == assigneeId);
+                    .FirstOrDefaultAsync(
+                        p => p.TaskId == task.Id && p.UserId == assigneeId,
+                        cancellationToken);
 
                 if (progress == null)
                 {

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
 namespace WorkManagementSystem.Application.Services
@@ -30,7 +29,7 @@ namespace WorkManagementSystem.Application.Services
             if (!unitChanged && !roleChanged)
                 return;
 
-            if (user.Role == "Manager")
+            if (user.Role == SystemRoles.Manager)
             {
                 var managedTasks = await GetPendingManagedTasksAsync(user, cancellationToken);
                 ThrowIfPending(
@@ -39,7 +38,7 @@ namespace WorkManagementSystem.Application.Services
                 return;
             }
 
-            if (unitChanged || newRole == "Manager")
+            if (unitChanged || newRole == SystemRoles.Manager)
             {
                 var assignedTasks = await GetPendingAssignedTasksAsync(user.Id, cancellationToken);
                 ThrowIfPending(
@@ -52,10 +51,10 @@ namespace WorkManagementSystem.Application.Services
             User user,
             CancellationToken cancellationToken = default)
         {
-            if (user.Role == "Admin")
+            if (user.Role == SystemRoles.Admin)
                 throw new BusinessException("Khong the xoa tai khoan Admin!");
 
-            var pendingTasks = user.Role == "Manager"
+            var pendingTasks = user.Role == SystemRoles.Manager
                 ? await GetPendingManagedTasksAsync(user, cancellationToken)
                 : await GetPendingAssignedTasksAsync(user.Id, cancellationToken);
 

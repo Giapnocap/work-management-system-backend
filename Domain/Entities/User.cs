@@ -1,13 +1,13 @@
 namespace WorkManagementSystem.Domain.Entities
 {
-    public class User
+    public class User : IHasRowVersion
     {
         public Guid Id { get; set; }
         public string Username { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string EmployeeCode { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public string Role { get; set; } = "User";
+        public string Role { get; set; } = SystemRoles.User;
         public Guid? UnitId { get; set; }
         public DateTime JoinedUnitAt { get; set; } = DateTime.UtcNow;
         public bool IsApproved { get; set; } = false;

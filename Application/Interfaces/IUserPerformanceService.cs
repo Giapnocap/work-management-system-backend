@@ -11,6 +11,10 @@ namespace WorkManagementSystem.Application.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<PerformanceDto> GetPerformanceAsync(Guid userId, Guid? periodId = null, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<PerformanceDto>> GetPerformancesAsync(
+            IReadOnlyCollection<Guid> userIds,
+            Guid periodId,
+            CancellationToken cancellationToken = default);
         Task<List<PerformanceDto>> GetUnitPerformanceAsync(Guid requesterId, Guid? periodId = null, CancellationToken cancellationToken = default);
     }
 }

@@ -11,37 +11,36 @@ namespace WorkManagementSystem.API.Controllers
     public class KpiController : ControllerBase
     {
         private readonly IKpiService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public KpiController(IKpiService service)
+        public KpiController(IKpiService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetPeriods()
+        public async Task<ActionResult<List<KpiPeriodDto>>> GetPeriods()
             => Ok(await _service.GetPeriods(HttpContext.RequestAborted));
 
         [HttpGet("current")]
-        public async Task<IActionResult> GetCurrent()
+        public async Task<ActionResult<KpiPeriodDto>> GetCurrent()
             => Ok(await _service.GetCurrentPeriod(HttpContext.RequestAborted));
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create(CreateKpiPeriodDto dto)
+        [Authorize(Roles = SystemRoles.Admin)]
+        public async Task<ActionResult<KpiPeriodDto>> Create(CreateKpiPeriodDto dto)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
-            return Ok(await _service.CreatePeriod(dto, userId, HttpContext.RequestAborted));
+            var userId = _currentUser.GetRequiredUserId();
+            var result = await _service.CreatePeriod(dto, userId, HttpContext.RequestAborted);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpPost("{id}/lock")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Lock(Guid id)
+        [Authorize(Roles = SystemRoles.Admin)]
+        public async Task<ActionResult<List<PerformanceDto>>> Lock(Guid id)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             return Ok(await _service.LockPeriod(id, userId, HttpContext.RequestAborted));
         }
     }

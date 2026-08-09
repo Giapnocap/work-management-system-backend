@@ -25,18 +25,21 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          global-json-file: global.json
 
       - name: Restore tools
         run: dotnet tool restore
 
       - name: Restore dependencies
-        run: dotnet restore WorkManagementSystem.sln
+        run: >-
+          dotnet restore WorkManagementSystem.sln
+          -p:NuGetAuditMode=all
+          -warnaserror:NU1900,NU1901,NU1902,NU1903,NU1904
 
       - name: Verify formatting
         run: dotnet format WorkManagementSystem.sln --verify-no-changes --no-restore
@@ -44,13 +47,34 @@ jobs:
       - name: Build
         run: dotnet build WorkManagementSystem.sln --configuration Release --no-restore --warnaserror
 
-      - name: Test
+      - name: Unit and HTTP integration tests
         run: >-
           dotnet test WorkManagementSystem.sln
           --configuration Release
           --no-build
           --no-restore
+          --filter "Category!=SqlServer"
           --logger "trx;LogFileName=backend-tests.trx"
+          --results-directory TestResults
+
+      - name: Start SQL Server for relational tests
+        run: >-
+          docker compose up
+          --detach
+          --wait
+          --wait-timeout 180
+          sqlserver
+
+      - name: SQL Server integration tests
+        env:
+          WMS_TEST_SQLSERVER_CONNECTION: Server=localhost,14333;Database=master;User Id=sa;Password=${{ env.MSSQL_SA_PASSWORD }};Encrypt=True;TrustServerCertificate=True
+        run: >-
+          dotnet test WorkManagementSystem.Tests/WorkManagementSystem.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter "Category=SqlServer"
+          --logger "trx;LogFileName=sqlserver-integration-tests.trx"
           --results-directory TestResults
 
       - name: Verify migration model
@@ -82,8 +106,46 @@ jobs:
         run: |
           set -euo pipefail
 
+          login() {
+            local username="$1"
+            local response
+
+            response="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Content-Type: application/json" \
+                --data "{\"username\":\"${username}\",\"password\":\"Demo@123456\"}" \
+                http://localhost:8080/api/auth/login
+            )"
+
+            jq --exit-status --raw-output \
+              'if type == "string" and length > 0 then . else error("Login response must be a non-empty JSON string.") end' \
+              <<< "$response"
+          }
+
+          assert_non_empty_array() {
+            local label="$1"
+            local token="$2"
+            local url="$3"
+            local response_file
+            response_file="$(mktemp)"
+
+            curl --fail-with-body --silent --show-error \
+              --output "$response_file" \
+              --header "Authorization: Bearer $token" \
+              "$url"
+
+            if ! jq --exit-status \
+              'if type == "array" then length > 0 else false end' \
+              "$response_file" > /dev/null; then
+              echo "$label did not return a non-empty JSON array."
+              cat "$response_file"
+              exit 1
+            fi
+          }
+
           for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:8080/health/ready > /tmp/ready.txt; then
+            if curl --fail-with-body --silent --show-error \
+              http://localhost:8080/health/ready > /tmp/ready.txt; then
               break
             fi
 
@@ -97,38 +159,35 @@ jobs:
 
           grep -q "Healthy" /tmp/ready.txt
 
-          ADMIN_TOKEN="$(
-            curl --fail --silent \
-              --header "Content-Type: application/json" \
-              --data '{"username":"demo.admin","password":"Demo@123456"}' \
-              http://localhost:8080/api/auth/login | jq --raw-output .
-          )"
-          MANAGER_TOKEN="$(
-            curl --fail --silent \
-              --header "Content-Type: application/json" \
-              --data '{"username":"demo.manager","password":"Demo@123456"}' \
-              http://localhost:8080/api/auth/login | jq --raw-output .
-          )"
-          USER_TOKEN="$(
-            curl --fail --silent \
-              --header "Content-Type: application/json" \
-              --data '{"username":"demo.employee1","password":"Demo@123456"}' \
-              http://localhost:8080/api/auth/login | jq --raw-output .
-          )"
+          api_container="$(docker compose ps --quiet api)"
+          test -n "$api_container"
+          for attempt in {1..30}; do
+            health_status="$(docker inspect --format '{{.State.Health.Status}}' "$api_container")"
+            if [[ "$health_status" == "healthy" ]]; then
+              break
+            fi
 
-          test -n "$ADMIN_TOKEN"
-          test -n "$MANAGER_TOKEN"
-          test -n "$USER_TOKEN"
+            if [[ "$health_status" == "unhealthy" || "$attempt" == "30" ]]; then
+              echo "API container health status: $health_status"
+              exit 1
+            fi
 
-          curl --fail --silent \
-            --header "Authorization: Bearer $ADMIN_TOKEN" \
-            http://localhost:8080/api/kpi-periods \
-            | jq --exit-status 'length > 0' > /dev/null
+            sleep 2
+          done
 
-          curl --fail --silent \
-            --header "Authorization: Bearer $MANAGER_TOKEN" \
-            http://localhost:8080/api/projects \
-            | jq --exit-status 'length > 0' > /dev/null
+          ADMIN_TOKEN="$(login demo.admin)"
+          MANAGER_TOKEN="$(login demo.manager)"
+          USER_TOKEN="$(login demo.employee1)"
+
+          assert_non_empty_array \
+            "KPI periods endpoint" \
+            "$ADMIN_TOKEN" \
+            "http://localhost:8080/api/kpi-periods"
+
+          assert_non_empty_array \
+            "Projects endpoint" \
+            "$MANAGER_TOKEN" \
+            "http://localhost:8080/api/projects"
 
           user_create_status="$(
             curl --silent --output /tmp/user-create.json --write-out "%{http_code}" \
@@ -184,12 +243,40 @@ jobs:
                 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.KpiPeriods;"
             )"
 
-            test "$migration_count" -eq 38
-            test "$latest_migration" = "20260726121632_PreserveHistoricalKpiSnapshots"
+            test "$migration_count" -eq 40
+            test "$latest_migration" = "20260809055810_StoreUploadStorageKeys"
             test "$user_count" -eq 4
             test "$project_count" -gt 0
             test "$kpi_period_count" -gt 0
           '
+
+      - name: Verify liveness is independent from SQL Server
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose stop sqlserver
+
+          for attempt in {1..6}; do
+            live_status="$(
+              curl --silent --output /tmp/live-after-sql-stop.txt --write-out "%{http_code}" \
+                http://localhost:8080/health/live
+            )"
+            ready_status="$(
+              curl --silent --output /tmp/ready-after-sql-stop.txt --write-out "%{http_code}" \
+                http://localhost:8080/health/ready
+            )"
+
+            if [[ "$live_status" == "200" && "$ready_status" == "503" ]]; then
+              exit 0
+            fi
+
+            if [[ "$attempt" == "6" ]]; then
+              echo "Expected live=200 and ready=503; got live=$live_status ready=$ready_status."
+              exit 1
+            fi
+
+            sleep 2
+          done
 
       - name: Show container logs on failure
         if: failure()
@@ -201,7 +288,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-results
           path: TestResults
@@ -209,7 +296,7 @@ jobs:
           retention-days: 14
 
       - name: Upload backend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: work-management-backend
           path: artifacts/publish

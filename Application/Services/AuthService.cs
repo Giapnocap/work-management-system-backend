@@ -8,36 +8,45 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class AuthService : IAuthService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
         private readonly JwtOptions _jwtOptions;
         private readonly IAuditService _auditService;
         private readonly IEmployeeCodeGenerator _employeeCodeGenerator;
-        private static readonly string DummyPasswordHash = BCrypt.Net.BCrypt.HashPassword("invalid-password-placeholder");
+        private readonly IPasswordHashService _passwordHashService;
 
         public AuthService(
-            AppDbContext context,
+            IAppDbContext context,
             IOptions<JwtOptions> jwtOptions,
             IAuditService auditService,
-            IEmployeeCodeGenerator employeeCodeGenerator)
+            IEmployeeCodeGenerator employeeCodeGenerator,
+            IPasswordHashService passwordHashService)
         {
             _context = context;
             _jwtOptions = jwtOptions.Value;
             _auditService = auditService;
             _employeeCodeGenerator = employeeCodeGenerator;
+            _passwordHashService = passwordHashService;
         }
 
         public async Task<string> Register(
             AuthDto dto,
             CancellationToken cancellationToken = default)
         {
+            var username = dto.Username.Trim();
+            var fullName = dto.FullName.Trim();
+            if (username.Length < 3)
+                throw new BusinessException("Ten dang nhap phai co it nhat 3 ky tu.");
+            if (string.IsNullOrWhiteSpace(fullName))
+                throw new BusinessException("Ho ten khong duoc de trong.");
+            PasswordPolicy.EnsureValid(dto.Password);
+
             var exists = await _context.Users.IgnoreQueryFilters()
-                .AnyAsync(x => x.Username == dto.Username, cancellationToken);
+                .AnyAsync(x => x.Username == username, cancellationToken);
             if (exists)
                 throw new BusinessException("Tên đăng nhập đã tồn tại!");
 
@@ -47,13 +56,15 @@ namespace WorkManagementSystem.Application.Services
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Username = dto.Username,
-                FullName = dto.FullName,
+                Username = username,
+                FullName = fullName,
                 EmployeeCode = employeeCode,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Role = "User",
+                PasswordHash = _passwordHashService.Hash(dto.Password),
+                Role = SystemRoles.User,
                 UnitId = dto.UnitId,
-                PhoneNumber = dto.PhoneNumber,
+                PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber)
+                    ? null
+                    : dto.PhoneNumber.Trim(),
                 IsApproved = false
             };
 
@@ -76,16 +87,23 @@ namespace WorkManagementSystem.Application.Services
         {
             username = username?.Trim() ?? string.Empty;
 
-            var user = await _context.Users.AsNoTracking()
+            var user = await _context.Users
                 .FirstOrDefaultAsync(x => x.Username == username, cancellationToken);
 
-            var passwordHash = user?.PasswordHash ?? DummyPasswordHash;
-            var passwordIsValid = BCrypt.Net.BCrypt.Verify(password, passwordHash);
+            var passwordIsValid = _passwordHashService.VerifyWithDummyHash(
+                password,
+                user?.PasswordHash);
             if (user == null || !passwordIsValid)
                 throw new InvalidCredentialsException();
 
             if (!user.IsApproved)
                 throw new BusinessException("Tài khoản chưa được Admin phê duyệt!");
+
+            if (_passwordHashService.NeedsRehash(user.PasswordHash))
+            {
+                user.PasswordHash = _passwordHashService.Hash(password);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             return GenerateToken(user);
         }
@@ -95,11 +113,13 @@ namespace WorkManagementSystem.Application.Services
             Guid? changedBy = null,
             CancellationToken cancellationToken = default)
         {
+            PasswordPolicy.EnsureValid(dto.NewPassword);
+
             var user = await _context.Users
                 .FirstOrDefaultAsync(x => x.Username == dto.Username, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy tài khoản!");
 
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.PasswordHash = _passwordHashService.Hash(dto.NewPassword);
             user.InvalidateSessions();
             await _auditService.RecordAsync(
                 AuditEntityTypes.Account,
@@ -131,11 +151,11 @@ namespace WorkManagementSystem.Application.Services
 
             if (user.UnitId.HasValue)
             {
-                var membership = await _context.Set<UserUnit>()
+                var membership = await _context.UserUnits
                     .FirstOrDefaultAsync(uu => uu.UserId == userId, cancellationToken);
                 if (membership == null)
                 {
-                    _context.Set<UserUnit>().Add(new UserUnit
+                    _context.UserUnits.Add(new UserUnit
                     {
                         Id = Guid.NewGuid(),
                         UserId = userId,
@@ -177,7 +197,7 @@ namespace WorkManagementSystem.Application.Services
             return $"Đã duyệt tài khoản {user.FullName}!";
         }
 
-        public async Task<string> RejectUser(
+        public async Task RejectUser(
             Guid userId,
             Guid? changedBy = null,
             CancellationToken cancellationToken = default)
@@ -194,7 +214,6 @@ namespace WorkManagementSystem.Application.Services
                 changedBy,
                 cancellationToken: cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
-            return $"Đã từ chối tài khoản {user.FullName}!";
         }
 
         public async Task<List<UserDto>> GetPendingUsers(CancellationToken cancellationToken = default)
@@ -213,18 +232,6 @@ namespace WorkManagementSystem.Application.Services
                     PhoneNumber = x.PhoneNumber
                 })
                 .ToListAsync(cancellationToken);
-        }
-
-        public async Task<string> RefreshToken(
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            var user = await _context.Users.AsNoTracking()
-                .FirstOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken)
-                ?? throw new NotFoundException("Không tìm thấy tài khoản!");
-            if (!user.IsApproved || user.IsDeleted)
-                throw new BusinessException("Tài khoản chưa được Admin phê duyệt!");
-            return GenerateToken(user);
         }
 
         private async Task EnsureUnitExists(

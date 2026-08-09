@@ -2,7 +2,7 @@ using WorkManagementSystem.Domain.Enums;
 
 namespace WorkManagementSystem.Domain.Entities
 {
-    public class Progress
+    public class Progress : IHasRowVersion
     {
         public Guid Id { get; set; }
         public Guid TaskId { get; set; }

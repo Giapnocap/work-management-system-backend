@@ -2,15 +2,14 @@
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class NotificationService : INotificationService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public NotificationService(AppDbContext context)
+        public NotificationService(IAppDbContext context)
         {
             _context = context;
         }

@@ -100,6 +100,46 @@ public class DtoValidationTests
         Assert.Contains(errors, error => error.MemberNames.Contains(nameof(UpdateUserDto.Role)));
     }
 
+    [Fact]
+    public void UpdateDtos_RejectEmptyRowVersion()
+    {
+        var dtos = new object[]
+        {
+            new UpdateTaskDto { Title = "Task" },
+            new UpdateProjectDto { Name = "Project" },
+            new UpdateUnitDto { Name = "Unit" },
+            new UpdateUserDto { Role = "User" }
+        };
+
+        foreach (var dto in dtos)
+        {
+            var errors = Validate(dto);
+
+            Assert.Contains(errors, error => error.MemberNames.Contains("RowVersion"));
+        }
+    }
+
+    [Theory]
+    [InlineData("Critical")]
+    [InlineData("1")]
+    public void TaskDtos_RejectUnsupportedPriority(string priority)
+    {
+        var createDto = new CreateTaskDto { Title = "Task", Priority = priority };
+        var updateDto = new UpdateTaskDto
+        {
+            Title = "Task",
+            Priority = priority,
+            RowVersion = new byte[] { 1 }
+        };
+
+        Assert.Contains(
+            Validate(createDto),
+            error => error.MemberNames.Contains(nameof(CreateTaskDto.Priority)));
+        Assert.Contains(
+            Validate(updateDto),
+            error => error.MemberNames.Contains(nameof(UpdateTaskDto.Priority)));
+    }
+
     private static List<ValidationResult> Validate(object dto)
     {
         var results = new List<ValidationResult>();

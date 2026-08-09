@@ -1,39 +1,40 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
 {
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = SystemRoles.AdminOrManager)]
     [ApiController]
     [Route("api/dashboard")]
     public class DashboardController : ControllerBase
     {
         private readonly IDashboardService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public DashboardController(IDashboardService service)
+        public DashboardController(IDashboardService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         /// <summary>
         /// Lấy thống kê tổng quan (Admin)
         /// </summary>
         [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetDashboard(CancellationToken cancellationToken)
+        [Authorize(Roles = SystemRoles.Admin)]
+        public async Task<ActionResult<DashboardDto>> GetDashboard(CancellationToken cancellationToken)
             => Ok(await _service.GetDashboard(cancellationToken));
 
         /// <summary>
         /// Lấy thống kê phòng ban (Manager)
         /// </summary>
         [HttpGet("manager")]
-        [Authorize(Roles = "Manager")]
-        public async Task<IActionResult> GetManagerDashboard(CancellationToken cancellationToken)
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<ActionResult<ManagerDashboardDto>> GetManagerDashboard(CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var result = await _service.GetManagerDashboard(userId, cancellationToken);
             return Ok(result);
         }

@@ -52,9 +52,10 @@ public class SupportingWorkflowIntegrationTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         using var payload = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         var root = payload.RootElement;
+        Assert.Equal((int)HttpStatusCode.Unauthorized, root.GetProperty("status").GetInt32());
         Assert.Equal("invalid_credentials", root.GetProperty("code").GetString());
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("traceId").GetString()));
-        Assert.Equal(string.Empty, root.GetProperty("details").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("detail").GetString());
         Assert.DoesNotContain("employee-it", root.GetProperty("message").GetString() ?? string.Empty);
     }
 
@@ -76,6 +77,10 @@ public class SupportingWorkflowIntegrationTests
             PhoneNumber = "  0900000000  "
         });
         await updateResponse.AssertSuccessAsync();
+        var updatePayload = await updateResponse.Content.ReadFromJsonAsync<ProfileDto>();
+        Assert.NotNull(updatePayload);
+        Assert.Equal("Updated Employee", updatePayload.FullName);
+        Assert.Equal("employee.updated@example.test", updatePayload.Email);
 
         var updatedProfile = await app.GetJsonAsync<ProfileDto>("/api/profile");
         Assert.Equal("Updated Employee", updatedProfile.FullName);

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 using ProgressStatusEnum = WorkManagementSystem.Domain.Enums.ProgressStatus;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
@@ -48,7 +47,7 @@ namespace WorkManagementSystem.Application.Services
             return await _userRepo.QueryReadOnly()
                 .Where(u => u.UnitId.HasValue &&
                             unitIds.Contains(u.UnitId.Value) &&
-                            u.Role == "User" &&
+                    u.Role == SystemRoles.User &&
                             u.IsApproved &&
                             !u.IsDeleted)
                 .Select(u => u.Id)

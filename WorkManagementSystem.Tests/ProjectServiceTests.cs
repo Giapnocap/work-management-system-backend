@@ -40,7 +40,7 @@ public class ProjectServiceTests
 
         await Assert.ThrowsAsync<BusinessException>(() => service.UpdateProject(
             project.Id,
-            new CreateProjectDto
+            new UpdateProjectDto
             {
                 Name = "Internal portal",
                 UnitId = unitB.Id
@@ -103,7 +103,7 @@ public class ProjectServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateProject(
             project.Id,
-            new CreateProjectDto { Name = "Should not change" },
+            new UpdateProjectDto { Name = "Should not change" },
             manager.Id));
 
         Assert.Equal("Old unit project", (await context.Projects.SingleAsync()).Name);

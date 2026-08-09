@@ -4,16 +4,18 @@ using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
 {
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = SystemRoles.AdminOrManager)]
     [ApiController]
     [Route("api/export")]
     public class ExportController : ControllerBase
     {
         private readonly IExportService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public ExportController(IExportService service)
+        public ExportController(IExportService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         /// <summary>
@@ -22,13 +24,11 @@ namespace WorkManagementSystem.API.Controllers
         [HttpGet("tasks")]
         public async Task<IActionResult> ExportTasks(CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var bytes = await _service.ExportTasksToExcel(userId, cancellationToken);
             return File(bytes,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"DanhSachCongViec_{DateTime.Now:ddMMyyy}.xlsx");
+                $"DanhSachCongViec_{DateTime.UtcNow:yyyyMMdd}.xlsx");
         }
 
         /// <summary>
@@ -37,13 +37,11 @@ namespace WorkManagementSystem.API.Controllers
         [HttpGet("progress")]
         public async Task<IActionResult> ExportProgress(CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var bytes = await _service.ExportProgressToExcel(userId, cancellationToken);
             return File(bytes,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"TienDoCongViec_{DateTime.Now:ddMMyyy}.xlsx");
+                $"TienDoCongViec_{DateTime.UtcNow:yyyyMMdd}.xlsx");
         }
     }
 }

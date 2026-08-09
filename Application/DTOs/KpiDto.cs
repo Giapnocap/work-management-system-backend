@@ -12,6 +12,7 @@ namespace WorkManagementSystem.Application.DTOs
         public string Status { get; set; } = "Open";
         public DateTime CreatedAt { get; set; }
         public DateTime? LockedAt { get; set; }
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 
     public class CreateKpiPeriodDto

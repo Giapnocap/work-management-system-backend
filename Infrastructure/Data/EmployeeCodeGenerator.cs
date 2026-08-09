@@ -2,9 +2,8 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using WorkManagementSystem.Application.Interfaces;
-using WorkManagementSystem.Infrastructure.Data;
 
-namespace WorkManagementSystem.Application.Services
+namespace WorkManagementSystem.Infrastructure.Data
 {
     public sealed class EmployeeCodeGenerator : IEmployeeCodeGenerator
     {

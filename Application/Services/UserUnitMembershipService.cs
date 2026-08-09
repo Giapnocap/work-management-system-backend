@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {

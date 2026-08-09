@@ -11,7 +11,7 @@ namespace WorkManagementSystem.Application.Interfaces
             CancellationToken cancellationToken = default);
         Task<ProjectDto> UpdateProject(
             Guid id,
-            CreateProjectDto dto,
+            UpdateProjectDto dto,
             Guid userId,
             CancellationToken cancellationToken = default);
         Task ArchiveProject(Guid id, Guid userId, CancellationToken cancellationToken = default);

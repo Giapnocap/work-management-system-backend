@@ -3,7 +3,6 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
 namespace WorkManagementSystem.Application.Services
@@ -18,13 +17,13 @@ namespace WorkManagementSystem.Application.Services
             TaskStatusEnum.Approved
         };
 
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
         private readonly ITaskAccessService _accessService;
         private readonly ITransactionManager _transactionManager;
         private readonly IAuditService _auditService;
 
         public ProjectService(
-            AppDbContext context,
+            IAppDbContext context,
             ITaskAccessService accessService,
             ITransactionManager transactionManager,
             IAuditService auditService)
@@ -40,18 +39,20 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var user = await _context.Users
+                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     u => u.Id == userId && u.IsApproved && !u.IsDeleted,
                     cancellationToken)
                 ?? throw new NotFoundException("User not found.");
 
-            if (user.Role != "Manager")
+            if (user.Role != SystemRoles.Manager)
                 throw new ForbiddenException("Only managers can view projects.");
 
             if (!user.UnitId.HasValue)
                 throw new BusinessException("Manager chua thuoc phong ban nao.");
 
             var query = _context.Projects
+                .AsNoTracking()
                 .Where(p => !p.IsArchived && p.UnitId == user.UnitId.Value);
 
             var projects = await query
@@ -59,6 +60,7 @@ namespace WorkManagementSystem.Application.Services
                 .ToListAsync(cancellationToken);
             var unitIds = projects.Where(p => p.UnitId.HasValue).Select(p => p.UnitId!.Value).Distinct().ToList();
             var units = await _context.Units
+                .AsNoTracking()
                 .Where(u => unitIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => u.Name, cancellationToken);
 
@@ -88,12 +90,13 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var user = await _context.Users
+                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     u => u.Id == userId && u.IsApproved && !u.IsDeleted,
                     cancellationToken)
                 ?? throw new NotFoundException("User not found.");
 
-            if (user.Role != "Manager")
+            if (user.Role != SystemRoles.Manager)
                 throw new ForbiddenException("Chi Manager moi duoc tao project.");
 
             if (!user.UnitId.HasValue)
@@ -135,6 +138,7 @@ namespace WorkManagementSystem.Application.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             var units = await _context.Units
+                .AsNoTracking()
                 .Where(u => u.Id == unitId)
                 .ToDictionaryAsync(u => u.Id, u => u.Name, cancellationToken);
 
@@ -145,7 +149,7 @@ namespace WorkManagementSystem.Application.Services
 
         public Task<ProjectDto> UpdateProject(
             Guid id,
-            CreateProjectDto dto,
+            UpdateProjectDto dto,
             Guid userId,
             CancellationToken cancellationToken = default)
             => _transactionManager.ExecuteSerializableAsync(
@@ -154,7 +158,7 @@ namespace WorkManagementSystem.Application.Services
 
         private async Task<ProjectDto> UpdateProjectCore(
             Guid id,
-            CreateProjectDto dto,
+            UpdateProjectDto dto,
             Guid userId,
             CancellationToken cancellationToken)
         {
@@ -188,6 +192,7 @@ namespace WorkManagementSystem.Application.Services
 
             project.Name = name;
             project.Description = newDescription;
+            _context.SetOriginalRowVersion(project, ConcurrencyToken.Require(dto.RowVersion));
 
             if (oldName != name || oldDescription != newDescription)
             {
@@ -210,6 +215,7 @@ namespace WorkManagementSystem.Application.Services
 
             var units = project.UnitId.HasValue
                 ? await _context.Units
+                    .AsNoTracking()
                     .Where(u => u.Id == project.UnitId.Value)
                     .ToDictionaryAsync(u => u.Id, u => u.Name, cancellationToken)
                 : new Dictionary<Guid, string>();
@@ -278,11 +284,12 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var user = await _context.Users
+                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     u => u.Id == userId && u.IsApproved && !u.IsDeleted,
                     cancellationToken);
             if (user == null) return false;
-            if (user.Role != "Manager") return false;
+            if (user.Role != SystemRoles.Manager) return false;
             return project.UnitId.HasValue &&
                    user.UnitId == project.UnitId &&
                    await _accessService.CanManageUnit(project.UnitId.Value, userId, cancellationToken);
@@ -299,7 +306,8 @@ namespace WorkManagementSystem.Application.Services
                 UnitName = project.UnitId.HasValue && units.TryGetValue(project.UnitId.Value, out var unitName) ? unitName : null,
                 CreatedBy = project.CreatedBy,
                 CreatedAt = project.CreatedAt,
-                IsArchived = project.IsArchived
+                IsArchived = project.IsArchived,
+                RowVersion = project.RowVersion
             };
         }
 

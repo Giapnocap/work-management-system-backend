@@ -53,7 +53,7 @@ This separation keeps the model realistic: Admin controls system setup, Manager 
 - Manager can create projects only for their department.
 - Manager can create tasks only for their department.
 - Manager can assign work only to approved users in their department.
-- Manager can review only progress reports for tasks they manage or created.
+- Manager can review only progress reports for active tasks in their current department; being the original creator does not bypass current department scope.
 
 ### User Rules
 
@@ -62,6 +62,33 @@ This separation keeps the model realistic: Admin controls system setup, Manager 
 - User identity comes from the JWT token, not from request body data.
 - User cannot create projects, create tasks, or review reports.
 - User cannot report additional progress after the task is approved.
+
+## Role And Permission Matrix
+
+Role attributes provide the first API boundary. Application services then apply department, assignment, ownership, and historical-period checks; possessing a role never bypasses those scope rules.
+
+| Capability | Anonymous | `Admin` | `Manager` | `User` |
+| --- | --- | --- | --- | --- |
+| Register, login, list public departments | Allowed | Allowed | Allowed | Allowed |
+| Approve/reject accounts, reset another user's password | No | Allowed | No | No |
+| Create/update/delete departments and memberships | No | Allowed | No | No |
+| View users | No | All visible accounts | Own department | No |
+| Change staff role or department | No | Allowed, subject to handover rules | No | No |
+| Create/lock KPI periods | No | Allowed | No | No |
+| Read KPI periods | No | Allowed | Allowed | Allowed |
+| Read personal KPI | No | Any authorized staff history | Self or current/historical department scope | Self |
+| Read department KPI | No | Allowed | Current/historical department scope | No |
+| Create/update/archive projects | No | No | Own department | No |
+| Create/update/delete/remind tasks | No | No | Own department | No |
+| View tasks and task history | No | Authorized system scope | Own department | Assigned tasks |
+| Submit progress | No | No | No | Assigned tasks only |
+| Review submitted progress | No | No | Own department/managed tasks | No |
+| Upload/download task files | No | Authorized task scope | Own department | Assigned task scope |
+| Use comments/subtasks | No | Authorized task scope | Own department | Assigned task scope; management-only mutations remain blocked |
+| Export task/progress data | No | Authorized administrative scope | Own department | No |
+| Read administrative audit logs | No | Allowed | No | No |
+
+The only public controller actions are registration, login, and public department lookup. Liveness/readiness endpoints are also anonymous operational endpoints and expose health status rather than business data.
 
 ## Project And Task Relationship
 
@@ -80,6 +107,7 @@ Project rules:
 - Project department is immutable after creation.
 - A task and its linked project must belong to the same department.
 - Linking a task to a project does not change task permissions.
+- Task creator status does not bypass current role, assignment, or department scope.
 - A project does not have a separate workflow from task statuses.
 - Project status summary is derived from linked task counts.
 - Only a Manager currently belonging to the project's department can manage it; creator status does not bypass department scope.
@@ -217,7 +245,9 @@ Uploads are task/progress evidence, not arbitrary storage.
 - File metadata is persisted only after the physical file is accepted.
 - If persistence fails, physical file cleanup is attempted.
 - Download requires task/progress access.
-- A persisted download path must resolve inside the configured `Uploads` root.
+- Database metadata stores a bounded relative `StorageKey`, never an absolute server path.
+- A storage key must be a single file name and must resolve inside the configured `Uploads` root.
+- A durable periodic reconciliation deletes aged physical files that have no corresponding database row.
 - Public DTOs must not expose server file paths.
 
 ## KPI Rules
@@ -329,6 +359,11 @@ Examples:
 - Password changes, administrator password resets, role changes, department changes, account rejection, and account deletion invalidate all previously issued JWTs.
 - Profile-only changes such as full name, email, or phone number do not invalidate sessions.
 - Existing JWTs issued before `TokenVersion` support are intentionally rejected and users must sign in again.
+- Registration, password reset, and password change share one password policy and one BCrypt hashing service.
+- Successful login upgrades hashes created with an older BCrypt work factor.
+- Development can use an ephemeral JWT key, while every non-Development environment must supply a key externally.
+- SignalR requires the same JWT session validation as HTTP endpoints.
+- Joining a task discussion group requires current access to that task through `ITaskAccessService`.
 
 ## Audit And History
 

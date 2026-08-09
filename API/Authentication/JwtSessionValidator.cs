@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WorkManagementSystem.Application.Common;
-using WorkManagementSystem.Infrastructure.Data;
+using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Authentication
 {
@@ -25,7 +25,7 @@ namespace WorkManagementSystem.API.Authentication
             }
 
             var dbContext = context.HttpContext.RequestServices
-                .GetRequiredService<AppDbContext>();
+                .GetRequiredService<IAppDbContext>();
 
             var account = await dbContext.Users
                 .IgnoreQueryFilters()

@@ -37,5 +37,6 @@ namespace WorkManagementSystem.Application.DTOs
         public string? ReviewComment { get; set; }
         public string? UnitName { get; set; }
         public bool RequiresReview { get; set; }
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

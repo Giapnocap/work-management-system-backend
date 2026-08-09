@@ -11,48 +11,46 @@ namespace WorkManagementSystem.API.Controllers
     public class SubTaskController : ControllerBase
     {
         private readonly ISubTaskService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public SubTaskController(ISubTaskService service)
+        public SubTaskController(ISubTaskService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create(CreateSubTaskDto dto, CancellationToken cancellationToken)
+        public async Task<ActionResult<SubTaskDto>> Create(
+            CreateSubTaskDto dto,
+            CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var result = await _service.AddSubTask(dto, userId, cancellationToken);
-            return Ok(result);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpPatch("{id}/toggle")]
         public async Task<IActionResult> Toggle(Guid id, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             await _service.ToggleSubTask(id, userId, cancellationToken);
-            return Ok();
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             await _service.Delete(id, userId, cancellationToken);
-            return Ok();
+            return NoContent();
         }
 
         [HttpGet("task/{taskId}")]
-        public async Task<IActionResult> GetByTask(Guid taskId, CancellationToken cancellationToken)
+        public async Task<ActionResult<List<SubTaskDto>>> GetByTask(
+            Guid taskId,
+            CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var result = await _service.GetSubTasks(taskId, userId, cancellationToken);
             return Ok(result);
         }

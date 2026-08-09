@@ -84,7 +84,7 @@ public class TaskDtoBuilderTests
             TaskId = taskId,
             UploadedBy = uploadedBy,
             FileName = fileName,
-            FilePath = $"test/{fileName}",
+            StorageKey = fileName,
             CreatedAt = DateTime.UtcNow
         };
 

@@ -262,6 +262,8 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("PeriodId", "UnitId");
+
                     b.HasIndex("PeriodId", "UserId")
                         .IsUnique();
 
@@ -336,9 +338,9 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TaskId");
+                    b.HasIndex("TaskId", "UpdatedAt");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "Status", "UpdatedAt", "TaskId");
 
                     b.ToTable("Progresses", t =>
                         {
@@ -466,10 +468,6 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UnitId");
-
-                    b.HasIndex("UserId");
-
                     b.HasIndex("TaskId", "UnitId")
                         .IsUnique()
                         .HasFilter("[UnitId] IS NOT NULL");
@@ -477,6 +475,10 @@ namespace WorkManagementSystem.Migrations
                     b.HasIndex("TaskId", "UserId")
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
+
+                    b.HasIndex("UnitId", "TaskId");
+
+                    b.HasIndex("UserId", "TaskId");
 
                     b.ToTable("TaskAssignees", t =>
                         {
@@ -664,14 +666,16 @@ namespace WorkManagementSystem.Migrations
 
                     b.Property<string>("FileName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid?>("ProgressId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<Guid>("TaskId")
                         .HasColumnType("uniqueidentifier");
@@ -814,11 +818,11 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasIndex("ChangedBy");
 
-                    b.HasIndex("UnitId");
-
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasFilter("[EffectiveTo] IS NULL");
+
+                    b.HasIndex("UnitId", "EffectiveFrom");
 
                     b.HasIndex("UserId", "EffectiveFrom");
 

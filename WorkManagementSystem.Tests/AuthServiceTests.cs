@@ -6,6 +6,7 @@ using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Exceptions;
 using WorkManagementSystem.Application.Services;
 using WorkManagementSystem.Domain.Entities;
+using WorkManagementSystem.Infrastructure.Data;
 using WorkManagementSystem.Tests.TestSupport;
 
 namespace WorkManagementSystem.Tests;
@@ -104,6 +105,26 @@ public class AuthServiceTests
             Password = "Password@123",
             FullName = "Duplicate User"
         }));
+    }
+
+    [Fact]
+    public async Task Register_TrimsStoredIdentityFields()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var service = TestFactory.CreateAuthService(context);
+
+        await service.Register(new AuthDto
+        {
+            Username = "  normalized-user  ",
+            Password = "Password@123",
+            FullName = "  Normalized User  ",
+            PhoneNumber = "  0900000000  "
+        });
+
+        var user = await context.Users.SingleAsync();
+        Assert.Equal("normalized-user", user.Username);
+        Assert.Equal("Normalized User", user.FullName);
+        Assert.Equal("0900000000", user.PhoneNumber);
     }
 
     [Fact]

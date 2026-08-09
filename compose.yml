@@ -30,7 +30,7 @@ services:
       target: migrations
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Default: Server=sqlserver;Database=WorkManagementDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Default: Server=sqlserver;Database=WorkManagementDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=5
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Default: Server=sqlserver;Database=WorkManagementDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Default: Server=sqlserver;Database=WorkManagementDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=5
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
       Jwt__Issuer: WorkManagementSystem
       Jwt__Audience: WorkManagementFrontend

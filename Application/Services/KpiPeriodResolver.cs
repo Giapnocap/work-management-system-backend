@@ -2,15 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Exceptions;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public sealed class KpiPeriodResolver : IKpiPeriodResolver
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public KpiPeriodResolver(AppDbContext context)
+        public KpiPeriodResolver(IAppDbContext context)
         {
             _context = context;
         }

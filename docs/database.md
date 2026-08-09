@@ -6,12 +6,13 @@ This document summarizes the main data model for the Work Management System back
 
 - `Users`: application accounts and staff profile data. A user can be `Admin`, `Manager`, or `User`; `TokenVersion` invalidates stale JWT sessions after security-sensitive account changes.
 - `Units`: departments/teams managed by managers.
+- `UserUnits`: the current one-to-one membership record between a user and a department.
 - `Projects`: work scopes owned by exactly one department. A project groups related tasks.
 - `Tasks`: concrete work items assigned by a manager and scoped to exactly one department.
 - `TaskAssignees`: user assignment snapshot for a task. Legacy rows may target a department, but new department assignments are expanded into user rows at creation time.
 - `Progresses`: progress reports submitted by users for assigned tasks.
 - `Reviews`: manager review result for a submitted progress report.
-- `UploadFiles`: evidence/reference files attached to tasks or progress reports.
+- `UploadFiles`: evidence/reference metadata attached to tasks or progress reports; `StorageKey` is relative to the private upload root.
 - `Notifications`: user notifications.
 - `TaskComments`, `CommentReactions`, `CommentSeens`: task discussion and read/reaction metadata.
 - `SubTasks`: checklist items inside a task.
@@ -20,6 +21,33 @@ This document summarizes the main data model for the Work Management System back
 - `UserWorkHistories`: role/unit history used to calculate KPI correctly when staff move departments or roles.
 - `TaskHistories`: field-level task changes, status transitions, reminders, creation, and soft deletion.
 - `AuditLogs`: append-only administrative audit events for accounts, departments, projects, and KPI periods.
+
+## Core Relationship Diagram
+
+The diagram focuses on workflow and KPI relationships. Notification and task-discussion tables are omitted here to keep the main data path readable.
+
+```mermaid
+erDiagram
+    UNITS ||--o{ USERS : current_department
+    USERS ||--o| USER_UNITS : current_membership
+    UNITS ||--o{ PROJECTS : owns
+    UNITS ||--o{ TASKS : scopes
+    PROJECTS ||--o{ TASKS : groups
+    USERS ||--o{ TASKS : creates
+    TASKS ||--o{ TASK_ASSIGNEES : assigned_by_snapshot
+    USERS o|--o{ TASK_ASSIGNEES : receives
+    TASKS ||--o{ PROGRESSES : receives
+    USERS ||--o{ PROGRESSES : reports
+    PROGRESSES ||--o| REVIEWS : reviewed_once
+    USERS ||--o{ REVIEWS : reviews
+    TASKS ||--o{ UPLOAD_FILES : evidence
+    PROGRESSES ||--o{ UPLOAD_FILES : links
+    USERS ||--o{ USER_WORK_HISTORIES : employment_segments
+    KPI_PERIODS ||--o{ KPI_RESULTS : contains
+    USERS ||--o{ KPI_RESULTS : snapshot_for
+    TASKS ||--o{ TASK_HISTORIES : records
+    USERS o|--o{ AUDIT_LOGS : acts
+```
 
 ## Important Relationships
 
@@ -60,6 +88,7 @@ This document summarizes the main data model for the Work Management System back
 - `Tasks.ActualHours` must be non-negative.
 - `Tasks.Status` is limited to `NotStarted`, `InProgress`, `Submitted`, and `Approved`.
 - `Reviews.ProgressId` is unique, so each progress report has at most one review result.
+- `UploadFiles.FileName` and `UploadFiles.StorageKey` are required and bounded; server absolute paths are not persisted.
 - `KpiPeriods` are unique by `(StartDate, EndDate)`.
 - `KpiPeriods.EndDate` must be greater than `StartDate`.
 - `KpiResults` are unique by `(PeriodId, UserId)`.

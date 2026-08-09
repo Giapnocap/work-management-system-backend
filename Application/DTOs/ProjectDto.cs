@@ -13,6 +13,7 @@ namespace WorkManagementSystem.Application.DTOs
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public bool IsArchived { get; set; }
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
         public List<ProjectStatusCountDto> StatusCounts { get; set; } = new();
     }
 
@@ -27,6 +28,13 @@ namespace WorkManagementSystem.Application.DTOs
 
         [NotEmptyGuid(ErrorMessage = "UnitId khong duoc rong.")]
         public Guid? UnitId { get; set; }
+    }
+
+    public class UpdateProjectDto : CreateProjectDto
+    {
+        [Required]
+        [MinLength(1, ErrorMessage = "RowVersion khong hop le.")]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 
     public class ProjectStatusCountDto

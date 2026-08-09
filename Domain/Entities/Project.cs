@@ -1,6 +1,6 @@
 namespace WorkManagementSystem.Domain.Entities
 {
-    public class Project
+    public class Project : IHasRowVersion
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;

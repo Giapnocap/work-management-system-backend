@@ -3,7 +3,7 @@ using WorkManagementSystem.Domain.Enums;
 
 namespace WorkManagementSystem.Domain.Entities
 {
-    public class TaskItem
+    public class TaskItem : IHasRowVersion
     {
         public Guid Id { get; set; }
         public string Title { get; set; } = string.Empty;

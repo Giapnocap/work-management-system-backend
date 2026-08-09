@@ -1,6 +1,6 @@
 namespace WorkManagementSystem.Domain.Entities
 {
-    public class KpiPeriod
+    public class KpiPeriod : IHasRowVersion
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;

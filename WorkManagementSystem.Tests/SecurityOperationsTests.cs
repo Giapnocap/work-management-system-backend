@@ -29,6 +29,65 @@ public class SecurityOperationsTests
     }
 
     [Fact]
+    public void JwtOptions_RejectsExampleReplacementKeyInProduction()
+    {
+        var options = new JwtOptions
+        {
+            Key = "ReplaceWithARandomJwtSigningKeyAtLeast32CharactersLong",
+            Issuer = "issuer",
+            Audience = "audience",
+            ExpirationMinutes = 60
+        };
+
+        Assert.Throws<InvalidOperationException>(() => options.Validate(isProduction: true));
+    }
+
+    [Fact]
+    public void JwtOptions_RejectsLongLivedAccessTokenInProduction()
+    {
+        var options = new JwtOptions
+        {
+            Key = "A_STRONG_PRODUCTION_SIGNING_KEY_32_CHARACTERS_MINIMUM",
+            Issuer = "issuer",
+            Audience = "audience",
+            ExpirationMinutes = 180
+        };
+
+        Assert.Throws<InvalidOperationException>(() => options.Validate(isProduction: true));
+        options.Validate(isProduction: false);
+    }
+
+    [Fact]
+    public void StartupConfiguration_GeneratesEphemeralJwtKeyOnlyInDevelopment()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Issuer"] = "issuer",
+                ["Jwt:Audience"] = "audience",
+                ["Jwt:ExpirationMinutes"] = "60"
+            })
+            .Build();
+
+        var first = StartupConfigurationValidator.GetJwtOptions(
+            configuration,
+            isDevelopment: true,
+            isProduction: false);
+        var second = StartupConfigurationValidator.GetJwtOptions(
+            configuration,
+            isDevelopment: true,
+            isProduction: false);
+
+        Assert.True(first.Key.Length >= 32);
+        Assert.NotEqual(first.Key, second.Key);
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupConfigurationValidator.GetJwtOptions(
+                configuration,
+                isDevelopment: false,
+                isProduction: true));
+    }
+
+    [Fact]
     public void StartupConfiguration_RejectsUnencryptedProductionDatabase()
     {
         var configuration = CreateStartupConfiguration(
@@ -71,6 +130,38 @@ public class SecurityOperationsTests
             StartupConfigurationValidator.GetCorsOrigins(configuration, isProduction: true));
     }
 
+    [Theory]
+    [InlineData("https://frontend.example.com/app")]
+    [InlineData("https://frontend.example.com?source=test")]
+    [InlineData("https://user@frontend.example.com")]
+    public void StartupConfiguration_RejectsCorsValuesThatAreNotOrigins(string value)
+    {
+        var configuration = CreateStartupConfiguration(
+            "Server=localhost;Database=WorkManagementDB;Encrypt=True;TrustServerCertificate=False;",
+            corsOrigin: value);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupConfigurationValidator.GetCorsOrigins(configuration, isProduction: false));
+    }
+
+    [Fact]
+    public void StartupConfiguration_NormalizesAndDeduplicatesCorsOrigins()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cors:AllowedOrigins:0"] = " https://frontend.example.com/ ",
+                ["Cors:AllowedOrigins:1"] = "https://FRONTEND.example.com"
+            })
+            .Build();
+
+        var origins = StartupConfigurationValidator.GetCorsOrigins(
+            configuration,
+            isProduction: true);
+
+        Assert.Equal(new[] { "https://frontend.example.com" }, origins);
+    }
+
     [Fact]
     public void StartupConfiguration_AcceptsRestrictedSecureProductionSettings()
     {
@@ -87,6 +178,46 @@ public class SecurityOperationsTests
 
         Assert.Equal(connectionString, validatedConnection);
         Assert.Equal(new[] { "https://frontend.example.com" }, origins);
+    }
+
+    [Fact]
+    public void ReverseProxyConfiguration_RequiresTrustedSourceInProduction()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ReverseProxy:Enabled"] = "true",
+                ["ReverseProxy:ForwardLimit"] = "1"
+            })
+            .Build();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupConfigurationValidator.GetReverseProxySettings(
+                configuration,
+                isProduction: true));
+    }
+
+    [Fact]
+    public void ReverseProxyConfiguration_ParsesTrustedProxyAndNetwork()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ReverseProxy:Enabled"] = "true",
+                ["ReverseProxy:ForwardLimit"] = "2",
+                ["ReverseProxy:KnownProxies:0"] = "10.0.0.10",
+                ["ReverseProxy:KnownNetworks:0"] = "10.10.0.0/16"
+            })
+            .Build();
+
+        var settings = StartupConfigurationValidator.GetReverseProxySettings(
+            configuration,
+            isProduction: true);
+
+        Assert.True(settings.Enabled);
+        Assert.Equal(2, settings.ForwardLimit);
+        Assert.Single(settings.ParseKnownProxies());
+        Assert.Single(settings.ParseKnownNetworks());
     }
 
     [Fact]

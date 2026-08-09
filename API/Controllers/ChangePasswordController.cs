@@ -11,10 +11,12 @@ namespace WorkManagementSystem.API.Controllers
     public class ChangePasswordController : ControllerBase
     {
         private readonly IChangePasswordService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public ChangePasswordController(IChangePasswordService service)
+        public ChangePasswordController(IChangePasswordService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         /// <summary>
@@ -23,15 +25,9 @@ namespace WorkManagementSystem.API.Controllers
         [HttpPost]
         public async Task<IActionResult> ChangePassword(ChangePasswordDto dto, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
-            var result = await _service.ChangePassword(userId, dto, cancellationToken);
-
-            if (result == "Đổi mật khẩu thành công!")
-                return Ok(new { message = result });
-
-            return BadRequest(new { message = result, code = "business_error" });
+            var userId = _currentUser.GetRequiredUserId();
+            await _service.ChangePassword(userId, dto, cancellationToken);
+            return NoContent();
         }
     }
 }

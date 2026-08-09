@@ -84,7 +84,8 @@ public class TaskServiceTests
     [Fact]
     public async Task Create_WithNoDirectAssignee_SnapshotsCurrentUnitUsers()
     {
-        await using var context = TestFactory.CreateDbContext();
+        var saveCounter = new SaveChangesCounterInterceptor();
+        await using var context = TestFactory.CreateDbContext(saveCounter);
         var unit = SeedUnit(context, "Engineering");
         var manager = SeedUser(context, role: "Manager", unitId: unit.Id);
         var employee = SeedUser(context, username: "employee", role: "User", unitId: unit.Id);
@@ -92,6 +93,7 @@ public class TaskServiceTests
         var notifications = new TestNotificationService();
         var transactions = new RecordingTransactionManager();
         await context.SaveChangesAsync();
+        saveCounter.Reset();
 
         var service = TestFactory.CreateTaskService(context, notifications, transactions);
 
@@ -110,6 +112,7 @@ public class TaskServiceTests
         Assert.Contains(notifications.Sent, n => n.UserId == employee.Id);
         Assert.Contains(notifications.Sent, n => n.UserId == secondEmployee.Id);
         Assert.Equal(1, transactions.ExecutionCount);
+        Assert.Equal(1, saveCounter.Count);
     }
 
     [Fact]
@@ -190,6 +193,7 @@ public class TaskServiceTests
 
         await service.Update(task.Id, new UpdateTaskDto
         {
+            RowVersion = task.RowVersion,
             Title = "Updated task",
             Description = "Updated description",
             DueDate = new DateTime(2026, 8, 1),
@@ -362,6 +366,7 @@ public class TaskServiceTests
             task.Id,
             new UpdateTaskDto
             {
+                RowVersion = task.RowVersion,
                 Title = task.Title,
                 ProjectId = project.Id
             },
@@ -569,7 +574,7 @@ public class TaskServiceTests
                     TaskId = task.Id,
                     UploadedBy = employee.Id,
                     FileName = "evidence.pdf",
-                    FilePath = "test/evidence.pdf",
+                    StorageKey = "evidence.pdf",
                     CreatedAt = DateTime.UtcNow
                 });
                 break;

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 using TaskItem = WorkManagementSystem.Domain.Entities.TaskItem;
 
 namespace WorkManagementSystem.Application.Services

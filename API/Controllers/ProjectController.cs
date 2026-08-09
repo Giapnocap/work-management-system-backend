@@ -5,56 +5,51 @@ using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
 {
-    [Authorize(Roles = "Manager")]
+    [Authorize(Roles = SystemRoles.Manager)]
     [ApiController]
     [Route("api/projects")]
     public class ProjectController : ControllerBase
     {
         private readonly IProjectService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public ProjectController(IProjectService service)
+        public ProjectController(IProjectService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProjects()
+        public async Task<ActionResult<List<ProjectDto>>> GetProjects()
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             return Ok(await _service.GetProjects(userId, HttpContext.RequestAborted));
         }
 
         [HttpPost]
-        [Authorize(Roles = "Manager")]
-        public async Task<IActionResult> Create(CreateProjectDto dto)
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<ActionResult<ProjectDto>> Create(CreateProjectDto dto)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
-            return Ok(await _service.CreateProject(dto, userId, HttpContext.RequestAborted));
+            var userId = _currentUser.GetRequiredUserId();
+            var result = await _service.CreateProject(dto, userId, HttpContext.RequestAborted);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "Manager")]
-        public async Task<IActionResult> Update(Guid id, CreateProjectDto dto)
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<ActionResult<ProjectDto>> Update(Guid id, UpdateProjectDto dto)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             return Ok(await _service.UpdateProject(id, dto, userId, HttpContext.RequestAborted));
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Manager")]
+        [Authorize(Roles = SystemRoles.Manager)]
         public async Task<IActionResult> Archive(Guid id)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             await _service.ArchiveProject(id, userId, HttpContext.RequestAborted);
-            return Ok(new { message = "Archived successfully" });
+            return NoContent();
         }
     }
 }

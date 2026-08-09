@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using WorkManagementSystem.API.Hubs;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 
@@ -13,70 +11,56 @@ namespace WorkManagementSystem.API.Controllers
     public class CommentController : ControllerBase
     {
         private readonly ICommentService _service;
-        private readonly IHubContext<DiscussionHub> _hubContext;
+        private readonly ICurrentUserService _currentUser;
 
-        public CommentController(ICommentService service, IHubContext<DiscussionHub> hubContext)
+        public CommentController(
+            ICommentService service,
+            ICurrentUserService currentUser)
         {
             _service = service;
-            _hubContext = hubContext;
+            _currentUser = currentUser;
         }
 
         [HttpPost]
-        public async Task<IActionResult> Add(CreateCommentDto dto, CancellationToken cancellationToken)
+        public async Task<ActionResult<CommentDto>> Add(CreateCommentDto dto, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var result = await _service.AddComment(dto, userId, cancellationToken);
-            await _hubContext.Clients.Group(dto.TaskId.ToString())
-                .SendAsync("ReceiveComment", result, cancellationToken);
-
-            return Ok(result);
+            return CreatedAtAction(nameof(GetByTaskId), new { taskId = dto.TaskId }, result);
         }
 
         [HttpGet("{taskId}")]
-        public async Task<IActionResult> GetByTaskId(Guid taskId, CancellationToken cancellationToken)
+        public async Task<ActionResult<List<CommentDto>>> GetByTaskId(
+            Guid taskId,
+            CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             return Ok(await _service.GetComments(taskId, userId, cancellationToken));
         }
 
         [HttpPost("{id}/react")]
         public async Task<IActionResult> React(Guid id, [FromBody] string emoji, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
+            var userId = _currentUser.GetRequiredUserId();
+            await _service.ToggleReaction(id, userId, emoji, cancellationToken);
 
-            var taskId = await _service.ToggleReaction(id, userId, emoji, cancellationToken);
-            await _hubContext.Clients.Group(taskId.ToString())
-                .SendAsync("UpdateReaction", id, cancellationToken);
-
-            return Ok();
+            return NoContent();
         }
 
         [HttpPost("task/{taskId}/seen")]
         public async Task<IActionResult> MarkSeen(Guid taskId, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             await _service.MarkAsSeen(taskId, userId, cancellationToken);
-            await _hubContext.Clients.Group(taskId.ToString())
-                .SendAsync("UpdateSeen", userId, cancellationToken);
-
-            return Ok();
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             await _service.Delete(id, userId, cancellationToken);
-            return Ok();
+            return NoContent();
         }
     }
 }

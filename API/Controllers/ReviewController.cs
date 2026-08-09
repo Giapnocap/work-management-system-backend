@@ -5,27 +5,27 @@ using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
 {
-    [Authorize(Roles = "Manager")]
+    [Authorize(Roles = SystemRoles.Manager)]
     [ApiController]
     [Route("api/review")]
     public class ReviewController : ControllerBase
     {
         private readonly IReviewService _service;
+        private readonly ICurrentUserService _currentUser;
 
-        public ReviewController(IReviewService service)
+        public ReviewController(IReviewService service, ICurrentUserService currentUser)
         {
             _service = service;
+            _currentUser = currentUser;
         }
 
         /// <summary>
         /// Phê duyệt hoặc từ chối báo cáo (Manager)
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> Review(ReviewDto dto)
+        public async Task<ActionResult<ReviewDto>> Review(ReviewDto dto)
         {
-            if (!User.TryGetUserId(out var reviewerId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var reviewerId = _currentUser.GetRequiredUserId();
             return Ok(await _service.Review(dto, reviewerId, HttpContext.RequestAborted));
         }
     }

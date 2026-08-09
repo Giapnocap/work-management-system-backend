@@ -14,11 +14,10 @@ namespace WorkManagementSystem.Application.Interfaces
             Guid userId,
             Guid? changedBy = null,
             CancellationToken cancellationToken = default);
-        Task<string> RejectUser(
+        Task RejectUser(
             Guid userId,
             Guid? changedBy = null,
             CancellationToken cancellationToken = default);
         Task<List<UserDto>> GetPendingUsers(CancellationToken cancellationToken = default);
-        Task<string> RefreshToken(Guid userId, CancellationToken cancellationToken = default);
     }
 }

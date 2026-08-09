@@ -4,20 +4,19 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class UploadService : IUploadService
     {
         private readonly IWebHostEnvironment _env;
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
         private readonly ITaskAccessService _accessService;
         private readonly IUploadFileValidator _fileValidator;
 
         public UploadService(
             IWebHostEnvironment env,
-            AppDbContext context,
+            IAppDbContext context,
             ITaskAccessService accessService,
             IUploadFileValidator fileValidator)
         {
@@ -50,8 +49,8 @@ namespace WorkManagementSystem.Application.Services
             var folderPath = GetUploadsRoot();
             Directory.CreateDirectory(folderPath);
 
-            var newFileName = $"{Guid.NewGuid()}{validation.Extension}";
-            var filePath = Path.Combine(folderPath, newFileName);
+            var storageKey = $"{Guid.NewGuid():N}{validation.Extension}";
+            var filePath = ResolveStoragePath(storageKey);
 
             try
             {
@@ -64,7 +63,7 @@ namespace WorkManagementSystem.Application.Services
                 {
                     Id = Guid.NewGuid(),
                     FileName = validation.SafeFileName,
-                    FilePath = filePath,
+                    StorageKey = storageKey,
                     CreatedAt = DateTime.UtcNow,
                     ProgressId = progressId,
                     TaskId = resolvedTaskId,
@@ -83,7 +82,7 @@ namespace WorkManagementSystem.Application.Services
             }
         }
 
-        public async Task<UploadFileDownloadDto?> GetFileForDownloadAsync(
+        public async Task<UploadFileDownloadDto> GetFileForDownloadAsync(
             Guid id,
             Guid requestedBy,
             CancellationToken cancellationToken = default)
@@ -91,16 +90,21 @@ namespace WorkManagementSystem.Application.Services
             var upload = await _context.UploadFiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(file => file.Id == id, cancellationToken);
-            if (upload == null) return null;
+            if (upload == null)
+                throw new NotFoundException("File not found.");
 
             if (!await _accessService.CanAccessUpload(id, requestedBy, cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen tai file nay.");
+
+            var filePath = ResolveStoragePath(upload.StorageKey);
+            if (!File.Exists(filePath))
+                throw new NotFoundException("File physical content not found.");
 
             return new UploadFileDownloadDto
             {
                 Id = upload.Id,
                 FileName = upload.FileName,
-                FilePath = ResolveStoredFilePath(upload.FilePath),
+                PhysicalPath = filePath,
                 ContentType = _fileValidator.GetDownloadContentType(upload.FileName)
             };
         }
@@ -145,15 +149,22 @@ namespace WorkManagementSystem.Application.Services
         private string GetUploadsRoot()
             => Path.GetFullPath(Path.Combine(_env.ContentRootPath, "Uploads"));
 
-        private string ResolveStoredFilePath(string storedPath)
+        private string ResolveStoragePath(string storageKey)
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(storageKey) ||
+                    Path.IsPathRooted(storageKey) ||
+                    !string.Equals(storageKey, Path.GetFileName(storageKey), StringComparison.Ordinal))
+                {
+                    throw new NotFoundException("File not found.");
+                }
+
                 var uploadsRoot = GetUploadsRoot();
                 var uploadsPrefix = uploadsRoot.EndsWith(Path.DirectorySeparatorChar)
                     ? uploadsRoot
                     : $"{uploadsRoot}{Path.DirectorySeparatorChar}";
-                var resolvedPath = Path.GetFullPath(storedPath);
+                var resolvedPath = Path.GetFullPath(Path.Combine(uploadsRoot, storageKey));
                 var comparison = OperatingSystem.IsWindows()
                     ? StringComparison.OrdinalIgnoreCase
                     : StringComparison.Ordinal;

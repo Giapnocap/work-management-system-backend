@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
-using WorkManagementSystem.Infrastructure.Repositories;
 using ProgressStatusEnum = WorkManagementSystem.Domain.Enums.ProgressStatus;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
@@ -11,11 +9,13 @@ namespace WorkManagementSystem.Application.Services
 {
     public class UserPerformanceService : IUserPerformanceService
     {
+        private static readonly HashSet<Guid> EmptyTaskIds = new();
+
         private readonly IGenericRepository<User> _repo;
         private readonly IGenericRepository<TaskItem> _taskRepo;
         private readonly IGenericRepository<TaskAssignee> _assigneeRepo;
         private readonly IGenericRepository<Progress> _progressRepo;
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
         private readonly IKpiPeriodResolver _periodResolver;
 
         public UserPerformanceService(
@@ -23,7 +23,7 @@ namespace WorkManagementSystem.Application.Services
             IGenericRepository<TaskItem> taskRepo,
             IGenericRepository<TaskAssignee> assigneeRepo,
             IGenericRepository<Progress> progressRepo,
-            AppDbContext context,
+            IAppDbContext context,
             IKpiPeriodResolver periodResolver)
         {
             _repo = repo;
@@ -64,10 +64,10 @@ namespace WorkManagementSystem.Application.Services
             if (target == null)
                 return false;
 
-            if (requester.Role == "Admin" || requester.Id == target.Id)
+            if (requester.Role == SystemRoles.Admin || requester.Id == target.Id)
                 return true;
 
-            if (requester.Role != "Manager" || !requester.UnitId.HasValue || target.Role == "Admin")
+            if (requester.Role != SystemRoles.Manager || !requester.UnitId.HasValue || target.Role == SystemRoles.Admin)
                 return false;
 
             var period = await _periodResolver.ResolveAsync(periodId, cancellationToken);
@@ -125,8 +125,101 @@ namespace WorkManagementSystem.Application.Services
                     return MapKpiResult(snapshot, period);
             }
 
-            var now = DateTime.UtcNow;
             var histories = await GetOverlappingHistoriesAsync(user, period, cancellationToken);
+            return await CalculatePerformanceAsync(
+                user,
+                period,
+                histories,
+                DateTime.UtcNow,
+                batchData: null,
+                cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<PerformanceDto>> GetPerformancesAsync(
+            IReadOnlyCollection<Guid> userIds,
+            Guid periodId,
+            CancellationToken cancellationToken = default)
+        {
+            var distinctUserIds = userIds
+                .Where(userId => userId != Guid.Empty)
+                .Distinct()
+                .ToList();
+            if (distinctUserIds.Count == 0)
+                return Array.Empty<PerformanceDto>();
+
+            var period = await _periodResolver.ResolveAsync(periodId, cancellationToken);
+            var users = await _context.Users
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(user => distinctUserIds.Contains(user.Id))
+                .ToListAsync(cancellationToken);
+
+            var snapshots = period.Status == "Locked"
+                ? await _context.KpiResults
+                    .AsNoTracking()
+                    .Where(result => result.PeriodId == period.Id && distinctUserIds.Contains(result.UserId))
+                    .ToDictionaryAsync(result => result.UserId, cancellationToken)
+                : new Dictionary<Guid, KpiResult>();
+
+            var calculationUsers = users
+                .Where(user => !snapshots.ContainsKey(user.Id))
+                .ToList();
+            var calculationUserIds = calculationUsers.Select(user => user.Id).ToList();
+
+            var histories = calculationUserIds.Count == 0
+                ? new List<UserWorkHistory>()
+                : await _context.UserWorkHistories
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(history =>
+                        calculationUserIds.Contains(history.UserId) &&
+                        history.EffectiveFrom <= period.EndDate &&
+                        (!history.EffectiveTo.HasValue || history.EffectiveTo.Value >= period.StartDate))
+                    .OrderBy(history => history.EffectiveFrom)
+                    .ToListAsync(cancellationToken);
+
+            var historiesByUser = histories
+                .GroupBy(history => history.UserId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+            var batchData = await LoadBatchPersonalKpiDataAsync(
+                calculationUserIds,
+                period,
+                cancellationToken);
+            var now = DateTime.UtcNow;
+            var results = new List<PerformanceDto>(users.Count);
+
+            foreach (var user in users)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (snapshots.TryGetValue(user.Id, out var snapshot))
+                {
+                    results.Add(MapKpiResult(snapshot, period));
+                    continue;
+                }
+
+                var userHistories = historiesByUser.TryGetValue(user.Id, out var persistedHistories)
+                    ? persistedHistories
+                    : CreateFallbackHistories(user, period);
+                results.Add(await CalculatePerformanceAsync(
+                    user,
+                    period,
+                    userHistories,
+                    now,
+                    batchData,
+                    cancellationToken));
+            }
+
+            return results;
+        }
+
+        private async Task<PerformanceDto> CalculatePerformanceAsync(
+            User user,
+            KpiPeriod period,
+            IReadOnlyList<UserWorkHistory> histories,
+            DateTime now,
+            BatchPersonalKpiData? batchData,
+            CancellationToken cancellationToken)
+        {
             var segmentDtos = new List<PerformanceDto>();
 
             foreach (var history in histories)
@@ -136,15 +229,52 @@ namespace WorkManagementSystem.Application.Services
                 var to = MinDate(period.EndDate, history.EffectiveTo ?? period.EndDate);
                 if (from > to) continue;
 
-                var dto = history.Role == "Manager"
-                    ? await CalculateManagerPerformanceAsync(userId, user, now, period, history, from, to, cancellationToken)
-                    : await CalculatePersonalPerformanceDtoAsync(userId, user, now, history.UnitId, period, from, to, history.Role, cancellationToken);
+                var personalDto = batchData == null
+                    ? await CalculatePersonalPerformanceDtoAsync(
+                        user.Id,
+                        user,
+                        now,
+                        history.UnitId,
+                        period,
+                        from,
+                        to,
+                        history.Role,
+                        cancellationToken)
+                    : CalculatePersonalPerformanceDto(
+                        user,
+                        now,
+                        history.UnitId,
+                        period,
+                        from,
+                        to,
+                        history.Role,
+                        batchData);
+
+                var dto = history.Role == SystemRoles.Manager
+                    ? await CalculateManagerPerformanceAsync(
+                        user.Id,
+                        user,
+                        now,
+                        period,
+                        history,
+                        from,
+                        to,
+                        personalDto,
+                        cancellationToken)
+                    : personalDto;
 
                 segmentDtos.Add(dto);
             }
 
             if (segmentDtos.Count == 0)
-                return ApplyPeriodMetadata(CreateEmptyPerformance(userId, user), period, user.UnitId, user.Role, period.StartDate, period.EndDate, false);
+                return ApplyPeriodMetadata(
+                    CreateEmptyPerformance(user.Id, user),
+                    period,
+                    user.UnitId,
+                    user.Role,
+                    period.StartDate,
+                    period.EndDate,
+                    false);
 
             return MergeSegmentPerformance(user, period, segmentDtos);
         }
@@ -186,6 +316,87 @@ namespace WorkManagementSystem.Application.Services
             return ApplyPeriodMetadata(dto, period, filterUnitId, roleForPeriod, from, to, period.Status == "Locked");
         }
 
+        private async Task<BatchPersonalKpiData> LoadBatchPersonalKpiDataAsync(
+            IReadOnlyCollection<Guid> userIds,
+            KpiPeriod period,
+            CancellationToken cancellationToken)
+        {
+            if (userIds.Count == 0)
+                return BatchPersonalKpiData.Empty;
+
+            var assignees = await _assigneeRepo.QueryReadOnly()
+                .Where(assignee => assignee.UserId.HasValue && userIds.Contains(assignee.UserId.Value))
+                .ToListAsync(cancellationToken);
+            var taskIdsByUser = assignees
+                .GroupBy(assignee => assignee.UserId!.Value)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(assignee => assignee.TaskId).ToHashSet());
+            var taskIds = assignees
+                .Select(assignee => assignee.TaskId)
+                .Distinct()
+                .ToList();
+
+            var tasks = taskIds.Count == 0
+                ? new List<TaskItem>()
+                : await _taskRepo.QueryReadOnly()
+                    .Where(task => taskIds.Contains(task.Id) && !task.IsDeleted)
+                    .Where(task =>
+                        task.CreatedAt <= period.EndDate &&
+                        (!task.CompletedAt.HasValue || task.CompletedAt.Value >= period.StartDate))
+                    .ToListAsync(cancellationToken);
+            var relevantTaskIds = tasks.Select(task => task.Id).ToList();
+
+            var progresses = relevantTaskIds.Count == 0
+                ? new List<Progress>()
+                : await _context.Progresses
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(progress =>
+                        userIds.Contains(progress.UserId) &&
+                        relevantTaskIds.Contains(progress.TaskId) &&
+                        progress.UpdatedAt >= period.StartDate &&
+                        progress.UpdatedAt <= period.EndDate)
+                    .ToListAsync(cancellationToken);
+            var progressesByUser = progresses
+                .GroupBy(progress => progress.UserId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            return new BatchPersonalKpiData(taskIdsByUser, tasks, progressesByUser);
+        }
+
+        private PerformanceDto CalculatePersonalPerformanceDto(
+            User user,
+            DateTime now,
+            Guid? filterUnitId,
+            KpiPeriod period,
+            DateTime from,
+            DateTime to,
+            string roleForPeriod,
+            BatchPersonalKpiData batchData)
+        {
+            if (!batchData.TaskIdsByUser.TryGetValue(user.Id, out var assignedTaskIds))
+                assignedTaskIds = EmptyTaskIds;
+
+            var tasks = batchData.Tasks
+                .Where(task => assignedTaskIds.Contains(task.Id))
+                .Where(task => !filterUnitId.HasValue || task.UnitId == filterUnitId.Value)
+                .Where(task => task.CreatedAt <= to && (!task.CompletedAt.HasValue || task.CompletedAt.Value >= from))
+                .ToList();
+            var taskIds = tasks.Select(task => task.Id).ToHashSet();
+
+            var progresses = batchData.ProgressesByUser.TryGetValue(user.Id, out var userProgresses)
+                ? userProgresses
+                    .Where(progress => taskIds.Contains(progress.TaskId))
+                    .Where(progress => progress.UpdatedAt >= from && progress.UpdatedAt <= to)
+                    .ToList()
+                : new List<Progress>();
+
+            var metrics = CalculatePersonalKpiMetrics(tasks, progresses, now, from, to);
+            var dto = BuildPersonalPerformanceDto(user.Id, user, metrics);
+            return ApplyPeriodMetadata(dto, period, filterUnitId, roleForPeriod, from, to, period.Status == "Locked");
+        }
+
         private async Task<PerformanceDto> CalculateManagerPerformanceAsync(
             Guid managerId,
             User user,
@@ -194,10 +405,9 @@ namespace WorkManagementSystem.Application.Services
             UserWorkHistory history,
             DateTime from,
             DateTime to,
+            PerformanceDto personalDto,
             CancellationToken cancellationToken)
         {
-            var personalDto = await CalculatePersonalPerformanceDtoAsync(
-                managerId, user, now, history.UnitId, period, from, to, history.Role, cancellationToken);
             int personalScore = personalDto.TotalTasks == 0 ? 100 : personalDto.Score;
 
             double unitAvgScore = 100;
@@ -302,12 +512,12 @@ namespace WorkManagementSystem.Application.Services
                 var snapshotQuery = _context.KpiResults.AsNoTracking()
                     .Where(r => r.PeriodId == period.Id);
 
-                if (requester.Role == "Manager")
+                if (requester.Role == SystemRoles.Manager)
                 {
                     if (!requester.UnitId.HasValue) return new List<PerformanceDto>();
-                    snapshotQuery = snapshotQuery.Where(r => r.UnitId == requester.UnitId.Value && r.Role == "User");
+                    snapshotQuery = snapshotQuery.Where(r => r.UnitId == requester.UnitId.Value && r.Role == SystemRoles.User);
                 }
-                else if (requester.Role != "Admin")
+                else if (requester.Role != SystemRoles.Admin)
                 {
                     return new List<PerformanceDto>();
                 }
@@ -321,7 +531,7 @@ namespace WorkManagementSystem.Application.Services
                     .ToList();
             }
 
-            if (requester.Role == "Manager")
+            if (requester.Role == SystemRoles.Manager)
             {
                 if (!requester.UnitId.HasValue) return new List<PerformanceDto>();
                 var result = await BatchCalculateUnitKpiAsync(
@@ -334,18 +544,14 @@ namespace WorkManagementSystem.Application.Services
                 return result.OrderByDescending(p => p.Score).ToList();
             }
 
-            if (requester.Role == "Admin")
+            if (requester.Role == SystemRoles.Admin)
             {
-                var users = await _repo.QueryReadOnly()
-                    .Where(u => u.Role != "Admin" && u.IsApproved && !u.IsDeleted)
+                var userIds = await _repo.QueryReadOnly()
+                    .Where(u => u.Role != SystemRoles.Admin && u.IsApproved && !u.IsDeleted)
+                    .Select(user => user.Id)
                     .ToListAsync(cancellationToken);
 
-                var result = new List<PerformanceDto>();
-                foreach (var user in users)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    result.Add(await GetPerformanceAsync(user.Id, period.Id, cancellationToken));
-                }
+                var result = await GetPerformancesAsync(userIds, period.Id, cancellationToken);
 
                 return result.OrderByDescending(p => p.Score).ToList();
             }
@@ -365,7 +571,7 @@ namespace WorkManagementSystem.Application.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(h => h.UnitId == unitId
-                            && h.Role == "User"
+                            && h.Role == SystemRoles.User
                             && h.EffectiveFrom <= to
                             && (!h.EffectiveTo.HasValue || h.EffectiveTo.Value >= from))
                 .ToListAsync(cancellationToken);
@@ -378,7 +584,7 @@ namespace WorkManagementSystem.Application.Services
 
             membersQuery = memberIdsFromHistory.Any()
                 ? membersQuery.Where(u => memberIdsFromHistory.Contains(u.Id))
-                : membersQuery.Where(u => !u.IsDeleted && u.Role == "User" && u.UnitId == unitId);
+                : membersQuery.Where(u => !u.IsDeleted && u.Role == SystemRoles.User && u.UnitId == unitId);
 
             var members = await membersQuery.ToListAsync(cancellationToken);
 
@@ -410,13 +616,10 @@ namespace WorkManagementSystem.Application.Services
             foreach (var member in members)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var memberTaskIds = allAssignees
+                var assignedTaskIds = allAssignees
                     .Where(a => a.UserId == member.Id)
                     .Select(a => a.TaskId)
-                    .ToList();
-
-                var memberTasks = allTasks.Where(t => memberTaskIds.Contains(t.Id)).ToList();
-                var memberProgress = allProgress.Where(p => p.UserId == member.Id).ToList();
+                    .ToHashSet();
 
                 var memberHistory = histories
                     .Where(h => h.UserId == member.Id)
@@ -424,6 +627,21 @@ namespace WorkManagementSystem.Application.Services
                     .FirstOrDefault();
                 var memberFrom = memberHistory == null ? from : MaxDate(from, memberHistory.EffectiveFrom);
                 var memberTo = memberHistory == null ? to : MinDate(to, memberHistory.EffectiveTo ?? to);
+
+                var memberTasks = allTasks
+                    .Where(task => assignedTaskIds.Contains(task.Id))
+                    .Where(task =>
+                        task.CreatedAt <= memberTo &&
+                        (!task.CompletedAt.HasValue || task.CompletedAt.Value >= memberFrom))
+                    .ToList();
+                var memberTaskIds = memberTasks.Select(task => task.Id).ToHashSet();
+                var memberProgress = allProgress
+                    .Where(progress =>
+                        progress.UserId == member.Id &&
+                        memberTaskIds.Contains(progress.TaskId) &&
+                        progress.UpdatedAt >= memberFrom &&
+                        progress.UpdatedAt <= memberTo)
+                    .ToList();
 
                 result.Add(CalculatePersonalKpiInMemory(member.Id, member, now, memberTasks, memberProgress, period, memberFrom, memberTo, unitId));
             }
@@ -443,7 +661,7 @@ namespace WorkManagementSystem.Application.Services
             var metrics = CalculatePersonalKpiMetrics(tasks, progressList, now, from, to);
             var dto = BuildPersonalPerformanceDto(userId, user, metrics);
 
-            return ApplyPeriodMetadata(dto, period, unitId, "User", from, to, period.Status == "Locked");
+            return ApplyPeriodMetadata(dto, period, unitId, SystemRoles.User, from, to, period.Status == "Locked");
         }
 
         private static PerformanceDto BuildPersonalPerformanceDto(Guid userId, User user, PersonalKpiMetrics metrics)
@@ -603,6 +821,17 @@ namespace WorkManagementSystem.Application.Services
             bool IsAtRisk,
             string WarningMessage);
 
+        private sealed record BatchPersonalKpiData(
+            IReadOnlyDictionary<Guid, HashSet<Guid>> TaskIdsByUser,
+            IReadOnlyList<TaskItem> Tasks,
+            IReadOnlyDictionary<Guid, List<Progress>> ProgressesByUser)
+        {
+            public static readonly BatchPersonalKpiData Empty = new(
+                new Dictionary<Guid, HashSet<Guid>>(),
+                Array.Empty<TaskItem>(),
+                new Dictionary<Guid, List<Progress>>());
+        }
+
         private async Task<List<UserWorkHistory>> GetOverlappingHistoriesAsync(
             User user,
             KpiPeriod period,
@@ -619,6 +848,11 @@ namespace WorkManagementSystem.Application.Services
 
             if (histories.Any()) return histories;
 
+            return CreateFallbackHistories(user, period);
+        }
+
+        private static List<UserWorkHistory> CreateFallbackHistories(User user, KpiPeriod period)
+        {
             var effectiveFrom = user.JoinedUnitAt == default ? period.StartDate : user.JoinedUnitAt;
             if (effectiveFrom > period.EndDate) return new List<UserWorkHistory>();
 

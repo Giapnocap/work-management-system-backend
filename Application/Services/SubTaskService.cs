@@ -1,11 +1,8 @@
 using AutoMapper;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using WorkManagementSystem.API.Hubs;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -13,19 +10,22 @@ namespace WorkManagementSystem.Application.Services
     {
         private readonly IGenericRepository<SubTask> _repo;
         private readonly ITaskAccessService _accessService;
-        private readonly IHubContext<DiscussionHub> _hubContext;
+        private readonly ITaskRealtimeNotifier _realtimeNotifier;
         private readonly IMapper _mapper;
+        private readonly IAppDbContext _context;
 
         public SubTaskService(
             IGenericRepository<SubTask> repo,
             ITaskAccessService accessService,
-            IHubContext<DiscussionHub> hubContext,
-            IMapper mapper)
+            ITaskRealtimeNotifier realtimeNotifier,
+            IMapper mapper,
+            IAppDbContext context)
         {
             _repo = repo;
             _accessService = accessService;
-            _hubContext = hubContext;
+            _realtimeNotifier = realtimeNotifier;
             _mapper = mapper;
+            _context = context;
         }
 
         public async Task<SubTaskDto> AddSubTask(
@@ -36,7 +36,7 @@ namespace WorkManagementSystem.Application.Services
             if (!await _accessService.CanAccessTask(
                     dto.TaskId,
                     userId,
-                    managerOrCreatorOnly: true,
+                    managementOnly: true,
                     cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen them cong viec con.");
 
@@ -58,11 +58,13 @@ namespace WorkManagementSystem.Application.Services
             };
 
             await _repo.AddAsync(subTask, cancellationToken);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
             var result = _mapper.Map<SubTaskDto>(subTask);
-            await _hubContext.Clients.Group(dto.TaskId.ToString())
-                .SendAsync("ReceiveSubTaskAdded", result, cancellationToken);
+            await _realtimeNotifier.SubTaskAddedAsync(
+                dto.TaskId,
+                result,
+                cancellationToken);
             return result;
         }
 
@@ -79,10 +81,13 @@ namespace WorkManagementSystem.Application.Services
 
             subTask.IsCompleted = !subTask.IsCompleted;
             _repo.Update(subTask);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
-            await _hubContext.Clients.Group(subTask.TaskId.ToString())
-                .SendAsync("ReceiveSubTaskToggled", id, subTask.IsCompleted, cancellationToken);
+            await _realtimeNotifier.SubTaskToggledAsync(
+                subTask.TaskId,
+                id,
+                subTask.IsCompleted,
+                cancellationToken);
         }
 
         public async Task Delete(
@@ -96,16 +101,15 @@ namespace WorkManagementSystem.Application.Services
             if (!await _accessService.CanAccessTask(
                     subTask.TaskId,
                     userId,
-                    managerOrCreatorOnly: true,
+                    managementOnly: true,
                     cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen xoa cong viec con nay.");
 
             var taskId = subTask.TaskId;
             _repo.Delete(subTask);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
-            await _hubContext.Clients.Group(taskId.ToString())
-                .SendAsync("ReceiveSubTaskDeleted", id, cancellationToken);
+            await _realtimeNotifier.SubTaskDeletedAsync(taskId, id, cancellationToken);
         }
 
         public async Task<List<SubTaskDto>> GetSubTasks(

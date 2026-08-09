@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = SystemRoles.Admin)]
     [ApiController]
     [Route("api/audit-logs")]
     public sealed class AuditController : ControllerBase
@@ -17,7 +18,7 @@ namespace WorkManagementSystem.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get(
+        public async Task<ActionResult<AuditLogPageDto>> Get(
             string? entityType,
             Guid? entityId,
             string? action,
@@ -25,7 +26,8 @@ namespace WorkManagementSystem.API.Controllers
             DateTime? from,
             DateTime? to,
             int page = 1,
-            int size = 20)
+            int size = 20,
+            CancellationToken cancellationToken = default)
         {
             return Ok(await _auditService.GetAsync(
                 entityType,
@@ -36,7 +38,7 @@ namespace WorkManagementSystem.API.Controllers
                 to,
                 page,
                 size,
-                HttpContext.RequestAborted));
+                cancellationToken));
         }
     }
 }

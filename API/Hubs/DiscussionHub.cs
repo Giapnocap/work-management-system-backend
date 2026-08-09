@@ -19,15 +19,24 @@ namespace WorkManagementSystem.API.Hubs
         public async Task JoinTaskGroup(Guid taskId)
         {
             var userId = GetCurrentUserId();
-            if (!await _accessService.CanAccessTask(taskId, userId))
+            if (!await _accessService.CanAccessTask(
+                    taskId,
+                    userId,
+                    cancellationToken: Context.ConnectionAborted))
                 throw new HubException("You do not have access to this task.");
 
-            await Groups.AddToGroupAsync(Context.ConnectionId, taskId.ToString());
+            await Groups.AddToGroupAsync(
+                Context.ConnectionId,
+                TaskDiscussionGroup.For(taskId),
+                Context.ConnectionAborted);
         }
 
         public async Task LeaveTaskGroup(Guid taskId)
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, taskId.ToString());
+            await Groups.RemoveFromGroupAsync(
+                Context.ConnectionId,
+                TaskDiscussionGroup.For(taskId),
+                Context.ConnectionAborted);
         }
 
         private Guid GetCurrentUserId()

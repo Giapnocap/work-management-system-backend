@@ -1,15 +1,14 @@
 ﻿using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Interfaces;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class ExportService : IExportService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public ExportService(AppDbContext context)
+        public ExportService(IAppDbContext context)
         {
             _context = context;
         }
@@ -24,14 +23,14 @@ namespace WorkManagementSystem.Application.Services
                 ?? throw new NotFoundException("User not found.");
 
             var taskQuery = _context.Tasks.AsNoTracking().Where(t => !t.IsDeleted);
-            if (requester.Role == "Manager")
+            if (requester.Role == SystemRoles.Manager)
             {
                 if (!requester.UnitId.HasValue)
                     taskQuery = taskQuery.Where(t => false);
                 else
                     taskQuery = taskQuery.Where(t => t.UnitId == requester.UnitId.Value);
             }
-            else if (requester.Role != "Admin")
+            else if (requester.Role != SystemRoles.Admin)
             {
                 throw new ForbiddenException("Ban khong co quyen export danh sach cong viec.");
             }
@@ -98,14 +97,14 @@ namespace WorkManagementSystem.Application.Services
                 ?? throw new NotFoundException("User not found.");
 
             var taskQuery = _context.Tasks.AsNoTracking().Where(t => !t.IsDeleted);
-            if (requester.Role == "Manager")
+            if (requester.Role == SystemRoles.Manager)
             {
                 if (!requester.UnitId.HasValue)
                     taskQuery = taskQuery.Where(t => false);
                 else
                     taskQuery = taskQuery.Where(t => t.UnitId == requester.UnitId.Value);
             }
-            else if (requester.Role != "Admin")
+            else if (requester.Role != SystemRoles.Admin)
             {
                 throw new ForbiddenException("Ban khong co quyen export tien do.");
             }

@@ -11,6 +11,38 @@ namespace WorkManagementSystem.Tests;
 public class UserServiceBusinessRuleTests
 {
     [Fact]
+    public async Task GetVisibleUsers_ManagerCannotSeeOtherUnitOrAdminUsers()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unitA = SeedUnit(context, "Unit A");
+        var unitB = SeedUnit(context, "Unit B");
+        var manager = SeedUser(context, "manager-visible", "Manager", unitA.Id);
+        var ownEmployee = SeedUser(context, "own-employee", "User", unitA.Id);
+        var outsideEmployee = SeedUser(context, "outside-employee", "User", unitB.Id);
+        var admin = SeedUser(context, "admin-visible", "Admin", null);
+        await context.SaveChangesAsync();
+        var service = TestFactory.CreateUserService(context);
+
+        var users = await service.GetVisibleUsers(manager.Id);
+
+        Assert.Contains(users, user => user.Id == ownEmployee.Id);
+        Assert.DoesNotContain(users, user => user.Id == outsideEmployee.Id);
+        Assert.DoesNotContain(users, user => user.Id == admin.Id);
+    }
+
+    [Fact]
+    public async Task GetVisibleUsers_EmployeeIsForbidden()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unit = SeedUnit(context, "Engineering");
+        var employee = SeedUser(context, "employee-visible", "User", unit.Id);
+        await context.SaveChangesAsync();
+        var service = TestFactory.CreateUserService(context);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetVisibleUsers(employee.Id));
+    }
+
+    [Fact]
     public async Task Update_PromoteUserWithPendingTask_ThrowsBusinessException()
     {
         await using var context = TestFactory.CreateDbContext();
@@ -155,6 +187,7 @@ public class UserServiceBusinessRuleTests
 
         await service.Update(user.Id, new UpdateUserDto
         {
+            RowVersion = user.RowVersion,
             Role = "User",
             UnitId = unitB.Id
         }, admin.Id);
@@ -184,6 +217,7 @@ public class UserServiceBusinessRuleTests
 
         await service.Update(newManager.Id, new UpdateUserDto
         {
+            RowVersion = newManager.RowVersion,
             Role = "Manager",
             UnitId = unitA.Id,
             OldManagerId = oldManager.Id,
@@ -279,6 +313,7 @@ public class UserServiceBusinessRuleTests
 
         await service.Update(user.Id, new UpdateUserDto
         {
+            RowVersion = user.RowVersion,
             Role = "Manager",
             UnitId = unit.Id
         }, admin.Id);

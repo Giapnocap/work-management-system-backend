@@ -1,8 +1,8 @@
 using System.Net;
-using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
+using WorkManagementSystem.API.Contracts;
+using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.Exceptions;
 
 namespace WorkManagementSystem.API.Middlewares
@@ -11,11 +11,16 @@ namespace WorkManagementSystem.API.Middlewares
     {
         private readonly RequestDelegate _next;
         private readonly IHostEnvironment _environment;
+        private readonly ILogger<ExceptionMiddleware> _logger;
 
-        public ExceptionMiddleware(RequestDelegate next, IHostEnvironment environment)
+        public ExceptionMiddleware(
+            RequestDelegate next,
+            IHostEnvironment environment,
+            ILogger<ExceptionMiddleware> logger)
         {
             _next = next;
             _environment = environment;
+            _logger = logger;
         }
 
         public async Task Invoke(HttpContext context)
@@ -26,19 +31,52 @@ namespace WorkManagementSystem.API.Middlewares
             }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
             {
-                Log.Debug(
-                    "Request was cancelled by the client. TraceId: {TraceId}",
-                    context.TraceIdentifier);
+                _logger.LogDebug(
+                    "Request was cancelled by the client. TraceId: {TraceId}; UserId: {UserId}",
+                    context.TraceIdentifier,
+                    GetLogUserId(context));
+
+                if (!context.Response.HasStarted)
+                    context.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
             }
             catch (Exception ex)
             {
+                if (context.Response.HasStarted)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "The response has already started; the exception cannot be converted to an API error. TraceId: {TraceId}; UserId: {UserId}",
+                        context.TraceIdentifier,
+                        GetLogUserId(context));
+                    throw;
+                }
+
                 if (IsExpectedClientError(ex))
-                    Log.Warning(ex, "Request failed with a client/business error: {Message}", ex.Message);
+                {
+                    _logger.LogInformation(
+                        "Request rejected with {ExceptionType}. TraceId: {TraceId}; UserId: {UserId}",
+                        ex.GetType().Name,
+                        context.TraceIdentifier,
+                        GetLogUserId(context));
+                }
                 else
-                    Log.Error(ex, "Unexpected server error: {Message}", ex.Message);
+                {
+                    _logger.LogError(
+                        ex,
+                        "Unexpected server error. TraceId: {TraceId}; UserId: {UserId}",
+                        context.TraceIdentifier,
+                        GetLogUserId(context));
+                }
 
                 await HandleExceptionAsync(context, ex, _environment.IsDevelopment());
             }
+        }
+
+        private static string GetLogUserId(HttpContext context)
+        {
+            return context.User.Identity?.IsAuthenticated == true
+                ? context.User.FindFirst(AuthenticationClaimTypes.UserId)?.Value ?? "unknown"
+                : "anonymous";
         }
 
         private static bool IsExpectedClientError(Exception exception)
@@ -53,25 +91,18 @@ namespace WorkManagementSystem.API.Middlewares
 
         private static Task HandleExceptionAsync(HttpContext context, Exception exception, bool includeDetails)
         {
-            context.Response.ContentType = "application/json";
-
-            var error = CreateError(context, exception, includeDetails);
-            context.Response.StatusCode = error.StatusCode;
-
-            var response = new
-            {
-                message = error.Message,
-                code = error.Code,
-                traceId = error.TraceId,
-                details = error.Details,
-                errors = error.Errors
-            };
-
-            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
+            var error = CreateError(exception, includeDetails);
+            return ApiProblemDetailsFactory.WriteAsync(
+                context,
+                error.StatusCode,
+                error.Code,
+                error.Message,
+                error.Details,
+                error.Errors,
+                context.RequestAborted);
         }
 
-        private static ApiError CreateError(HttpContext context, Exception exception, bool includeDetails)
+        private static ApiError CreateError(Exception exception, bool includeDetails)
         {
             if (exception is ApiException apiException)
             {
@@ -80,7 +111,6 @@ namespace WorkManagementSystem.API.Middlewares
                     apiException.Code,
                     apiException.Message,
                     includeDetails ? exception.ToString() : string.Empty,
-                    context.TraceIdentifier,
                     apiException.Errors);
             }
 
@@ -90,8 +120,7 @@ namespace WorkManagementSystem.API.Middlewares
                     (int)HttpStatusCode.Conflict,
                     "concurrency_conflict",
                     "Du lieu da duoc thay doi boi mot yeu cau khac. Vui long tai lai va thu lai.",
-                    includeDetails ? exception.ToString() : string.Empty,
-                    context.TraceIdentifier);
+                    includeDetails ? exception.ToString() : string.Empty);
             }
 
             if (IsUniqueConstraintViolation(exception))
@@ -100,8 +129,7 @@ namespace WorkManagementSystem.API.Middlewares
                     (int)HttpStatusCode.Conflict,
                     "duplicate_data",
                     "Du lieu da ton tai hoac vua duoc tao boi mot yeu cau khac.",
-                    includeDetails ? exception.ToString() : string.Empty,
-                    context.TraceIdentifier);
+                    includeDetails ? exception.ToString() : string.Empty);
             }
 
             if (exception is UnauthorizedAccessException)
@@ -110,8 +138,7 @@ namespace WorkManagementSystem.API.Middlewares
                     (int)HttpStatusCode.Forbidden,
                     "forbidden",
                     exception.Message,
-                    string.Empty,
-                    context.TraceIdentifier);
+                    string.Empty);
             }
 
             if (exception is BadHttpRequestException badRequestEx &&
@@ -121,8 +148,7 @@ namespace WorkManagementSystem.API.Middlewares
                     (int)HttpStatusCode.RequestEntityTooLarge,
                     "request_too_large",
                     "File dinh kem hoac noi dung vuot qua gioi han may chu.",
-                    includeDetails ? exception.Message : string.Empty,
-                    context.TraceIdentifier);
+                    includeDetails ? exception.Message : string.Empty);
             }
 
             if (exception is ArgumentException)
@@ -131,16 +157,14 @@ namespace WorkManagementSystem.API.Middlewares
                     (int)HttpStatusCode.BadRequest,
                     "bad_request",
                     exception.Message,
-                    string.Empty,
-                    context.TraceIdentifier);
+                    string.Empty);
             }
 
             return new ApiError(
                 (int)HttpStatusCode.InternalServerError,
                 "internal_server_error",
                 "Loi he thong noi bo. Vui long thu lai sau.",
-                includeDetails ? exception.ToString() : string.Empty,
-                context.TraceIdentifier);
+                includeDetails ? exception.ToString() : string.Empty);
         }
 
         private static bool IsUniqueConstraintViolation(Exception exception)
@@ -162,7 +186,6 @@ namespace WorkManagementSystem.API.Middlewares
             string Code,
             string Message,
             string Details,
-            string TraceId,
             IReadOnlyDictionary<string, string[]>? Errors = null);
     }
 }

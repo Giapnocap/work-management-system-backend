@@ -1,15 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class UserWorkHistoryService : IUserWorkHistoryService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public UserWorkHistoryService(AppDbContext context)
+        public UserWorkHistoryService(IAppDbContext context)
         {
             _context = context;
         }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.API.Controllers
@@ -10,49 +11,46 @@ namespace WorkManagementSystem.API.Controllers
     public class UploadController : ControllerBase
     {
         private readonly IUploadService _uploadService;
+        private readonly ICurrentUserService _currentUser;
 
-        public UploadController(IUploadService uploadService)
+        public UploadController(IUploadService uploadService, ICurrentUserService currentUser)
         {
             _uploadService = uploadService;
+            _currentUser = currentUser;
         }
 
         [Authorize]
         [HttpPost]
         [EnableRateLimiting("uploads")]
-        public async Task<IActionResult> Upload(IFormFile file, Guid? progressId, Guid? taskId)
+        public async Task<ActionResult<UploadFileDto>> Upload(
+            IFormFile file,
+            Guid? progressId,
+            Guid? taskId)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var result = await _uploadService.UploadAsync(
                 file,
                 progressId,
                 taskId,
                 userId,
                 HttpContext.RequestAborted);
-            return Ok(result);
+            return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
         }
 
         [Authorize]
         [HttpGet("{id}")]
         public async Task<IActionResult> Download(Guid id)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
+            var userId = _currentUser.GetRequiredUserId();
             var file = await _uploadService.GetFileForDownloadAsync(
                 id,
                 userId,
                 HttpContext.RequestAborted);
-            if (file == null) return NotFound(new { message = "File not found.", code = "not_found" });
-
-            if (!System.IO.File.Exists(file.FilePath))
-                return NotFound(new { message = "File physical content not found.", code = "not_found" });
 
             Response.Headers["X-Content-Type-Options"] = "nosniff";
 
             return PhysicalFile(
-                file.FilePath,
+                file.PhysicalPath,
                 file.ContentType,
                 file.FileName,
                 enableRangeProcessing: true);

@@ -1,9 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 using TaskItem = WorkManagementSystem.Domain.Entities.TaskItem;
 using TaskPriorityEnum = WorkManagementSystem.Domain.Enums.TaskPriority;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
@@ -22,6 +20,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly ITaskBusinessRuleService _taskRules;
         private readonly ITaskDtoBuilder _taskDtoBuilder;
         private readonly ITransactionManager _transactionManager;
+        private readonly IAppDbContext _context;
 
         public TaskService(
             IGenericRepository<TaskItem> taskRepo,
@@ -33,7 +32,8 @@ namespace WorkManagementSystem.Application.Services
             ITaskWorkflowService workflowService,
             ITaskBusinessRuleService taskRules,
             ITaskDtoBuilder taskDtoBuilder,
-            ITransactionManager transactionManager)
+            ITransactionManager transactionManager,
+            IAppDbContext context)
         {
             _taskRepo = taskRepo;
             _assigneeRepo = assigneeRepo;
@@ -45,12 +45,7 @@ namespace WorkManagementSystem.Application.Services
             _taskRules = taskRules;
             _taskDtoBuilder = taskDtoBuilder;
             _transactionManager = transactionManager;
-        }
-
-        public async Task<Guid?> GetManagerUnitId(Guid managerId, CancellationToken cancellationToken = default)
-        {
-            var manager = await _userRepo.GetByIdAsync(managerId, cancellationToken);
-            return manager?.UnitId;
+            _context = context;
         }
 
         public Task<TaskDto> Create(CreateTaskDto dto, Guid userId, CancellationToken cancellationToken = default)
@@ -118,77 +113,8 @@ namespace WorkManagementSystem.Application.Services
                 await _notificationService.AddNotification(assigneeId, message, cancellationToken);
             }
 
-            await _taskRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
-        }
-
-        public async Task<object> Get(
-            string keyword,
-            int page,
-            int size,
-            string? status,
-            Guid currentUserId,
-            Guid? userId = null,
-            Guid? unitId = null,
-            Guid? projectId = null,
-            CancellationToken cancellationToken = default)
-        {
-            var paging = Paging.Normalize(page, size);
-            page = paging.Page;
-            size = paging.Size;
-
-            var requester = await _userRepo.GetByIdAsync(currentUserId, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
-
-            var query = _taskRepo.QueryReadOnly().Where(t => !t.IsDeleted);
-
-            if (!string.IsNullOrWhiteSpace(keyword))
-                query = query.Where(t => t.Title.Contains(keyword.Trim()));
-
-            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<TaskStatusEnum>(status, true, out var statusEnum))
-                query = query.Where(t => t.Status == statusEnum);
-
-            if (projectId.HasValue)
-                query = query.Where(t => t.ProjectId == projectId.Value);
-
-            if (requester.Role == "Admin")
-            {
-                if (unitId.HasValue)
-                    query = query.Where(t => t.UnitId == unitId.Value);
-                if (userId.HasValue)
-                    query = query.Where(t => _assigneeRepo.QueryReadOnly().Any(a => a.TaskId == t.Id && a.UserId == userId.Value));
-            }
-            else if (requester.Role == "Manager")
-            {
-                if (!requester.UnitId.HasValue)
-                    query = query.Where(t => false);
-                else
-                {
-                    var managerUnitId = requester.UnitId.Value;
-                    query = query.Where(t => t.UnitId == managerUnitId ||
-                                             _assigneeRepo.QueryReadOnly().Any(a => a.TaskId == t.Id && a.UnitId == managerUnitId));
-
-                    if (userId.HasValue)
-                        query = query.Where(t => _assigneeRepo.QueryReadOnly().Any(a => a.TaskId == t.Id && a.UserId == userId.Value));
-                }
-            }
-            else
-            {
-                var accessibleTaskIds = await GetAccessibleTaskIdsForUser(requester, cancellationToken);
-                query = query.Where(t => accessibleTaskIds.Contains(t.Id));
-            }
-
-            var total = await query.CountAsync(cancellationToken);
-            var tasks = await query
-                .OrderBy(t => t.DueDate == null)
-                .ThenBy(t => t.DueDate)
-                .ThenByDescending(t => t.CreatedAt)
-                .Skip((page - 1) * size)
-                .Take(size)
-                .ToListAsync(cancellationToken);
-
-            var dtos = await _taskDtoBuilder.BuildTaskDtos(tasks, cancellationToken);
-            return new { total, page, size, data = dtos };
         }
 
         public Task<TaskDto> Update(Guid id, UpdateTaskDto dto, Guid changedBy, CancellationToken cancellationToken = default)
@@ -248,12 +174,13 @@ namespace WorkManagementSystem.Application.Services
             task.ProjectId = project?.Id;
 
             _taskRepo.Update(task);
+            _context.SetOriginalRowVersion(task, ConcurrencyToken.Require(dto.RowVersion));
 
             var assignedUserIds = await _workflowService.ResolveTaskRecipients(task.Id, cancellationToken);
             foreach (var uid in assignedUserIds.Where(uid => uid != changedBy))
                 await _notificationService.AddNotification(uid, $"Cong viec '{task.Title}' da duoc cap nhat.", cancellationToken);
 
-            await _taskRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
         }
 
@@ -286,11 +213,11 @@ namespace WorkManagementSystem.Application.Services
                 OldValue = bool.FalseString,
                 NewValue = bool.TrueString
             }, cancellationToken);
-            await _taskRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public Task RemindTask(Guid taskId, Guid reminderId, CancellationToken cancellationToken = default)
-            => _transactionManager.ExecuteAsync(token => RemindTaskCore(taskId, reminderId, token), cancellationToken);
+            => RemindTaskCore(taskId, reminderId, cancellationToken);
 
         private async Task RemindTaskCore(Guid taskId, Guid reminderId, CancellationToken cancellationToken)
         {
@@ -323,27 +250,7 @@ namespace WorkManagementSystem.Application.Services
                 OldValue = string.Empty,
                 NewValue = "Da gui nhac nho tien do"
             }, cancellationToken);
-            await _historyRepo.SaveAsync(cancellationToken);
-        }
-
-        public async Task<TaskDto> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
-        {
-            var task = await _taskRepo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
-
-            await EnsureTaskAccess(id, userId, false, "Ban khong co quyen xem cong viec nay.", cancellationToken);
-
-            return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
-        }
-
-        public async Task<List<TaskHistory>> GetHistoryAsync(Guid taskId, Guid userId, CancellationToken cancellationToken = default)
-        {
-            await EnsureTaskAccess(taskId, userId, false, "Ban khong co quyen xem lich su cong viec nay.", cancellationToken);
-
-            return await _historyRepo.QueryReadOnly()
-                .Where(h => h.TaskId == taskId)
-                .OrderBy(h => h.ChangedAt)
-                .ToListAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<User> GetManagerOrThrow(Guid userId, string action, CancellationToken cancellationToken)
@@ -351,7 +258,7 @@ namespace WorkManagementSystem.Application.Services
             var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
                 ?? throw new NotFoundException("User not found.");
 
-            if (user.Role != "Manager")
+            if (user.Role != SystemRoles.Manager)
                 throw new ForbiddenException($"Chi Manager moi duoc {action}.");
 
             return user;
@@ -360,34 +267,12 @@ namespace WorkManagementSystem.Application.Services
         private async Task EnsureTaskAccess(
             Guid taskId,
             Guid userId,
-            bool managerOrCreatorOnly,
+            bool managementOnly,
             string message,
             CancellationToken cancellationToken)
         {
-            if (!await _accessService.CanAccessTask(taskId, userId, managerOrCreatorOnly, cancellationToken))
+            if (!await _accessService.CanAccessTask(taskId, userId, managementOnly, cancellationToken))
                 throw new ForbiddenException(message);
-        }
-
-        private async Task<List<Guid>> GetAccessibleTaskIdsForUser(User user, CancellationToken cancellationToken)
-        {
-            var directTaskIds = await _assigneeRepo.QueryReadOnly()
-                .Where(a => a.UserId == user.Id)
-                .Select(a => a.TaskId)
-                .ToListAsync(cancellationToken);
-
-            if (user.UnitId.HasValue)
-            {
-                var unitId = user.UnitId.Value;
-                var unitTaskIds = await _assigneeRepo.QueryReadOnly()
-                    .Where(a => a.UnitId == unitId &&
-                                !_assigneeRepo.QueryReadOnly().Any(d => d.TaskId == a.TaskId && d.UserId.HasValue))
-                    .Select(a => a.TaskId)
-                    .ToListAsync(cancellationToken);
-
-                return directTaskIds.Union(unitTaskIds).Distinct().ToList();
-            }
-
-            return directTaskIds.Distinct().ToList();
         }
 
         private async Task AddHistoryIfChanged(
@@ -413,9 +298,16 @@ namespace WorkManagementSystem.Application.Services
 
         private static TaskPriorityEnum ParsePriority(string? priority)
         {
-            return Enum.TryParse<TaskPriorityEnum>(priority, true, out var parsed)
-                ? parsed
-                : TaskPriorityEnum.Medium;
+            if (string.IsNullOrWhiteSpace(priority))
+                return TaskPriorityEnum.Medium;
+
+            if (Enum.TryParse<TaskPriorityEnum>(priority, true, out var parsed) &&
+                Enum.IsDefined(parsed))
+            {
+                return parsed;
+            }
+
+            throw new BusinessException("Muc uu tien khong hop le.");
         }
 
         private static void ValidateDateRange(DateTime? startDate, DateTime? dueDate)

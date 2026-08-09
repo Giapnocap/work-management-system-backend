@@ -99,8 +99,10 @@ public class ProgressReviewServiceTests
     [Fact]
     public async Task Update_PartialProgress_ClampsInvalidValues_AndSetsTaskInProgress()
     {
-        await using var context = TestFactory.CreateDbContext();
+        var saveCounter = new SaveChangesCounterInterceptor();
+        await using var context = TestFactory.CreateDbContext(saveCounter);
         var (_, user, task) = await SeedAssignedTask(context, requiresReview: false);
+        saveCounter.Reset();
         var transactions = new RecordingTransactionManager();
         var service = TestFactory.CreateProgressService(context, transactionManager: transactions);
 
@@ -117,6 +119,7 @@ public class ProgressReviewServiceTests
         Assert.Equal("InProgress", result.Status);
         Assert.Equal(TaskStatusEnum.InProgress, savedTask!.Status);
         Assert.Equal(1, transactions.ExecutionCount);
+        Assert.Equal(1, saveCounter.Count);
     }
 
     [Fact]
@@ -230,7 +233,7 @@ public class ProgressReviewServiceTests
         {
             Id = Guid.NewGuid(),
             FileName = "evidence.pdf",
-            FilePath = "Uploads/evidence.pdf",
+            StorageKey = "evidence.pdf",
             CreatedAt = DateTime.UtcNow,
             UploadedBy = user.Id,
             TaskId = otherTask.Id
@@ -333,6 +336,7 @@ public class ProgressReviewServiceTests
         Assert.Equal(5, savedTask.ActualHours);
         Assert.Contains(notifications.Sent, n => n.UserId == user.Id && n.Message.Contains("phe duyet"));
         Assert.Equal(1, transactions.ExecutionCount);
+        Assert.Equal(1, transactions.SerializableExecutionCount);
     }
 
     [Fact]
@@ -607,7 +611,7 @@ public class ProgressReviewServiceTests
         {
             Id = Guid.NewGuid(),
             FileName = fileName,
-            FilePath = Path.Combine("test-evidence", $"{Guid.NewGuid():N}.pdf"),
+            StorageKey = $"{Guid.NewGuid():N}.pdf",
             CreatedAt = DateTime.UtcNow,
             TaskId = taskId,
             UploadedBy = uploadedBy

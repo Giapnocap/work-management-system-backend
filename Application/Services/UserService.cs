@@ -4,7 +4,6 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -18,6 +17,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly IUserPerformanceService _performanceService;
         private readonly ITransactionManager _transactionManager;
         private readonly IAuditService _auditService;
+        private readonly IAppDbContext _context;
 
         public UserService(
             IGenericRepository<User> repo,
@@ -27,7 +27,8 @@ namespace WorkManagementSystem.Application.Services
             IStaffMovementService staffMovementService,
             IUserPerformanceService performanceService,
             ITransactionManager transactionManager,
-            IAuditService auditService)
+            IAuditService auditService,
+            IAppDbContext context)
         {
             _repo = repo;
             _userUnitRepo = userUnitRepo;
@@ -37,6 +38,7 @@ namespace WorkManagementSystem.Application.Services
             _performanceService = performanceService;
             _transactionManager = transactionManager;
             _auditService = auditService;
+            _context = context;
         }
 
         public async Task<List<UserDto>> GetAll(CancellationToken cancellationToken = default)
@@ -69,12 +71,25 @@ namespace WorkManagementSystem.Application.Services
 
             var users = await _repo.QueryReadOnly()
                 .Where(u => (u.UnitId == unitId || userIdsFromMapping.Contains(u.Id) || u.UnitId == null)
-                            && u.Role != "Admin"
+                            && u.Role != SystemRoles.Admin
                             && u.IsApproved
                             && !u.IsDeleted)
                 .ToListAsync(cancellationToken);
 
             return _mapper.Map<List<UserDto>>(users);
+        }
+
+        public async Task<List<UserDto>> GetVisibleUsers(
+            Guid requesterId,
+            CancellationToken cancellationToken = default)
+        {
+            var requester = await GetActiveRequester(requesterId, cancellationToken);
+            return requester.Role switch
+            {
+                SystemRoles.Admin => await GetAll(cancellationToken),
+                SystemRoles.Manager => await GetByManager(requesterId, cancellationToken),
+                _ => throw new ForbiddenException("Ban khong co quyen xem danh sach nhan su.")
+            };
         }
 
         public async Task<List<UserDto>> Search(
@@ -84,7 +99,7 @@ namespace WorkManagementSystem.Application.Services
             Guid? managerId = null,
             CancellationToken cancellationToken = default)
         {
-            var query = _repo.QueryReadOnly().Where(u => u.Role != "Admin" && u.IsApproved && !u.IsDeleted);
+            var query = _repo.QueryReadOnly().Where(u => u.Role != SystemRoles.Admin && u.IsApproved && !u.IsDeleted);
 
             if (!string.IsNullOrEmpty(keyword))
                 query = query.Where(u =>
@@ -110,6 +125,22 @@ namespace WorkManagementSystem.Application.Services
             }
 
             return _mapper.Map<List<UserDto>>(await query.ToListAsync(cancellationToken));
+        }
+
+        public async Task<List<UserDto>> SearchVisibleUsers(
+            Guid requesterId,
+            string keyword,
+            string? role,
+            Guid? unitId,
+            CancellationToken cancellationToken = default)
+        {
+            var requester = await GetActiveRequester(requesterId, cancellationToken);
+            return requester.Role switch
+            {
+                SystemRoles.Admin => await Search(keyword, role, unitId, cancellationToken: cancellationToken),
+                SystemRoles.Manager => await Search(keyword, role, null, requesterId, cancellationToken),
+                _ => throw new ForbiddenException("Ban khong co quyen tim kiem nhan su.")
+            };
         }
 
         public Task<UserDto> Update(
@@ -144,13 +175,13 @@ namespace WorkManagementSystem.Application.Services
             {
                 await _staffMovementService.ValidateChangeAsync(
                     replacement.Manager,
-                    "User",
+                    SystemRoles.User,
                     replacement.NewUnitId,
                     cancellationToken: cancellationToken);
 
                 await _staffMovementService.ApplyChangeAsync(
                     replacement.Manager,
-                    "User",
+                    SystemRoles.User,
                     replacement.NewUnitId,
                     changedBy,
                     "Replaced manager",
@@ -168,7 +199,8 @@ namespace WorkManagementSystem.Application.Services
                 replacement?.Manager.Id,
                 cancellationToken);
 
-            await _repo.SaveAsync(cancellationToken);
+            _context.SetOriginalRowVersion(user, ConcurrencyToken.Require(dto.RowVersion));
+            await _context.SaveChangesAsync(cancellationToken);
             return _mapper.Map<UserDto>(user);
         }
 
@@ -181,7 +213,7 @@ namespace WorkManagementSystem.Application.Services
                                       !string.IsNullOrWhiteSpace(dto.OldManagerAction) ||
                                       dto.OldManagerNewUnitId.HasValue;
 
-            if (dto.Role != "Manager" || !dto.UnitId.HasValue)
+            if (dto.Role != SystemRoles.Manager || !dto.UnitId.HasValue)
             {
                 if (hasReplacementInput)
                     throw new BusinessException("Chi duoc gui thong tin thay Truong phong khi bo nhiem Manager.");
@@ -192,7 +224,7 @@ namespace WorkManagementSystem.Application.Services
             var managerIds = await _repo.QueryReadOnly()
                 .Where(candidate =>
                     candidate.Id != targetUser.Id &&
-                    candidate.Role == "Manager" &&
+                    candidate.Role == SystemRoles.Manager &&
                     candidate.UnitId == dto.UnitId &&
                     candidate.IsApproved &&
                     !candidate.IsDeleted)
@@ -281,7 +313,7 @@ namespace WorkManagementSystem.Application.Services
                 new { user.Role, user.UnitId },
                 cancellationToken);
 
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public Task<PerformanceDto> GetPerformanceAsync(
@@ -290,6 +322,18 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             return _performanceService.GetPerformanceAsync(userId, periodId, cancellationToken);
+        }
+
+        public async Task<PerformanceDto> GetVisiblePerformanceAsync(
+            Guid requesterId,
+            Guid targetUserId,
+            Guid? periodId = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (!await CanViewPerformanceAsync(requesterId, targetUserId, periodId, cancellationToken))
+                throw new ForbiddenException("Ban khong co quyen xem KPI cua nhan su nay.");
+
+            return await GetPerformanceAsync(targetUserId, periodId, cancellationToken);
         }
 
         public Task<bool> CanViewPerformanceAsync(
@@ -311,6 +355,19 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             return _performanceService.GetUnitPerformanceAsync(requesterId, periodId, cancellationToken);
+        }
+
+        private async Task<User> GetActiveRequester(
+            Guid requesterId,
+            CancellationToken cancellationToken)
+        {
+            return await _repo.QueryReadOnly()
+                .FirstOrDefaultAsync(user =>
+                    user.Id == requesterId &&
+                    user.IsApproved &&
+                    !user.IsDeleted,
+                    cancellationToken)
+                ?? throw new NotFoundException("User not found.");
         }
 
         private sealed record ManagerReplacement(User Manager, Guid? NewUnitId);

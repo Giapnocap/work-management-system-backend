@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WorkManagementSystem.Infrastructure.Data;
+using WorkManagementSystem.Infrastructure.Security;
+using WorkManagementSystem.Application.Interfaces;
 
 namespace WorkManagementSystem.Tests;
 
@@ -20,6 +22,7 @@ public class DemoDataSeederTests
             .Build();
 
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IPasswordHashService, BcryptPasswordHashService>();
         services.AddLogging();
         var databaseName = Guid.NewGuid().ToString();
         services.AddDbContext<AppDbContext>(options =>
@@ -46,6 +49,7 @@ public class DemoDataSeederTests
         Assert.Single(await context.Projects.IgnoreQueryFilters()
             .Where(p => p.Name == "Demo Workflow Project")
             .ToListAsync());
+        Assert.Single(await context.KpiPeriods.ToListAsync());
         Assert.Equal(4, await context.Tasks.IgnoreQueryFilters()
             .CountAsync(t => t.Title.StartsWith("Demo -")));
         Assert.Equal(3, await context.UserUnits.IgnoreQueryFilters()

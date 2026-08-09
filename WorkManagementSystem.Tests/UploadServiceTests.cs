@@ -31,8 +31,14 @@ public class UploadServiceTests
         var saved = context.UploadFiles.Single();
         Assert.Equal("proof.png", result.FileName);
         Assert.Equal(task.Id, saved.TaskId);
-        Assert.True(File.Exists(saved.FilePath));
+        Assert.False(Path.IsPathRooted(saved.StorageKey));
+        Assert.Equal(saved.StorageKey, Path.GetFileName(saved.StorageKey));
+        Assert.True(File.Exists(Path.Combine(
+            tempRoot.Environment.ContentRootPath,
+            "Uploads",
+            saved.StorageKey)));
         Assert.Null(typeof(UploadFileDto).GetProperty("FilePath"));
+        Assert.Null(typeof(UploadFileDto).GetProperty("StorageKey"));
     }
 
     [Fact]
@@ -174,7 +180,7 @@ public class UploadServiceTests
         {
             Id = Guid.NewGuid(),
             FileName = "proof.pdf",
-            FilePath = storedPath,
+            StorageKey = "proof.pdf",
             CreatedAt = DateTime.UtcNow,
             TaskId = task.Id,
             UploadedBy = user.Id
@@ -185,9 +191,33 @@ public class UploadServiceTests
 
         var result = await service.GetFileForDownloadAsync(upload.Id, user.Id);
 
-        Assert.NotNull(result);
-        Assert.Equal(upload.FilePath, result!.FilePath);
+        Assert.Equal(storedPath, result.PhysicalPath);
         Assert.Equal("application/pdf", result.ContentType);
+    }
+
+    [Fact]
+    public async Task GetFileForDownload_MissingPhysicalFile_ThrowsNotFoundException()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var (user, task) = await SeedUploadTask(context);
+        using var tempRoot = new TempContentRoot();
+        var uploadsRoot = Path.Combine(tempRoot.Environment.ContentRootPath, "Uploads");
+        Directory.CreateDirectory(uploadsRoot);
+        var upload = new UploadFile
+        {
+            Id = Guid.NewGuid(),
+            FileName = "missing.pdf",
+            StorageKey = "missing.pdf",
+            CreatedAt = DateTime.UtcNow,
+            TaskId = task.Id,
+            UploadedBy = user.Id
+        };
+        context.UploadFiles.Add(upload);
+        await context.SaveChangesAsync();
+        var service = CreateService(tempRoot, context);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.GetFileForDownloadAsync(upload.Id, user.Id));
     }
 
     [Fact]
@@ -261,7 +291,7 @@ public class UploadServiceTests
     }
 
     [Fact]
-    public async Task GetFileForDownload_PathOutsideUploadRoot_ThrowsNotFoundException()
+    public async Task GetFileForDownload_RootedStorageKey_ThrowsNotFoundException()
     {
         await using var context = TestFactory.CreateDbContext();
         var (user, task) = await SeedUploadTask(context);
@@ -270,7 +300,30 @@ public class UploadServiceTests
         {
             Id = Guid.NewGuid(),
             FileName = "outside.pdf",
-            FilePath = Path.Combine(tempRoot.Environment.ContentRootPath, "outside.pdf"),
+            StorageKey = Path.Combine(tempRoot.Environment.ContentRootPath, "outside.pdf"),
+            CreatedAt = DateTime.UtcNow,
+            TaskId = task.Id,
+            UploadedBy = user.Id
+        };
+        context.UploadFiles.Add(upload);
+        await context.SaveChangesAsync();
+        var service = CreateService(tempRoot, context);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.GetFileForDownloadAsync(upload.Id, user.Id));
+    }
+
+    [Fact]
+    public async Task GetFileForDownload_TraversalStorageKey_ThrowsNotFoundException()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var (user, task) = await SeedUploadTask(context);
+        using var tempRoot = new TempContentRoot();
+        var upload = new UploadFile
+        {
+            Id = Guid.NewGuid(),
+            FileName = "outside.pdf",
+            StorageKey = "../outside.pdf",
             CreatedAt = DateTime.UtcNow,
             TaskId = task.Id,
             UploadedBy = user.Id

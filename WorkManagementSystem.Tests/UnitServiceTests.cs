@@ -12,6 +12,36 @@ namespace WorkManagementSystem.Tests;
 public class UnitServiceTests
 {
     [Fact]
+    public async Task GetVisibleUsers_UserCannotReadAnotherUnit()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unitA = SeedUnit(context, "Unit A");
+        var unitB = SeedUnit(context, "Unit B");
+        var employee = SeedUser(context, "unit-viewer", "User", unitA.Id);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetVisibleUsers(unitB.Id, employee.Id));
+    }
+
+    [Fact]
+    public async Task AddMemberForRequester_NonAdminIsForbidden()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unit = SeedUnit(context, "Engineering");
+        var manager = SeedUser(context, "unit-manager", "Manager", unit.Id);
+        var employee = SeedUser(context, "new-member", "User", null);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.AddMemberForRequester(unit.Id, employee.Id, manager.Id));
+
+        Assert.Null((await context.Users.SingleAsync(user => user.Id == employee.Id)).UnitId);
+    }
+
+    [Fact]
     public async Task AddMember_WithUnknownUnit_ThrowsNotFoundException()
     {
         await using var context = TestFactory.CreateDbContext();
@@ -194,7 +224,8 @@ public class UnitServiceTests
             TestFactory.CreateStaffMovementService(context),
             TestFactory.CreateMapper(),
             transactionManager ?? new EfTransactionManager(context),
-            TestFactory.CreateAuditService(context));
+            TestFactory.CreateAuditService(context),
+            context);
     }
 
     private static Unit SeedUnit(AppDbContext context, string name)

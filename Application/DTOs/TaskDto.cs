@@ -15,6 +15,7 @@ namespace WorkManagementSystem.Application.DTOs
         public DateTime? DueDate { get; set; }
         public List<Guid> UserIds { get; set; } = new();
         public List<Guid> UnitIds { get; set; } = new();
+        [RegularExpression("^(Low|Medium|High|Urgent)$", ErrorMessage = "Muc uu tien khong hop le.")]
         public string Priority { get; set; } = "Medium";
         public bool RequiresReview { get; set; } = true;
         public Guid? ProjectId { get; set; }
@@ -22,6 +23,10 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class UpdateTaskDto
     {
+        [Required]
+        [MinLength(1, ErrorMessage = "RowVersion khong hop le.")]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         [Required(ErrorMessage = "Tieu de khong duoc de trong!")]
         [MaxLength(200, ErrorMessage = "Tieu de toi da 200 ky tu!")]
         public string Title { get; set; } = string.Empty;
@@ -31,6 +36,7 @@ namespace WorkManagementSystem.Application.DTOs
 
         public DateTime? StartDate { get; set; }
         public DateTime? DueDate { get; set; }
+        [RegularExpression("^(Low|Medium|High|Urgent)$", ErrorMessage = "Muc uu tien khong hop le.")]
         public string Priority { get; set; } = "Medium";
         public bool RequiresReview { get; set; } = true;
         public Guid? ProjectId { get; set; }
@@ -65,5 +71,17 @@ namespace WorkManagementSystem.Application.DTOs
         public Guid? ProjectId { get; set; }
         public DateTime? CompletedAt { get; set; }
         public Guid? CompletedBy { get; set; }
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    }
+
+    public sealed class TaskHistoryDto
+    {
+        public Guid Id { get; set; }
+        public Guid TaskId { get; set; }
+        public Guid ChangedBy { get; set; }
+        public string FieldName { get; set; } = string.Empty;
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime ChangedAt { get; set; }
     }
 }

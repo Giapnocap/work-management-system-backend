@@ -11,14 +11,44 @@ namespace WorkManagementSystem.Tests;
 public class ProgressHistoryAccessTests
 {
     [Fact]
+    public async Task GetAll_UserCannotSeeOtherUsersReports()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var scenario = await SeedScenario(context);
+        var service = TestFactory.CreateProgressQueryService(context);
+
+        var result = await service.GetAll(1, 20, scenario.CurrentUnitUser.Id);
+        var data = result.Data;
+
+        Assert.Single(data);
+        Assert.Equal(scenario.CurrentUnitProgress.Id, data[0].Id);
+    }
+
+    [Fact]
+    public async Task GetAll_ManagerOnlySeesCurrentUnitReports()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var scenario = await SeedScenario(context);
+        var service = TestFactory.CreateProgressQueryService(context);
+
+        var result = await service.GetAll(1, 20, scenario.Manager.Id);
+        var data = result.Data;
+
+        Assert.Equal(2, data.Count);
+        Assert.Contains(data, progress => progress.Id == scenario.CurrentUnitProgress.Id);
+        Assert.Contains(data, progress => progress.Id == scenario.OtherUserProgress.Id);
+        Assert.DoesNotContain(data, progress => progress.Id == scenario.FormerUnitProgress.Id);
+    }
+
+    [Fact]
     public async Task GetMyHistory_ManagerTransferredToAnotherUnit_OnlyReturnsCurrentUnitReports()
     {
         await using var context = TestFactory.CreateDbContext();
         var scenario = await SeedScenario(context);
-        var service = TestFactory.CreateProgressService(context);
+        var service = TestFactory.CreateProgressQueryService(context);
 
         var result = await service.GetMyHistory(scenario.Manager.Id, 1, 20);
-        var data = GetData(result);
+        var data = result.Data;
 
         Assert.Equal(2, data.Count);
         Assert.Contains(data, progress => progress.Id == scenario.CurrentUnitProgress.Id);
@@ -43,11 +73,11 @@ public class ProgressHistoryAccessTests
         };
         context.Users.Add(managerWithoutUnit);
         await context.SaveChangesAsync();
-        var service = TestFactory.CreateProgressService(context);
+        var service = TestFactory.CreateProgressQueryService(context);
 
         var result = await service.GetMyHistory(managerWithoutUnit.Id, 1, 20);
 
-        Assert.Empty(GetData(result));
+        Assert.Empty(result.Data);
     }
 
     [Fact]
@@ -55,10 +85,10 @@ public class ProgressHistoryAccessTests
     {
         await using var context = TestFactory.CreateDbContext();
         var scenario = await SeedScenario(context);
-        var service = TestFactory.CreateProgressService(context);
+        var service = TestFactory.CreateProgressQueryService(context);
 
         var result = await service.GetMyHistory(scenario.CurrentUnitUser.Id, 1, 20);
-        var data = GetData(result);
+        var data = result.Data;
 
         Assert.Single(data);
         Assert.Equal(scenario.CurrentUnitProgress.Id, data[0].Id);
@@ -69,22 +99,15 @@ public class ProgressHistoryAccessTests
     {
         await using var context = TestFactory.CreateDbContext();
         var scenario = await SeedScenario(context);
-        var service = TestFactory.CreateProgressService(context);
+        var service = TestFactory.CreateProgressQueryService(context);
 
         var result = await service.GetMyHistory(scenario.Admin.Id, 1, 20);
-        var data = GetData(result);
+        var data = result.Data;
 
         Assert.Equal(3, data.Count);
         Assert.Contains(data, progress => progress.Id == scenario.FormerUnitProgress.Id);
         Assert.Contains(data, progress => progress.Id == scenario.CurrentUnitProgress.Id);
         Assert.Contains(data, progress => progress.Id == scenario.OtherUserProgress.Id);
-    }
-
-    private static List<ProgressDto> GetData(object result)
-    {
-        var property = result.GetType().GetProperty("data");
-        Assert.NotNull(property);
-        return Assert.IsType<List<ProgressDto>>(property.GetValue(result));
     }
 
     private static async Task<HistoryScenario> SeedScenario(AppDbContext context)

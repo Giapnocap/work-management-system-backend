@@ -2,16 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
     public sealed class StaffMovementService : IStaffMovementService
     {
-        private const string AdminRole = "Admin";
-        private const string ManagerRole = "Manager";
-        private const string UserRole = "User";
-
         private readonly IGenericRepository<User> _userRepo;
         private readonly IGenericRepository<Unit> _unitRepo;
         private readonly IUserTaskAssignmentService _taskAssignmentService;
@@ -52,13 +47,13 @@ namespace WorkManagementSystem.Application.Services
                     throw new BusinessException("Phong ban khong ton tai hoac da bi luu tru.");
             }
 
-            if (newRole == ManagerRole)
+            if (newRole == SystemRoles.Manager)
             {
                 var hasAnotherManager = await _userRepo.QueryReadOnly()
                     .AnyAsync(candidate =>
                         candidate.Id != user.Id &&
                         candidate.Id != managerBeingReplacedId &&
-                        candidate.Role == ManagerRole &&
+                        candidate.Role == SystemRoles.Manager &&
                         candidate.UnitId == newUnitId &&
                         candidate.IsApproved &&
                         !candidate.IsDeleted,
@@ -151,13 +146,13 @@ namespace WorkManagementSystem.Application.Services
 
         private static void ValidateRoleChange(User user, string newRole, Guid? newUnitId)
         {
-            if (user.Role == AdminRole || newRole == AdminRole)
+            if (user.Role == SystemRoles.Admin || newRole == SystemRoles.Admin)
                 throw new BusinessException("Tai khoan Admin khong duoc thay doi qua luong dieu chuyen nhan su.");
 
-            if (newRole != UserRole && newRole != ManagerRole)
+            if (newRole != SystemRoles.User && newRole != SystemRoles.Manager)
                 throw new BusinessException("Chuc vu chi co the la User hoac Manager.");
 
-            if (newRole == ManagerRole && !newUnitId.HasValue)
+            if (newRole == SystemRoles.Manager && !newUnitId.HasValue)
                 throw new BusinessException("Truong phong phai thuoc mot phong ban.");
         }
     }

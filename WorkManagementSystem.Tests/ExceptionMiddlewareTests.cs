@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging.Abstractions;
 using WorkManagementSystem.API.Middlewares;
 
 namespace WorkManagementSystem.Tests;
@@ -15,7 +16,8 @@ public class ExceptionMiddlewareTests
     {
         var middleware = new ExceptionMiddleware(
             _ => throw new DbUpdateConcurrencyException("Concurrent update"),
-            new TestHostEnvironment());
+            new TestHostEnvironment(),
+            NullLogger<ExceptionMiddleware>.Instance);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
 
@@ -25,9 +27,14 @@ public class ExceptionMiddlewareTests
 
         context.Response.Body.Position = 0;
         using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal((int)HttpStatusCode.Conflict, response.RootElement.GetProperty("status").GetInt32());
         Assert.Equal(
             "concurrency_conflict",
             response.RootElement.GetProperty("code").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(response.RootElement.GetProperty("message").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(response.RootElement.GetProperty("traceId").GetString()));
+        Assert.Equal(JsonValueKind.Object, response.RootElement.GetProperty("errors").ValueKind);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
     }
 
     [Fact]
@@ -37,15 +44,35 @@ public class ExceptionMiddlewareTests
         cancellation.Cancel();
         var middleware = new ExceptionMiddleware(
             _ => throw new OperationCanceledException(cancellation.Token),
-            new TestHostEnvironment());
+            new TestHostEnvironment(),
+            NullLogger<ExceptionMiddleware>.Instance);
         var context = new DefaultHttpContext();
         context.RequestAborted = cancellation.Token;
         context.Response.Body = new MemoryStream();
 
         await middleware.Invoke(context);
 
-        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status499ClientClosedRequest, context.Response.StatusCode);
         Assert.Equal(0, context.Response.Body.Length);
+    }
+
+    [Fact]
+    public async Task Invoke_WhenOperationIsCancelledByServer_ReturnsServerErrorResponse()
+    {
+        var middleware = new ExceptionMiddleware(
+            _ => throw new OperationCanceledException("Server operation timed out."),
+            new TestHostEnvironment(),
+            NullLogger<ExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.Invoke(context);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(StatusCodes.Status500InternalServerError, response.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("internal_server_error", response.RootElement.GetProperty("code").GetString());
     }
 
     private sealed class TestHostEnvironment : IWebHostEnvironment

@@ -3,20 +3,19 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class KpiService : IKpiService
     {
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
         private readonly IUserPerformanceService _performanceService;
         private readonly ITransactionManager _transactionManager;
         private readonly IAuditService _auditService;
         private readonly IKpiPeriodResolver _periodResolver;
 
         public KpiService(
-            AppDbContext context,
+            IAppDbContext context,
             IUserPerformanceService performanceService,
             ITransactionManager transactionManager,
             IAuditService auditService,
@@ -116,7 +115,7 @@ namespace WorkManagementSystem.Application.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(user =>
-                    user.Role != "Admin" &&
+                    user.Role != SystemRoles.Admin &&
                     user.IsApproved &&
                     !user.IsDeleted &&
                     user.JoinedUnitAt <= period.EndDate)
@@ -126,7 +125,7 @@ namespace WorkManagementSystem.Application.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(history =>
-                    history.Role != "Admin" &&
+                    history.Role != SystemRoles.Admin &&
                     history.EffectiveFrom <= period.EndDate &&
                     (!history.EffectiveTo.HasValue || history.EffectiveTo.Value >= period.StartDate))
                 .Select(history => history.UserId);
@@ -150,12 +149,17 @@ namespace WorkManagementSystem.Application.Services
                 .AsNoTracking()
                 .ToDictionaryAsync(unit => unit.Id, unit => unit.Name, cancellationToken);
 
-            var results = new List<PerformanceDto>();
+            var results = (await _performanceService.GetPerformancesAsync(
+                userIds,
+                period.Id,
+                cancellationToken)).ToList();
+            var resultsByUser = results.ToDictionary(result => result.UserId);
+
             foreach (var user in users)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var dto = await _performanceService.GetPerformanceAsync(user.Id, period.Id, cancellationToken);
-                results.Add(dto);
+                if (!resultsByUser.TryGetValue(user.Id, out var dto))
+                    continue;
 
                 if (!existingResults.TryGetValue(user.Id, out var existing))
                 {
@@ -243,7 +247,8 @@ namespace WorkManagementSystem.Application.Services
                 EndDate = period.EndDate,
                 Status = period.Status,
                 CreatedAt = period.CreatedAt,
-                LockedAt = period.LockedAt
+                LockedAt = period.LockedAt,
+                RowVersion = period.RowVersion
             };
         }
     }

@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 using ProgressStatusEnum = WorkManagementSystem.Domain.Enums.ProgressStatus;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
@@ -17,6 +16,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly ITaskAccessService _accessService;
         private readonly ITaskWorkflowService _workflowService;
         private readonly ITransactionManager _transactionManager;
+        private readonly IAppDbContext _context;
 
         public ReviewService(
             IGenericRepository<Progress> progressRepo,
@@ -25,7 +25,8 @@ namespace WorkManagementSystem.Application.Services
             INotificationService notificationService,
             ITaskAccessService accessService,
             ITaskWorkflowService workflowService,
-            ITransactionManager transactionManager)
+            ITransactionManager transactionManager,
+            IAppDbContext context)
         {
             _progressRepo = progressRepo;
             _reviewRepo = reviewRepo;
@@ -34,10 +35,13 @@ namespace WorkManagementSystem.Application.Services
             _accessService = accessService;
             _workflowService = workflowService;
             _transactionManager = transactionManager;
+            _context = context;
         }
 
         public Task<ReviewDto> Review(ReviewDto dto, Guid reviewerId, CancellationToken cancellationToken = default)
-            => _transactionManager.ExecuteAsync(token => ReviewCore(dto, reviewerId, token), cancellationToken);
+            => _transactionManager.ExecuteSerializableAsync(
+                token => ReviewCore(dto, reviewerId, token),
+                cancellationToken);
 
         private async Task<ReviewDto> ReviewCore(
             ReviewDto dto,
@@ -48,13 +52,13 @@ namespace WorkManagementSystem.Application.Services
                 ?? throw new NotFoundException("Progress not found");
 
             var reviewerRole = await _accessService.GetUserRole(reviewerId, cancellationToken);
-            if (reviewerRole != "Manager")
+            if (reviewerRole != SystemRoles.Manager)
                 throw new ForbiddenException("Chi Manager moi duoc duyet bao cao.");
 
             if (!await _accessService.CanAccessTask(
                     progress.TaskId,
                     reviewerId,
-                    managerOrCreatorOnly: true,
+                    managementOnly: true,
                     cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen duyet bao cao nay.");
 
@@ -109,7 +113,7 @@ namespace WorkManagementSystem.Application.Services
                 : $"Bao cao cua ban bi tu choi.{(string.IsNullOrWhiteSpace(dto.Comment) ? "" : $" Ly do: {dto.Comment}")}";
 
             await _notificationService.AddNotification(progress.UserId, message, cancellationToken);
-            await _reviewRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return dto;
         }
 

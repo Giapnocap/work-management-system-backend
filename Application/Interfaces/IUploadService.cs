@@ -12,7 +12,7 @@ namespace WorkManagementSystem.Application.Interfaces
             Guid uploadedBy,
             CancellationToken cancellationToken = default);
 
-        Task<UploadFileDownloadDto?> GetFileForDownloadAsync(
+        Task<UploadFileDownloadDto> GetFileForDownloadAsync(
             Guid id,
             Guid requestedBy,
             CancellationToken cancellationToken = default);

@@ -11,46 +11,28 @@ namespace WorkManagementSystem.API.Controllers
     public class ProfileController : ControllerBase
     {
         private readonly IProfileService _service;
-        private readonly IAuthService _authService;
+        private readonly ICurrentUserService _currentUser;
 
-        public ProfileController(IProfileService service, IAuthService authService)
+        public ProfileController(IProfileService service, ICurrentUserService currentUser)
         {
             _service = service;
-            _authService = authService;
+            _currentUser = currentUser;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProfile(CancellationToken cancellationToken)
+        public async Task<ActionResult<ProfileDto>> GetProfile(CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
-            var profile = await _service.GetProfile(userId, cancellationToken);
-            if (profile == null)
-                return NotFound(new { message = "Không tìm thấy hồ sơ.", code = "not_found" });
-
-            return Ok(profile);
+            var userId = _currentUser.GetRequiredUserId();
+            return Ok(await _service.GetProfile(userId, cancellationToken));
         }
 
         [HttpPut]
-        public async Task<IActionResult> UpdateProfile([FromBody] ProfileDto dto, CancellationToken cancellationToken)
+        public async Task<ActionResult<ProfileDto>> UpdateProfile(
+            [FromBody] ProfileDto dto,
+            CancellationToken cancellationToken)
         {
-            if (!User.TryGetUserId(out var userId))
-                return Unauthorized(new { message = "Khong xac dinh duoc nguoi dung.", code = "unauthorized" });
-
-            var result = await _service.UpdateProfile(userId, dto, cancellationToken);
-
-            if (result != "Cập nhật thành công!")
-                return BadRequest(new { message = result, code = "business_error" });
-
-            var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-            if (username != null)
-            {
-                var newToken = await _authService.RefreshToken(userId, cancellationToken);
-                return Ok(new { message = result, token = newToken });
-            }
-
-            return Ok(new { message = result });
+            var userId = _currentUser.GetRequiredUserId();
+            return Ok(await _service.UpdateProfile(userId, dto, cancellationToken));
         }
     }
 }

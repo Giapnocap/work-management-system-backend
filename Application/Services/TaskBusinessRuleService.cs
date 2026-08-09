@@ -2,17 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
     public class TaskBusinessRuleService : ITaskBusinessRuleService
     {
         private readonly IGenericRepository<User> _userRepo;
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public TaskBusinessRuleService(IGenericRepository<User> userRepo, AppDbContext context)
+        public TaskBusinessRuleService(IGenericRepository<User> userRepo, IAppDbContext context)
         {
             _userRepo = userRepo;
             _context = context;
@@ -35,6 +33,7 @@ namespace WorkManagementSystem.Application.Services
 
             var project = await _context.Projects
                 .IgnoreQueryFilters()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == projectId.Value, cancellationToken)
                 ?? throw new NotFoundException("Project not found.");
 
@@ -132,7 +131,7 @@ namespace WorkManagementSystem.Application.Services
             var assignableUserIds = await _userRepo.QueryReadOnly()
                 .Where(u => directUserIds.Contains(u.Id) &&
                             u.UnitId == managerUnitId &&
-                            u.Role == "User" &&
+                    u.Role == SystemRoles.User &&
                             u.IsApproved &&
                             !u.IsDeleted)
                 .Select(u => u.Id)
@@ -152,7 +151,7 @@ namespace WorkManagementSystem.Application.Services
             return await _userRepo.QueryReadOnly()
                 .Where(u => u.UnitId.HasValue &&
                             unitIds.Contains(u.UnitId.Value) &&
-                            u.Role == "User" &&
+                    u.Role == SystemRoles.User &&
                             u.IsApproved &&
                             !u.IsDeleted)
                 .Select(u => u.Id)

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -17,7 +16,9 @@ namespace WorkManagementSystem.Application.Services
         private readonly INotificationService _notificationService;
         private readonly ITaskAccessService _accessService;
         private readonly ITaskWorkflowService _workflowService;
+        private readonly ITaskRealtimeNotifier _realtimeNotifier;
         private readonly IMapper _mapper;
+        private readonly IAppDbContext _context;
 
         public CommentService(
             IGenericRepository<TaskComment> repo,
@@ -28,7 +29,9 @@ namespace WorkManagementSystem.Application.Services
             INotificationService notificationService,
             ITaskAccessService accessService,
             ITaskWorkflowService workflowService,
-            IMapper mapper)
+            ITaskRealtimeNotifier realtimeNotifier,
+            IMapper mapper,
+            IAppDbContext context)
         {
             _repo = repo;
             _userRepo = userRepo;
@@ -38,7 +41,9 @@ namespace WorkManagementSystem.Application.Services
             _notificationService = notificationService;
             _accessService = accessService;
             _workflowService = workflowService;
+            _realtimeNotifier = realtimeNotifier;
             _mapper = mapper;
+            _context = context;
         }
 
         public async Task<CommentDto> AddComment(
@@ -72,12 +77,16 @@ namespace WorkManagementSystem.Application.Services
             }, cancellationToken);
 
             await NotifyCommentRecipients(dto.TaskId, userId, cancellationToken);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
             var sender = await _userRepo.GetByIdAsync(userId, cancellationToken);
             var result = _mapper.Map<CommentDto>(comment);
             result.UserFullName = sender?.FullName;
             result.UserEmployeeCode = sender?.EmployeeCode;
+            await _realtimeNotifier.CommentAddedAsync(
+                dto.TaskId,
+                result,
+                cancellationToken);
             return result;
         }
 
@@ -174,10 +183,11 @@ namespace WorkManagementSystem.Application.Services
                 }, cancellationToken);
             }
 
-            await _seenRepo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            await _realtimeNotifier.CommentsSeenAsync(taskId, userId, cancellationToken);
         }
 
-        public async Task<Guid> ToggleReaction(
+        public async Task ToggleReaction(
             Guid commentId,
             Guid userId,
             string emoji,
@@ -216,8 +226,11 @@ namespace WorkManagementSystem.Application.Services
                 _reactionRepo.Update(existing);
             }
 
-            await _reactionRepo.SaveAsync(cancellationToken);
-            return comment.TaskId;
+            await _context.SaveChangesAsync(cancellationToken);
+            await _realtimeNotifier.ReactionChangedAsync(
+                comment.TaskId,
+                commentId,
+                cancellationToken);
         }
 
         public async Task Delete(
@@ -231,13 +244,13 @@ namespace WorkManagementSystem.Application.Services
             if (comment.UserId != userId && !await _accessService.CanAccessTask(
                     comment.TaskId,
                     userId,
-                    managerOrCreatorOnly: true,
+                    managementOnly: true,
                     cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen xoa binh luan nay.");
 
             comment.IsDeleted = true;
             _repo.Update(comment);
-            await _repo.SaveAsync(cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task NotifyCommentRecipients(

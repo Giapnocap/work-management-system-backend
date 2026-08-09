@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -25,27 +26,20 @@ using Microsoft.AspNetCore.Mvc;
 using WorkManagementSystem.API.Swagger;
 using WorkManagementSystem.API.Hubs;
 using WorkManagementSystem.API.Authentication;
+using WorkManagementSystem.API.Contracts;
 using WorkManagementSystem.API.Configuration;
 using WorkManagementSystem.Infrastructure.Health;
+using WorkManagementSystem.Infrastructure.Security;
+using WorkManagementSystem.Infrastructure.Storage;
 
 // ================= SERILOG =================
 const string logOutputTemplate =
     "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] [{UserId}] {Message:lj}{NewLine}{Exception}";
 
-Log.Logger = new LoggerConfiguration()
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "WorkManagementSystem")
-    .WriteTo.Console(outputTemplate: logOutputTemplate)
-    .WriteTo.File(
-        "logs/log-.txt",
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: logOutputTemplate)
-    .CreateLogger();
-
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 if (builder.Environment.IsDevelopment())
 {
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
     builder.Configuration.AddUserSecrets(
         Assembly.GetExecutingAssembly(),
         optional: true,
@@ -53,45 +47,60 @@ if (builder.Environment.IsDevelopment())
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(args);
-builder.Host.UseSerilog();
 
-var jwtOptions = builder.Configuration
-    .GetSection(JwtOptions.SectionName)
-    .Get<JwtOptions>() ?? new JwtOptions();
-jwtOptions.Validate(builder.Environment.IsProduction());
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    var logFilePath = Path.Combine(
+        context.HostingEnvironment.ContentRootPath,
+        "logs",
+        "log-.txt");
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Application", "WorkManagementSystem")
+        .WriteTo.Console(outputTemplate: logOutputTemplate)
+        .WriteTo.File(
+            logFilePath,
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 14,
+            outputTemplate: logOutputTemplate);
+});
+
+var jwtOptions = StartupConfigurationValidator.GetJwtOptions(
+    builder.Configuration,
+    builder.Environment.IsDevelopment(),
+    builder.Environment.IsProduction());
+builder.Services.AddSingleton(Options.Create(jwtOptions));
 
 var connectionString = StartupConfigurationValidator.GetConnectionString(
     builder.Configuration,
     builder.Environment.IsProduction());
+var reverseProxySettings = StartupConfigurationValidator.GetReverseProxySettings(
+    builder.Configuration,
+    builder.Environment.IsProduction());
+var uploadCleanupOptions = builder.Configuration
+    .GetSection(UploadCleanupOptions.SectionName)
+    .Get<UploadCleanupOptions>() ?? new UploadCleanupOptions();
+uploadCleanupOptions.Validate();
+builder.Services.AddSingleton(Options.Create(uploadCleanupOptions));
 
 // ================= SERVICES =================
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
-    options.InvalidModelStateResponseFactory = context =>
-    {
-        var errors = context.ModelState
-            .Where(entry => entry.Value?.Errors.Count > 0)
-            .ToDictionary(
-                entry => entry.Key,
-                entry => entry.Value!.Errors.Select(error =>
-                    string.IsNullOrWhiteSpace(error.ErrorMessage)
-                        ? "Gia tri khong hop le."
-                        : error.ErrorMessage).ToArray());
-
-        return new BadRequestObjectResult(new
-        {
-            message = "Du lieu gui len khong hop le.",
-            code = "validation_error",
-            traceId = context.HttpContext.TraceIdentifier,
-            details = "",
-            errors
-        });
-    };
+    options.InvalidModelStateResponseFactory = ApiProblemDetailsFactory.CreateValidationResponse;
 });
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 8 * 1024;
+    options.MaximumParallelInvocationsPerClient = 1;
+});
+builder.Services.AddSingleton<ITaskRealtimeNotifier, SignalRTaskRealtimeNotifier>();
 
 // DB
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -101,6 +110,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.ConfigureWarnings(warnings =>
         warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
 });
+builder.Services.AddScoped<IAppDbContext>(provider =>
+    provider.GetRequiredService<AppDbContext>());
 
 // Repository
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -108,9 +119,12 @@ builder.Services.AddScoped<ITransactionManager, EfTransactionManager>();
 
 // Services
 builder.Services.AddScoped<IEmployeeCodeGenerator, EmployeeCodeGenerator>();
+builder.Services.AddSingleton<IPasswordHashService, BcryptPasswordHashService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<ITaskQueryService, TaskQueryService>();
 builder.Services.AddScoped<IProgressService, ProgressService>();
+builder.Services.AddScoped<IProgressQueryService, ProgressQueryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IUnitService, UnitService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -122,6 +136,9 @@ builder.Services.AddScoped<IUserUnitMembershipService, UserUnitMembershipService
 builder.Services.AddScoped<IStaffMovementService, StaffMovementService>();
 builder.Services.AddSingleton<IUploadFileValidator, UploadFileValidator>();
 builder.Services.AddScoped<IUploadService, UploadService>();
+builder.Services.AddScoped<UploadOrphanCleaner>();
+if (uploadCleanupOptions.Enabled)
+    builder.Services.AddHostedService<UploadOrphanCleanupWorker>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IExportService, ExportService>();
@@ -178,6 +195,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtOptions.Audience,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
             ClockSkew = TimeSpan.FromMinutes(1),
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtOptions.Key))
@@ -194,7 +212,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 }
                 return Task.CompletedTask;
             },
-            OnTokenValidated = JwtSessionValidator.ValidateAsync
+            OnTokenValidated = JwtSessionValidator.ValidateAsync,
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                if (!context.Response.HasStarted)
+                {
+                    await ApiProblemDetailsFactory.WriteAsync(
+                        context.HttpContext,
+                        StatusCodes.Status401Unauthorized,
+                        "unauthorized",
+                        "Yeu cau can dang nhap hoac token khong hop le.",
+                        cancellationToken: context.HttpContext.RequestAborted);
+                }
+            },
+            OnForbidden = async context =>
+            {
+                if (!context.Response.HasStarted)
+                {
+                    await ApiProblemDetailsFactory.WriteAsync(
+                        context.HttpContext,
+                        StatusCodes.Status403Forbidden,
+                        "forbidden",
+                        "Ban khong co quyen thuc hien thao tac nay.",
+                        cancellationToken: context.HttpContext.RequestAborted);
+                }
+            }
         };
     });
 
@@ -235,24 +278,48 @@ builder.Services.AddRateLimiter(options =>
     });
     options.OnRejected = async (context, cancellationToken) =>
     {
-        await context.HttpContext.Response.WriteAsJsonAsync(new
-        {
-            message = "Qua nhieu yeu cau. Vui long thu lai sau.",
-            code = "rate_limit_exceeded",
-            traceId = context.HttpContext.TraceIdentifier
-        }, cancellationToken);
+        await ApiProblemDetailsFactory.WriteAsync(
+            context.HttpContext,
+            StatusCodes.Status429TooManyRequests,
+            "rate_limit_exceeded",
+            "Qua nhieu yeu cau. Vui long thu lai sau.",
+            cancellationToken: cancellationToken);
     };
 });
 
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
+if (reverseProxySettings.Enabled)
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.ForwardLimit = 1;
-});
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = reverseProxySettings.ForwardLimit;
+
+        var knownProxies = reverseProxySettings.ParseKnownProxies();
+        var knownNetworks = reverseProxySettings.ParseKnownNetworks();
+        if (knownProxies.Count > 0 || knownNetworks.Count > 0)
+        {
+            options.KnownProxies.Clear();
+            options.KnownNetworks.Clear();
+            foreach (var address in knownProxies)
+                options.KnownProxies.Add(address);
+            foreach (var network in knownNetworks)
+                options.KnownNetworks.Add(network);
+        }
+    });
+}
 
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" })
-    .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" });
+    .AddCheck<DatabaseHealthCheck>(
+        "database",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: new[] { "ready" },
+        timeout: TimeSpan.FromSeconds(5))
+    .AddCheck<UploadStorageHealthCheck>(
+        "upload-storage",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: new[] { "ready" },
+        timeout: TimeSpan.FromSeconds(5));
 
 // ================= SWAGGER =================
 builder.Services.AddSwaggerGen(c =>
@@ -290,7 +357,10 @@ var app = builder.Build();
 if (app.Configuration.GetValue<bool>("DemoSeed:Enabled"))
 {
     using var scope = app.Services.CreateScope();
-    await DemoDataSeeder.SeedAsync(scope.ServiceProvider, app.Logger);
+    await DemoDataSeeder.SeedAsync(
+        scope.ServiceProvider,
+        app.Logger,
+        app.Lifetime.ApplicationStopping);
 }
 
 // ================= MIDDLEWARE =================
@@ -300,8 +370,38 @@ if (!Directory.Exists(uploadsPath))
     Directory.CreateDirectory(uploadsPath);
 }
 
-app.UseForwardedHeaders();
+if (reverseProxySettings.Enabled)
+    app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
+
+        var userId = httpContext.User.Identity?.IsAuthenticated == true
+            ? httpContext.User.FindFirst(AuthenticationClaimTypes.UserId)?.Value
+            : null;
+        if (!string.IsNullOrWhiteSpace(userId))
+            diagnosticContext.Set("UserId", userId);
+    };
+});
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseStatusCodePages(async statusContext =>
+{
+    var httpContext = statusContext.HttpContext;
+    var response = httpContext.Response;
+
+    if (response.StatusCode == StatusCodes.Status404NotFound)
+    {
+        await ApiProblemDetailsFactory.WriteAsync(
+            httpContext,
+            StatusCodes.Status404NotFound,
+            "not_found",
+            "Khong tim thay tai nguyen yeu cau.",
+            cancellationToken: httpContext.RequestAborted);
+    }
+});
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -309,26 +409,14 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
-app.UseSerilogRequestLogging(options =>
-{
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
-
-        var userId = httpContext.User.FindFirst(AuthenticationClaimTypes.UserId)?.Value;
-        if (!string.IsNullOrWhiteSpace(userId))
-            diagnosticContext.Set("UserId", userId);
-    };
-});
-app.UseStaticFiles();
 app.UseCors();
-app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 app.UseAuthentication();
+app.UseMiddleware<UserLogContextMiddleware>();
 app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
@@ -343,3 +431,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.Run();
+
+public partial class Program
+{
+}

@@ -51,7 +51,10 @@ public class AuditServiceTests
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password@123");
         context.Users.Add(user);
         await context.SaveChangesAsync();
-        var service = new ChangePasswordService(context, TestFactory.CreateAuditService(context));
+        var service = new ChangePasswordService(
+            context,
+            TestFactory.CreateAuditService(context),
+            TestFactory.CreatePasswordHashService());
 
         await service.ChangePassword(user.Id, new ChangePasswordDto
         {

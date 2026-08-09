@@ -5,7 +5,6 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
-using WorkManagementSystem.Infrastructure.Data;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -17,9 +16,9 @@ namespace WorkManagementSystem.Application.Services
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        private readonly AppDbContext _context;
+        private readonly IAppDbContext _context;
 
-        public AuditService(AppDbContext context)
+        public AuditService(IAppDbContext context)
         {
             _context = context;
         }

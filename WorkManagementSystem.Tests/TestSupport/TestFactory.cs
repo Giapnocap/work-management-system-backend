@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -8,22 +9,27 @@ using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Application.Mappings;
 using WorkManagementSystem.Application.Services;
+using WorkManagementSystem.Domain.Common;
 using WorkManagementSystem.Domain.Entities;
 using WorkManagementSystem.Infrastructure.Data;
 using WorkManagementSystem.Infrastructure.Repositories;
+using WorkManagementSystem.Infrastructure.Security;
 
 namespace WorkManagementSystem.Tests.TestSupport;
 
 internal static class TestFactory
 {
-    public static AppDbContext CreateDbContext()
+    public static AppDbContext CreateDbContext(params IInterceptor[] interceptors)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .EnableSensitiveDataLogging()
-            .Options;
+            .AddInterceptors(new InMemoryRowVersionInterceptor());
 
-        return new AppDbContext(options);
+        if (interceptors.Length > 0)
+            optionsBuilder.AddInterceptors(interceptors);
+
+        return new AppDbContext(optionsBuilder.Options);
     }
 
     public static IConfiguration CreateConfiguration()
@@ -50,12 +56,16 @@ internal static class TestFactory
     public static AuditService CreateAuditService(AppDbContext context)
         => new(context);
 
+    public static BcryptPasswordHashService CreatePasswordHashService()
+        => new();
+
     public static AuthService CreateAuthService(AppDbContext context)
         => new(
             context,
             CreateJwtOptions(),
             CreateAuditService(context),
-            new EmployeeCodeGenerator(context));
+            new EmployeeCodeGenerator(context),
+            CreatePasswordHashService());
 
     public static IMapper CreateMapper()
     {
@@ -156,7 +166,8 @@ internal static class TestFactory
             CreateStaffMovementService(context),
             CreateUserPerformanceService(context),
             transactionManager ?? new EfTransactionManager(context),
-            CreateAuditService(context));
+            CreateAuditService(context),
+            context);
     }
 
     public static TaskService CreateTaskService(
@@ -174,7 +185,19 @@ internal static class TestFactory
             CreateTaskWorkflowService(context),
             CreateTaskBusinessRuleService(context),
             CreateTaskDtoBuilder(context),
-            transactionManager ?? new EfTransactionManager(context));
+            transactionManager ?? new EfTransactionManager(context),
+            context);
+    }
+
+    public static TaskQueryService CreateTaskQueryService(AppDbContext context)
+    {
+        return new TaskQueryService(
+            Repo<TaskItem>(context),
+            Repo<TaskAssignee>(context),
+            Repo<User>(context),
+            Repo<TaskHistory>(context),
+            new TaskAccessService(context),
+            CreateTaskDtoBuilder(context));
     }
 
     public static ProgressService CreateProgressService(
@@ -187,13 +210,25 @@ internal static class TestFactory
             Repo<TaskItem>(context),
             Repo<User>(context),
             Repo<UploadFile>(context),
-            Repo<ReportReview>(context),
-            Repo<Unit>(context),
             notificationService ?? new TestNotificationService(),
             new TaskAccessService(context),
             CreateTaskWorkflowService(context),
             CreateMapper(),
-            transactionManager ?? new EfTransactionManager(context));
+            transactionManager ?? new EfTransactionManager(context),
+            context);
+    }
+
+    public static ProgressQueryService CreateProgressQueryService(AppDbContext context)
+    {
+        return new ProgressQueryService(
+            Repo<Progress>(context),
+            Repo<TaskItem>(context),
+            Repo<User>(context),
+            Repo<UploadFile>(context),
+            Repo<ReportReview>(context),
+            Repo<Unit>(context),
+            new TaskAccessService(context),
+            CreateMapper());
     }
 
     public static ReviewService CreateReviewService(
@@ -208,7 +243,8 @@ internal static class TestFactory
             notificationService ?? new TestNotificationService(),
             new TaskAccessService(context),
             CreateTaskWorkflowService(context),
-            transactionManager ?? new EfTransactionManager(context));
+            transactionManager ?? new EfTransactionManager(context),
+            context);
     }
 }
 
@@ -230,6 +266,46 @@ internal sealed class TestNotificationService : INotificationService
 
     public Task<int> GetUnreadCount(Guid userId, CancellationToken cancellationToken = default)
         => Task.FromResult(0);
+}
+
+internal sealed class TestTaskRealtimeNotifier : ITaskRealtimeNotifier
+{
+    public Task CommentAddedAsync(
+        Guid taskId,
+        CommentDto comment,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task ReactionChangedAsync(
+        Guid taskId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task CommentsSeenAsync(
+        Guid taskId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task SubTaskAddedAsync(
+        Guid taskId,
+        SubTaskDto subTask,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task SubTaskToggledAsync(
+        Guid taskId,
+        Guid subTaskId,
+        bool isCompleted,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task SubTaskDeletedAsync(
+        Guid taskId,
+        Guid subTaskId,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
 
 internal sealed class RecordingTransactionManager : ITransactionManager
@@ -260,5 +336,61 @@ internal sealed class RecordingTransactionManager : ITransactionManager
         ExecutionCount++;
         SerializableExecutionCount++;
         return await operation(cancellationToken);
+    }
+}
+
+internal sealed class SaveChangesCounterInterceptor : SaveChangesInterceptor
+{
+    public int Count { get; private set; }
+
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        Count++;
+        return result;
+    }
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        Count++;
+        return ValueTask.FromResult(result);
+    }
+
+    public void Reset() => Count = 0;
+}
+
+internal sealed class InMemoryRowVersionInterceptor : SaveChangesInterceptor
+{
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        UpdateRowVersions(eventData.Context);
+        return result;
+    }
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateRowVersions(eventData.Context);
+        return ValueTask.FromResult(result);
+    }
+
+    private static void UpdateRowVersions(DbContext? context)
+    {
+        if (context == null)
+            return;
+
+        foreach (var entry in context.ChangeTracker.Entries<IHasRowVersion>()
+                     .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+        {
+            entry.Entity.RowVersion = Guid.NewGuid().ToByteArray()[..8];
+        }
     }
 }

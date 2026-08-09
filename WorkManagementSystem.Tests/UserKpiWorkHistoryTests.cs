@@ -64,6 +64,35 @@ public class UserKpiWorkHistoryTests
     }
 
     [Fact]
+    public async Task GetPerformancesAsync_WithUnitTransfer_MatchesSingleUserCalculation()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unitA = SeedUnit(context, "Unit A");
+        var unitB = SeedUnit(context, "Unit B");
+        var manager = SeedUser(context, "manager", "Manager", unitA.Id);
+        var user = SeedUser(context, "batch-user", "User", unitB.Id, joinedUnitAt: PeriodMiddle);
+        var period = SeedPeriod(context);
+        SeedHistory(context, user.Id, unitA.Id, "User", PeriodStart, PeriodMiddle);
+        SeedHistory(context, user.Id, unitB.Id, "User", PeriodMiddle, null);
+        SeedApprovedTask(context, user.Id, manager.Id, unitA.Id, "Task A", PeriodStart.AddDays(5));
+        SeedApprovedTask(context, user.Id, manager.Id, unitB.Id, "Task B", PeriodMiddle.AddDays(5));
+        await context.SaveChangesAsync();
+        var service = TestFactory.CreateUserPerformanceService(context);
+
+        var single = await service.GetPerformanceAsync(user.Id, period.Id);
+        var batch = Assert.Single(await service.GetPerformancesAsync(new[] { user.Id }, period.Id));
+
+        Assert.Equal(single.Score, batch.Score);
+        Assert.Equal(single.TotalTasks, batch.TotalTasks);
+        Assert.Equal(single.CompletedOnTime, batch.CompletedOnTime);
+        Assert.Equal(single.BonusPoints, batch.BonusPoints);
+        Assert.Equal(single.Role, batch.Role);
+        Assert.Equal(single.UnitId, batch.UnitId);
+        Assert.Equal(single.EffectiveFrom, batch.EffectiveFrom);
+        Assert.Equal(single.EffectiveTo, batch.EffectiveTo);
+    }
+
+    [Fact]
     public async Task GetPerformance_WhenPeriodLocked_UsesSnapshotInsteadOfLiveData()
     {
         await using var context = TestFactory.CreateDbContext();
@@ -372,6 +401,7 @@ public class UserKpiWorkHistoryTests
         var before = DateTime.UtcNow;
         await service.Update(user.Id, new UpdateUserDto
         {
+            RowVersion = user.RowVersion,
             Role = "User",
             UnitId = unitB.Id
         }, admin.Id);
@@ -406,6 +436,7 @@ public class UserKpiWorkHistoryTests
 
         await service.Update(user.Id, new UpdateUserDto
         {
+            RowVersion = user.RowVersion,
             Role = "User",
             UnitId = unit.Id
         }, admin.Id);

@@ -89,14 +89,20 @@ public class SupportingServiceTests
         await context.SaveChangesAsync();
         var originalHash = employee.PasswordHash;
 
-        var result = await new ChangePasswordService(context, TestFactory.CreateAuditService(context)).ChangePassword(employee.Id, new ChangePasswordDto
-        {
-            OldPassword = "WrongPassword",
-            NewPassword = "NewPassword@123",
-            ConfirmPassword = "NewPassword@123"
-        });
+        var exception = await Assert.ThrowsAsync<BusinessException>(() =>
+            new ChangePasswordService(
+                context,
+                TestFactory.CreateAuditService(context),
+                TestFactory.CreatePasswordHashService()).ChangePassword(
+                    employee.Id,
+                    new ChangePasswordDto
+                    {
+                        OldPassword = "WrongPassword",
+                        NewPassword = "NewPassword@123",
+                        ConfirmPassword = "NewPassword@123"
+                    }));
 
-        Assert.Equal("Mật khẩu cũ không đúng!", result);
+        Assert.Equal("Mat khau cu khong dung.", exception.Message);
         Assert.Equal(originalHash, employee.PasswordHash);
         Assert.True(BCrypt.Net.BCrypt.Verify("Password@123", employee.PasswordHash));
     }
@@ -111,14 +117,18 @@ public class SupportingServiceTests
         context.Users.Add(employee);
         await context.SaveChangesAsync();
 
-        var result = await new ChangePasswordService(context, TestFactory.CreateAuditService(context)).ChangePassword(employee.Id, new ChangePasswordDto
-        {
-            OldPassword = "Password@123",
-            NewPassword = "NewPassword@123",
-            ConfirmPassword = "NewPassword@123"
-        });
+        await new ChangePasswordService(
+            context,
+            TestFactory.CreateAuditService(context),
+            TestFactory.CreatePasswordHashService()).ChangePassword(
+                employee.Id,
+                new ChangePasswordDto
+                {
+                    OldPassword = "Password@123",
+                    NewPassword = "NewPassword@123",
+                    ConfirmPassword = "NewPassword@123"
+                });
 
-        Assert.Equal("Đổi mật khẩu thành công!", result);
         Assert.Equal(5, employee.TokenVersion);
         Assert.True(BCrypt.Net.BCrypt.Verify("NewPassword@123", employee.PasswordHash));
     }
@@ -149,7 +159,9 @@ public class SupportingServiceTests
             notifications,
             new TaskAccessService(context),
             TestFactory.CreateTaskWorkflowService(context),
-            TestFactory.CreateMapper());
+            new TestTaskRealtimeNotifier(),
+            TestFactory.CreateMapper(),
+            context);
 
         var comment = await service.AddComment(new CreateCommentDto
         {

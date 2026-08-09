@@ -1,43 +1,44 @@
-using System.Net;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using WorkManagementSystem.Application.Common;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
-using WorkManagementSystem.API.Controllers;
-using WorkManagementSystem.API.Authentication;
-using WorkManagementSystem.API.Hubs;
-using WorkManagementSystem.API.Middlewares;
+using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
-using WorkManagementSystem.Application.Mappings;
-using WorkManagementSystem.Application.Services;
+using WorkManagementSystem.Domain.Common;
 using WorkManagementSystem.Domain.Entities;
 using WorkManagementSystem.Infrastructure.Data;
-using WorkManagementSystem.Infrastructure.Repositories;
 
 namespace WorkManagementSystem.Tests.TestSupport;
 
 internal sealed class IntegrationTestApp : IAsyncDisposable
 {
     private const string JwtKey = "INTEGRATION_TEST_SECRET_KEY_123456789_ABCDEF_32";
+    private const string JwtIssuer = "WorkManagementSystem.IntegrationTests";
+    private const string JwtAudience = "WorkManagementSystem.IntegrationTests.Client";
 
-    private readonly WebApplication _app;
+    private readonly IntegrationTestWebApplicationFactory _factory;
     private readonly string _contentRoot;
 
-    private IntegrationTestApp(WebApplication app, HttpClient client, string contentRoot, Guid unitId, Guid adminId, Guid managerId, Guid employeeId)
+    private IntegrationTestApp(
+        IntegrationTestWebApplicationFactory factory,
+        HttpClient client,
+        string contentRoot,
+        Guid unitId,
+        Guid adminId,
+        Guid managerId,
+        Guid employeeId)
     {
-        _app = app;
+        _factory = factory;
         Client = client;
         _contentRoot = contentRoot;
         UnitId = unitId;
@@ -47,6 +48,7 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
     }
 
     public HttpClient Client { get; }
+    public IServiceProvider Services => _factory.Services;
     public Guid UnitId { get; }
     public Guid AdminId { get; }
     public Guid ManagerId { get; }
@@ -54,45 +56,41 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
 
     public static async Task<IntegrationTestApp> CreateAsync()
     {
-        var contentRoot = Path.Combine(Path.GetTempPath(), "WorkManagementSystem.IntegrationTests", Guid.NewGuid().ToString("N"));
+        var contentRoot = Path.Combine(
+            Path.GetTempPath(),
+            "WorkManagementSystem.IntegrationTests",
+            Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(contentRoot);
+        await WriteConfigurationAsync(contentRoot);
 
-        var port = GetFreePort();
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        var factory = new IntegrationTestWebApplicationFactory(
+            contentRoot,
+            $"IntegrationTest-{Guid.NewGuid():N}");
+
+        try
         {
-            EnvironmentName = "IntegrationTest",
-            ContentRootPath = contentRoot
-        });
+            var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false
+            });
+            var seed = await SeedAsync(factory.Services);
 
-        builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            return new IntegrationTestApp(
+                factory,
+                client,
+                contentRoot,
+                seed.UnitId,
+                seed.AdminId,
+                seed.ManagerId,
+                seed.EmployeeId);
+        }
+        catch
         {
-            ["Jwt:Key"] = JwtKey,
-            ["Jwt:Issuer"] = "WorkManagementSystem.IntegrationTests",
-            ["Jwt:Audience"] = "WorkManagementSystem.IntegrationTests.Client",
-            ["Jwt:ExpirationMinutes"] = "180",
-            ["ConnectionStrings:Default"] = $"IntegrationTest-{Guid.NewGuid():N}"
-        });
-
-        ConfigureServices(builder.Services, builder.Configuration);
-
-        var app = builder.Build();
-        app.UseMiddleware<CorrelationIdMiddleware>();
-        app.UseMiddleware<ExceptionMiddleware>();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.MapControllers();
-        app.MapHub<DiscussionHub>("/discussionHub");
-
-        var seed = await SeedAsync(app.Services);
-        await app.StartAsync();
-
-        var client = new HttpClient
-        {
-            BaseAddress = new Uri($"http://127.0.0.1:{port}")
-        };
-
-        return new IntegrationTestApp(app, client, contentRoot, seed.UnitId, seed.AdminId, seed.ManagerId, seed.EmployeeId);
+            await factory.DisposeAsync();
+            TryDeleteDirectory(contentRoot);
+            throw;
+        }
     }
 
     public async Task<string> LoginAsync(string username, string password)
@@ -113,23 +111,59 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
             : token;
     }
 
+    public string CreateExpiredEmployeeToken()
+    {
+        var now = DateTime.UtcNow;
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = JwtIssuer,
+            Audience = JwtAudience,
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(AuthenticationClaimTypes.UserId, EmployeeId.ToString()),
+                new Claim(AuthenticationClaimTypes.TokenVersion, "0"),
+                new Claim(ClaimTypes.Name, "employee-it"),
+                new Claim(ClaimTypes.Role, SystemRoles.User)
+            }),
+            NotBefore = now.AddMinutes(-10),
+            Expires = now.AddMinutes(-5),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtKey)),
+                SecurityAlgorithms.HmacSha256)
+        };
+
+        return new JwtSecurityTokenHandler().CreateEncodedJwt(descriptor);
+    }
+
     public void Authorize(string token)
     {
         Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public async Task InvalidateSessionsAsync(Guid userId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await context.Users.SingleAsync(candidate => candidate.Id == userId);
+        user.InvalidateSessions();
+        await context.SaveChangesAsync();
     }
 
     public async Task<T> PostJsonAsync<T>(string url, object body)
     {
         var response = await Client.PostAsJsonAsync(url, body);
         await response.AssertSuccessAsync();
-        return await response.Content.ReadFromJsonAsync<T>() ?? throw new InvalidOperationException($"No JSON response from {url}.");
+        return await response.Content.ReadFromJsonAsync<T>()
+            ?? throw new InvalidOperationException($"No JSON response from {url}.");
     }
 
     public async Task<T> GetJsonAsync<T>(string url)
     {
         var response = await Client.GetAsync(url);
         await response.AssertSuccessAsync();
-        return await response.Content.ReadFromJsonAsync<T>() ?? throw new InvalidOperationException($"No JSON response from {url}.");
+        return await response.Content.ReadFromJsonAsync<T>()
+            ?? throw new InvalidOperationException($"No JSON response from {url}.");
     }
 
     public async Task<UploadFileDto> UploadTextFileAsync(Guid taskId)
@@ -148,123 +182,16 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
-        await _app.StopAsync();
-        await _app.DisposeAsync();
-
-        try
-        {
-            if (Directory.Exists(_contentRoot))
-                Directory.Delete(_contentRoot, recursive: true);
-        }
-        catch
-        {
-            // Test temp cleanup is best-effort.
-        }
+        await _factory.DisposeAsync();
+        TryDeleteDirectory(_contentRoot);
     }
 
-    private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    private static async Task<(Guid UnitId, Guid AdminId, Guid ManagerId, Guid EmployeeId)> SeedAsync(
+        IServiceProvider services)
     {
-        services.AddControllers(options => options.SuppressAsyncSuffixInActionNames = false)
-            .AddApplicationPart(typeof(AuthController).Assembly);
-        services.Configure<ApiBehaviorOptions>(options =>
-        {
-            options.InvalidModelStateResponseFactory = context =>
-            {
-                var errors = context.ModelState
-                    .Where(entry => entry.Value?.Errors.Count > 0)
-                    .ToDictionary(
-                        entry => entry.Key,
-                        entry => entry.Value!.Errors.Select(error =>
-                            string.IsNullOrWhiteSpace(error.ErrorMessage)
-                                ? "Gia tri khong hop le."
-                                : error.ErrorMessage).ToArray());
-
-                return new BadRequestObjectResult(new
-                {
-                    message = "Du lieu gui len khong hop le.",
-                    code = "validation_error",
-                    traceId = context.HttpContext.TraceIdentifier,
-                    details = "",
-                    errors
-                });
-            };
-        });
-        services.AddSignalR();
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
-
-        services.AddDbContext<AppDbContext>(options =>
-        {
-            options.UseInMemoryDatabase(configuration.GetConnectionString("Default")!);
-            options.ConfigureWarnings(warnings =>
-                warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
-        });
-
-        services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<ITransactionManager, EfTransactionManager>();
-
-        services.AddScoped<IEmployeeCodeGenerator, EmployeeCodeGenerator>();
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<ITaskService, TaskService>();
-        services.AddScoped<IProgressService, ProgressService>();
-        services.AddScoped<IReviewService, ReviewService>();
-        services.AddScoped<IUnitService, UnitService>();
-        services.AddScoped<IUserService, UserService>();
-        services.AddScoped<IKpiPeriodResolver, KpiPeriodResolver>();
-        services.AddScoped<IUserPerformanceService, UserPerformanceService>();
-        services.AddScoped<IUserWorkHistoryService, UserWorkHistoryService>();
-        services.AddScoped<IUserTaskAssignmentService, UserTaskAssignmentService>();
-        services.AddScoped<IUserUnitMembershipService, UserUnitMembershipService>();
-        services.AddScoped<IStaffMovementService, StaffMovementService>();
-        services.AddSingleton<IUploadFileValidator, UploadFileValidator>();
-        services.AddScoped<IUploadService, UploadService>();
-        services.AddScoped<INotificationService, NotificationService>();
-        services.AddScoped<IDashboardService, DashboardService>();
-        services.AddScoped<IExportService, ExportService>();
-        services.AddScoped<IChangePasswordService, ChangePasswordService>();
-        services.AddScoped<IProfileService, ProfileService>();
-        services.AddScoped<ICommentService, CommentService>();
-        services.AddScoped<ISubTaskService, SubTaskService>();
-        services.AddScoped<ITaskAccessService, TaskAccessService>();
-        services.AddScoped<ITaskWorkflowService, TaskWorkflowService>();
-        services.AddScoped<ITaskBusinessRuleService, TaskBusinessRuleService>();
-        services.AddScoped<ITaskDtoBuilder, TaskDtoBuilder>();
-        services.AddScoped<IProjectService, ProjectService>();
-        services.AddScoped<IKpiService, KpiService>();
-        services.AddScoped<IAuditService, AuditService>();
-
-        services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
-
-        services.Configure<FormOptions>(options =>
-        {
-            options.MultipartBodyLengthLimit = UploadFileValidator.MaxFileSizeBytes;
-        });
-
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = configuration["Jwt:Issuer"],
-                    ValidateAudience = true,
-                    ValidAudience = configuration["Jwt:Audience"],
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!))
-                };
-                options.Events = new JwtBearerEvents
-                {
-                    OnTokenValidated = JwtSessionValidator.ValidateAsync
-                };
-            });
-
-        services.AddAuthorization();
-    }
-
-    private static async Task<(Guid UnitId, Guid AdminId, Guid ManagerId, Guid EmployeeId)> SeedAsync(IServiceProvider services)
-    {
-        using var scope = services.CreateScope();
+        await using var scope = services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var passwordHashService = scope.ServiceProvider.GetRequiredService<IPasswordHashService>();
 
         var now = DateTime.UtcNow;
         var unit = new Unit
@@ -272,10 +199,11 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
             Id = Guid.NewGuid(),
             Name = "Integration Unit"
         };
+        var passwordHash = passwordHashService.Hash("Password@123");
 
-        var admin = CreateUser("admin-it", "Admin", "Integration Admin", "ADM9999", null, now);
-        var manager = CreateUser("manager-it", "Manager", "Integration Manager", "MGR9999", unit.Id, now);
-        var employee = CreateUser("employee-it", "User", "Integration Employee", "EMP9999", unit.Id, now);
+        var admin = CreateUser("admin-it", SystemRoles.Admin, "Integration Admin", "ADM9999", null, now, passwordHash);
+        var manager = CreateUser("manager-it", SystemRoles.Manager, "Integration Manager", "MGR9999", unit.Id, now, passwordHash);
+        var employee = CreateUser("employee-it", SystemRoles.User, "Integration Employee", "EMP9999", unit.Id, now, passwordHash);
 
         context.Units.Add(unit);
         context.Users.AddRange(admin, manager, employee);
@@ -288,7 +216,7 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
                 Id = Guid.NewGuid(),
                 UserId = manager.Id,
                 UnitId = unit.Id,
-                Role = "Manager",
+                Role = SystemRoles.Manager,
                 EffectiveFrom = now.AddDays(-1),
                 ChangeReason = "Integration seed",
                 CreatedAt = now
@@ -298,7 +226,7 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
                 Id = Guid.NewGuid(),
                 UserId = employee.Id,
                 UnitId = unit.Id,
-                Role = "User",
+                Role = SystemRoles.User,
                 EffectiveFrom = now.AddDays(-1),
                 ChangeReason = "Integration seed",
                 CreatedAt = now
@@ -308,7 +236,14 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
         return (unit.Id, admin.Id, manager.Id, employee.Id);
     }
 
-    private static User CreateUser(string username, string role, string fullName, string employeeCode, Guid? unitId, DateTime joinedAt)
+    private static User CreateUser(
+        string username,
+        string role,
+        string fullName,
+        string employeeCode,
+        Guid? unitId,
+        DateTime joinedAt,
+        string passwordHash)
     {
         return new User
         {
@@ -316,7 +251,7 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
             Username = username,
             FullName = fullName,
             EmployeeCode = employeeCode,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password@123"),
+            PasswordHash = passwordHash,
             Role = role,
             UnitId = unitId,
             JoinedUnitAt = joinedAt,
@@ -324,13 +259,91 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
         };
     }
 
-    private static int GetFreePort()
+    private static void TryDeleteDirectory(string path)
     {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Temporary test files are removed on a best-effort basis.
+        }
+    }
+
+    private static Task WriteConfigurationAsync(string contentRoot)
+    {
+        var configuration = new
+        {
+            ConnectionStrings = new
+            {
+                Default = "Server=localhost;Database=IntegrationTests;Integrated Security=True;TrustServerCertificate=True"
+            },
+            Jwt = new
+            {
+                Key = JwtKey,
+                Issuer = JwtIssuer,
+                Audience = JwtAudience,
+                ExpirationMinutes = 180
+            },
+            Cors = new
+            {
+                AllowedOrigins = new[] { "https://localhost" }
+            },
+            ReverseProxy = new
+            {
+                Enabled = false,
+                ForwardLimit = 1,
+                KnownProxies = Array.Empty<string>(),
+                KnownNetworks = Array.Empty<string>()
+            },
+            UploadCleanup = new
+            {
+                Enabled = false,
+                MinimumAgeHours = 24,
+                IntervalHours = 24
+            },
+            DemoSeed = new
+            {
+                Enabled = false,
+                ApplyMigrations = false
+            },
+            AllowedHosts = "localhost"
+        };
+
+        return File.WriteAllTextAsync(
+            Path.Combine(contentRoot, "appsettings.json"),
+            JsonSerializer.Serialize(configuration));
+    }
+
+    private sealed class IntegrationTestWebApplicationFactory : WebApplicationFactory<Program>
+    {
+        private readonly string _contentRoot;
+        private readonly string _databaseName;
+
+        public IntegrationTestWebApplicationFactory(string contentRoot, string databaseName)
+        {
+            _contentRoot = contentRoot;
+            _databaseName = databaseName;
+        }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("IntegrationTest");
+            builder.UseContentRoot(_contentRoot);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<AppDbContext>();
+                services.RemoveAll<DbContextOptions<AppDbContext>>();
+                services.AddDbContext<AppDbContext>(options =>
+                {
+                    options.UseInMemoryDatabase(_databaseName);
+                    options.ConfigureWarnings(warnings =>
+                        warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
+                });
+            });
+        }
     }
 }
 
@@ -342,6 +355,7 @@ internal static class HttpResponseMessageAssertions
             return;
 
         var body = await response.Content.ReadAsStringAsync();
-        throw new Xunit.Sdk.XunitException($"Expected success status code, got {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+        throw new Xunit.Sdk.XunitException(
+            $"Expected success status code, got {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
     }
 }
