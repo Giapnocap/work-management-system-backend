@@ -36,10 +36,12 @@ namespace WorkManagementSystem.API.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<ProgressDto>> Update(CreateProgressDto dto)
+        [ProducesResponseType(typeof(ProgressDto), StatusCodes.Status201Created)]
+        public async Task<ActionResult<ProgressDto>> Create(CreateProgressDto dto)
         {
             var userId = _currentUser.GetRequiredUserId();
-            return Ok(await _service.Update(dto, userId, HttpContext.RequestAborted));
+            var result = await _service.Update(dto, userId, HttpContext.RequestAborted);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpGet("task/{taskId}")]

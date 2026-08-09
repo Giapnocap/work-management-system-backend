@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.Swagger;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Tests.TestSupport;
 
@@ -124,6 +127,51 @@ public class ApiContractIntegrationTests
 
         var archiveProjectResponse = await app.Client.DeleteAsync($"/api/projects/{project.Id}");
         Assert.Equal(HttpStatusCode.NoContent, archiveProjectResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProgressCreation_ReturnsCreatedResource()
+    {
+        await using var app = await IntegrationTestApp.CreateAsync();
+        app.Authorize(await app.LoginAsync("manager-it", "Password@123"));
+
+        var project = await app.PostJsonAsync<ProjectDto>("/api/projects", new CreateProjectDto
+        {
+            Name = $"Progress contract {Guid.NewGuid():N}",
+            UnitId = app.UnitId
+        });
+        var task = await app.PostJsonAsync<TaskDto>("/api/tasks", new CreateTaskDto
+        {
+            Title = "Progress contract task",
+            ProjectId = project.Id,
+            UserIds = new List<Guid> { app.EmployeeId }
+        });
+
+        app.Authorize(await app.LoginAsync("employee-it", "Password@123"));
+        var response = await app.Client.PostAsJsonAsync("/api/progress", new CreateProgressDto
+        {
+            TaskId = task.Id,
+            Percent = 25,
+            Description = "API contract progress"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var progress = await response.Content.ReadFromJsonAsync<ProgressDto>();
+        Assert.NotNull(progress);
+        Assert.NotEqual(Guid.Empty, progress.Id);
+        Assert.Equal(task.Id, progress.TaskId);
+    }
+
+    [Fact]
+    public async Task ProgressCreation_SwaggerDeclaresCreatedResponse()
+    {
+        await using var app = await IntegrationTestApp.CreateAsync();
+        var swagger = app.Services.GetRequiredService<ISwaggerProvider>().GetSwagger("v1");
+
+        var operation = swagger.Paths["/api/progress"].Operations[OperationType.Post];
+
+        Assert.Contains("201", operation.Responses.Keys);
+        Assert.DoesNotContain("200", operation.Responses.Keys);
     }
 
     private static async Task<JsonElement> AssertProblemAsync(

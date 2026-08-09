@@ -138,6 +138,8 @@ $progress = Invoke-RestMethod `
     } | ConvertTo-Json)
 ```
 
+The endpoint creates a new progress report and returns `201 Created` with the created `ProgressDto` in the response body.
+
 Because this task requires review, the progress report and task become `Submitted`; they are not complete yet.
 
 ## 7. Approve The Report
