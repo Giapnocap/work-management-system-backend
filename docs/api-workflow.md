@@ -1,5 +1,9 @@
 # Sample API Workflow
 
+For a one-command, assertion-based version of this walkthrough, run
+[`scripts/demo-workflow.ps1`](../scripts/demo-workflow.ps1). The snippets below
+remain useful when explaining each HTTP request independently.
+
 This flow exercises the same business path protected by the HTTP integration tests:
 
 ```mermaid
@@ -22,7 +26,8 @@ sequenceDiagram
 
 - Run the API in Development.
 - Enable the optional demo seed.
-- Use PowerShell 7 or later for the multipart `-Form` example.
+- Use PowerShell 7 or later for the multipart `-Form` example below. The automated
+  demo script also supports Windows PowerShell 5.1 by using `curl.exe` for upload.
 
 The examples below target Docker at `http://localhost:8080`. For the local HTTPS profile, replace the base URL with `https://localhost:7231`.
 

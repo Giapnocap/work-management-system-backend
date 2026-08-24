@@ -45,6 +45,7 @@ The application layer uses EF Core query abstractions through `IAppDbContext`. T
 | `Infrastructure/Data` | EF Core context, transactions, model configuration, seed data | Controller concerns |
 | `Infrastructure/Security` | BCrypt implementation | Login workflow decisions |
 | `Infrastructure/Storage` | Physical-file reconciliation | Public file authorization |
+| `Infrastructure/Scheduling` | Thin hosted-worker loops that resolve scoped application schedulers | Business rules or in-memory scheduling state |
 | `Migrations` | Versioned SQL Server schema history | Runtime data seeding |
 
 ## Request And Data Flow
@@ -82,6 +83,10 @@ Important characteristics:
 - Request cancellation is propagated from controllers into services and EF Core calls.
 - Realtime delivery is best effort. A SignalR failure is logged and does not undo an already successful business mutation.
 
+The task activity timeline is a read model over existing workflow tables. It issues bounded projections per event source, merges them with deterministic cursor ordering, and batch-loads actor snapshots. It does not duplicate write state in a generic activity table and never exposes raw `AuditLog` JSON.
+
+Task and progress state changes are centralized in the domain-specific `TaskWorkflowPolicy` and `TaskWorkflowService`. The policy owns the explicit transition matrix; the service applies domain methods, completion/dependency context, approved hours, and transition history. Reporter and Manager scope checks remain in their command services, so possessing a role alone never authorizes a resource transition. No generic status-mutation endpoint or generic workflow engine exists.
+
 ## Runtime Topology
 
 ```mermaid
@@ -91,10 +96,11 @@ flowchart TB
     WebApi -->|EF Core| SqlServer[(SQL Server)]
     WebApi --> Uploads[(Private Uploads volume)]
     WebApi --> Logs[(Structured logs)]
+    Scheduler[Recurring and deadline workers] --> WebApi
     Migration[One-shot migration container] --> SqlServer
 ```
 
-The Compose stack runs SQL Server, a one-shot migration image, and one API instance. Production topology, TLS termination, backups, log aggregation, and secret storage remain deployment-platform responsibilities.
+The recurring-task and deadline-reminder workers run inside the API process, but their source of truth is SQL Server. A restart loses no schedule or pending reminder state. The Compose stack runs SQL Server, a one-shot migration image, and one API instance. Production topology, TLS termination, backups, log aggregation, and secret storage remain deployment-platform responsibilities.
 
 ## Cross-Cutting Controls
 

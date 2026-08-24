@@ -46,6 +46,19 @@ The `Category=SqlServer` suite runs against a uniquely named database and verifi
 4. Invalid KPI date ranges are rejected by the check constraint.
 5. Failed multi-step operations roll back persisted changes.
 6. SQL Server `rowversion` rejects stale updates and prevents lost updates.
+7. Workload aggregation translates on SQL Server and uses a constant query count for a large employee set.
+8. Capacity history constraints reject non-positive values and duplicate open periods.
+9. Two recurring-task workers racing for the same due occurrence create exactly one task.
+10. Recurring schedules survive a worker/context restart without repeating an occurrence.
+11. A failure after SQL commands execute rolls back the generated task, occurrence, and schedule update together.
+12. Reminder-policy filtered unique indexes reject duplicate Unit scopes.
+13. Two deadline workers racing for the same milestone create one scheduled event and one inbox notification.
+14. Deadline events and inbox delivery survive worker/context restart without repeating the milestone.
+15. Task timeline keyset pagination translates on SQL Server, does not duplicate equal-timestamp events, and keeps a constant query count across page sizes.
+16. Two concurrent review requests persist exactly one decision, one approved-hours contribution, and one transition history set.
+17. Progress-status history projection and filters translate on SQL Server.
+18. Task list DTO enrichment stays within a nine-command budget for both 10-item and 100-item pages on a 300-task dataset.
+19. Upgrading from the pre-KPI-insights migration preserves KPI snapshots and backfills the new explainability fields.
 
 CI always supplies the SQL connection string, so skipped relational tests cannot make the pipeline falsely green.
 
@@ -61,10 +74,13 @@ CI performs the database and runtime checks that EF Core InMemory cannot cover:
 6. Verify Admin can read KPI periods and Manager can read projects.
 7. Verify User project creation returns `403` and anonymous project access returns `401`.
 8. Verify SQL migration history reached the expected latest migration and demo seed records exist.
-9. Stop SQL Server and verify liveness remains `200` while readiness becomes `503`.
-10. Remove the containers and disposable volumes even when a check fails.
+9. Backup with checksum, restore into a temporary database, compare critical records, and run `DBCC CHECKDB`.
+10. Stop SQL Server and verify liveness remains `200` while readiness becomes `503`.
+11. Remove the containers and disposable volumes even when a check fails.
 
 This relational gate caught a historical migration that referenced task date columns missing from an empty database, a failure that model-drift checks and InMemory tests could not reproduce.
+
+Detailed query budgets are recorded in [query performance](performance.md). Recovery steps and background-worker observability are recorded in [recovery and workers](recovery-and-workers.md).
 
 ## Current Test Coverage
 
@@ -88,6 +104,36 @@ Run the full suite to obtain the current test count. The count is intentionally 
 - Manager cannot assign task to staff outside their department.
 - Task without direct assignee is assigned to the manager's department.
 
+### Workload And Capacity
+
+- An employee with no active task has zero workload.
+- Only active tasks overlapping the selected range contribute remaining effort.
+- Approved tasks are excluded and multi-assignee effort is split evenly.
+- Busy/Overloaded threshold boundaries are deterministic and configurable.
+- Capacity changes inside a date range are prorated from effective-dated history.
+- Assignment preview returns projected workload and does not block task creation.
+- Manager cross-department workload and capacity access is forbidden.
+- SQL Server verifies workload aggregation translation and guards against N+1 queries.
+
+### Recurring Tasks
+
+- Daily and weekly intervals preserve the scheduled UTC time.
+- Monthly schedules clamp day 29-31 to the last valid day without losing the preferred day in later months.
+- CRUD, department scope, explicit default assignees, pause/resume, and API authorization are covered.
+- A rerun and a simulated worker restart do not generate duplicate occurrences.
+- Catch-up is bounded per batch and leaves remaining overdue occurrences persisted for the next run.
+- A failed generation leaves no task, history, occurrence, or advanced schedule.
+- SQL Server verifies query translation, atomic rollback, persisted restart behavior, and two-worker race safety.
+
+### Deadline Reminder And Escalation
+
+- A task due in 24 hours produces one due-soon notification and does not repeat on the next scan.
+- Overdue work notifies the employee; crossing the escalation threshold notifies only Managers in the task department.
+- A task completed immediately before delivery suppresses the pending event.
+- Policy changes made before a future milestone are used by the next scan, including Project-over-Unit-over-Global precedence.
+- A transient inbox failure persists bounded retry state and succeeds on a later batch without duplicating the event.
+- In-memory restart tests verify persisted state, while SQL Server tests verify migration seed data, filtered uniqueness, query translation, restart behavior, and racing workers.
+
 ### Progress And Review
 
 - Completing a review-required task without evidence is blocked.
@@ -97,8 +143,22 @@ Run the full suite to obtain the current test count. The count is intentionally 
 - Manager approval completes a submitted task.
 - Rejected completion remains a rejected progress report and returns the task to `InProgress`.
 - A corrected completion can be resubmitted and approved after rejection.
+- Rejection without a reason fails without mutating task, progress, review, or history state.
 - A manager from another department cannot review the report.
 - Already reviewed progress cannot be reviewed again.
+- The explicit policy matrix accepts supported transitions and rejects invalid actor, scope, dependency, and terminal-state combinations.
+- Task and progress transitions record related report ids and decision reasons.
+
+### Task Activity Timeline
+
+- Main task lifecycle sources are combined in deterministic descending order.
+- Equal-timestamp events paginate without duplicates or missing ids.
+- Type, actor, and UTC date filters are enforced.
+- Managers from another department cannot read the timeline.
+- Soft-deleted actors resolve to a historical snapshot or safe fallback.
+- Non-allowlisted task history fields do not leak through metadata.
+- Progress status changes expose only bounded reason/status metadata and the related progress id.
+- SQL Server verifies cursor translation and constant query count as page size grows.
 
 ### Upload
 
@@ -121,6 +181,10 @@ Run the full suite to obtain the current test count. The count is intentionally 
 - Staff unit/role movement is handled through work history during KPI calculation.
 - Locked KPI stores employee and department identity snapshots.
 - A deleted historical employee remains part of a KPI period that overlaps their employment history.
+- Locked KPI raw metrics and formula version remain stable after source task or identity changes.
+- KPI rates handle zero denominators deterministically.
+- Manager dashboard scope is limited to the current department; Admin dashboard scope is organization-wide.
+- SQL Server tests verify KPI aggregation translates and keeps a constant query count for a larger department.
 - Historical manager access follows the selected period's snapshot/history unit rather than the employee's current unit.
 - No-task users receive a neutral new/starter score.
 - On-time approved work receives bonus points.

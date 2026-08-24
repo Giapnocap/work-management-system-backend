@@ -78,8 +78,12 @@ Role attributes provide the first API boundary. Application services then apply 
 | Read KPI periods | No | Allowed | Allowed | Allowed |
 | Read personal KPI | No | Any authorized staff history | Self or current/historical department scope | Self |
 | Read department KPI | No | Allowed | Current/historical department scope | No |
+| Read workload/capacity | No | All departments | Current department | No |
+| Configure employee capacity | No | Any active employee | Current department employee | No |
 | Create/update/archive projects | No | No | Own department | No |
 | Create/update/delete/remind tasks | No | No | Own department | No |
+| Manage reminder policies | No | All scopes | Own department/project scopes; Global is read-only | No |
+| View task reminder history | No | Authorized task scope | Own department | Assigned tasks |
 | View tasks and task history | No | Authorized system scope | Own department | Assigned tasks |
 | Submit progress | No | No | No | Assigned tasks only |
 | Review submitted progress | No | No | Own department/managed tasks | No |
@@ -180,6 +184,60 @@ Current creation behavior should prefer direct user assignee rows:
 
 Normal task updates do not change assignees. Reassignment should be implemented later as a separate audited workflow if needed.
 
+### Task Activity Timeline
+
+- `GET /api/tasks/{taskId}/timeline` uses the same current permission scope as reading the task.
+- Events come from task history, immutable assignment snapshots, progress, review, comments, uploads, durable reminders/escalations, and task completion state.
+- Results are ordered by UTC occurrence time descending, then a fixed source order, then the source event id. The opaque cursor preserves that ordering when timestamps are equal.
+- Clients can filter by event type, actor, and an inclusive UTC date range. Page size is limited to `100`.
+- Actor lookup ignores the active-user query filter so a soft-deleted actor retains their historical display name; a missing row uses a safe fallback.
+- Deleted comments retain an activity marker but never return the deleted content.
+- Only an allowlist of non-security task-history fields is projected. `AuditLog.DetailsJson`, credentials, tokens, storage paths, and raw entity JSON are never timeline metadata.
+- Timeline metadata has a fixed DTO shape and text values are bounded. Query count is constant relative to the number of returned items.
+- Assignment timestamps are derived from task creation because assignments are immutable creation-time snapshots in the current workflow.
+
+### Recurring Task Scheduling
+
+- Only a current `Manager` can create, update, pause, resume, or delete recurring schedules in their own department.
+- Supported schedules are `Daily`, `Weekly`, and `Monthly`; complex cron expressions are intentionally unsupported.
+- `NextRunAtUtc` and `LastGeneratedAtUtc` are persisted in SQL Server. The worker never uses an in-memory queue as the scheduling source of truth.
+- A generated occurrence creates a normal `NotStarted` task. From that point onward it uses the existing assignment, progress, review, evidence, completion, workload, and KPI rules.
+- An explicit default assignee list is validated against the template department. If no default users are selected, current approved `User` staff are snapshotted when each occurrence is generated.
+- The unique key `(TemplateId, ScheduledForUtc)` is the final duplicate defense when workers race or restart.
+- Task, assignees, history, notification metadata, occurrence, audit entry, `LastGeneratedAtUtc`, and `NextRunAtUtc` are saved in one transaction.
+- Catch-up is bounded by `RecurringTasks:MaxCatchUpOccurrencesPerTemplate`. Unprocessed overdue occurrences remain due for the next batch and are not skipped.
+- Paused or soft-deleted templates never generate tasks. Resuming preserves the persisted schedule, so overdue work follows the same catch-up policy.
+- A project cannot be archived and a department cannot be deleted while a non-deleted recurring template still references it.
+- A default assignee cannot be transferred, promoted, or deleted until the template is updated or removed.
+- A monthly day such as 31 is clamped to the last valid day of shorter months while retaining day 31 for later months.
+
+### Deadline Reminder And Escalation
+
+- Policies can be scoped to the whole system, one department, or one project. The effective policy is selected in the order `Project > Unit > Global`; an inactive specific policy intentionally suppresses fallback reminders for that scope.
+- Admin can manage every policy scope. A Manager can manage only Unit and Project policies belonging to their current department and cannot change the Global policy.
+- `BeforeDueHours` controls the due-soon milestone. The overdue assignee milestone starts at the deadline, and `OverdueEscalationHours` controls escalation after the deadline.
+- Persistence uses UTC. Date/time localization belongs to presentation clients.
+- Each task has at most one `DueSoon`, `OverdueAssignee`, and `ManagerEscalation` event. Unique `(TaskId, Type)` and `EventKey` constraints are the final duplicate defense.
+- The worker persists milestone state in SQL Server. `Pending` and retryable `Failed` records survive restarts; retry count is bounded by `DeadlineReminders:MaxRetryCount`.
+- Delivery rechecks task state, effective policy, and recipients. `Approved` or soft-deleted tasks, removed deadlines, and disabled policies produce `Suppressed` events instead of inbox notifications.
+- Assignee reminders go only to current approved `User` recipients that remain in the task department. Escalation goes only to current approved `Manager` accounts in that same department.
+- Inbox notification creation and the transition to `Sent` share one database transaction. A competing worker that loses the rowversion update rolls back its duplicate inbox rows.
+- `GET /api/tasks/{taskId}/reminders` follows normal task authorization and exposes safe scheduling history without raw exception or audit payloads.
+
+### Workload And Capacity Planning
+
+- `PlannedEffortHours` is optional and is entered by the Manager as a resource-planning budget.
+- It is not an employee timesheet, does not prove time worked, and is never used by KPI calculations.
+- Remaining workload is derived as `max(PlannedEffortHours - ActualHours, 0)`; it is not stored as a duplicate column.
+- Only non-deleted tasks that are not `Approved` and overlap the selected date range contribute to workload.
+- A multi-assignee task divides its remaining workload equally across its direct assignees.
+- Weekly capacity is effective-dated. A range crossing a capacity change is prorated by the duration of each capacity segment.
+- Gaps without a user-specific capacity use `Workload:DefaultWeeklyCapacityHours`.
+- `Busy` begins at `Workload:BusyThresholdPercent`; `Overloaded` begins at `Workload:OverloadedThresholdPercent`.
+- Assignment preview and task creation may return a workload warning, but overload never blocks task creation.
+- Managers can read and configure only current employees in their own department. Admin can access all departments for system administration.
+- Workload list aggregation uses set-based SQL queries and must not execute one query per employee.
+
 ### Task Completion
 
 - A task is completed only when the workflow service marks it `Approved`.
@@ -226,7 +284,13 @@ Review invariants:
 - One progress report can have only one review result.
 - Only `Manager` can review.
 - Manager can review only tasks they manage.
+- Rejection requires a non-empty reason.
+- Invalid transitions, blocked dependencies, and out-of-scope actors fail before workflow state is persisted.
+- Every task/progress transition records old state, new state, actor, related report, reason, and UTC timestamp in task history.
+- Concurrent reviews use optimistic concurrency plus the unique review constraint; only one decision and one approved-hours contribution can commit.
 - Rejected reports affect KPI penalties.
+
+The complete transition matrix and implementation ownership are documented in [task workflow](task-workflow.md).
 
 If task review is not required:
 
@@ -262,6 +326,8 @@ KPI is period-based and should be explainable, not just a live score.
 - Period start date must be before end date.
 - Admin can lock KPI periods.
 - Locked periods read stored `KpiResults` snapshots when available.
+- A locked snapshot stores the formula version and raw metrics used to explain its score.
+- Source task, report, user, or department changes after locking must not change the snapshot.
 
 ### Personal KPI
 
@@ -274,6 +340,7 @@ Personal KPI considers:
 - Overdue unfinished work.
 - Rejected reports.
 - Bonus and penalty points.
+- Raw throughput, completion rate, overdue rate, report rejection rate, and effort-planning accuracy.
 
 The score should never become negative.
 
@@ -286,6 +353,15 @@ Current scoring behavior:
 - Overdue unfinished work subtracts escalating weighted penalty points.
 - Rejected progress reports subtract penalty points.
 - Users with no tasks in the period receive a neutral new/starter score, not a punishment.
+
+Current formula version is `1.0`. Formula version is persisted on every locked result. Derived rates use frozen raw counters and return zero when their count denominator is zero. Estimation accuracy is left unavailable when no completed task has a Manager-owned effort plan.
+
+Effort-planning accuracy is informational only:
+
+- It uses completed tasks with `PlannedEffortHours`.
+- Planned effort is shared equally across task assignees to avoid duplicate department totals.
+- Actual effort uses only the user's approved progress reports.
+- It does not add bonus points, subtract penalty points, or otherwise affect the KPI score.
 
 ### Manager KPI
 
@@ -302,6 +378,14 @@ Current weighting:
 - Department average score: 70 percent.
 - Manager personal task score: 30 percent.
 - Review penalty points are subtracted after weighting.
+
+### Management Insights
+
+- Admin can read the organization dashboard for a selected KPI period.
+- Manager can read only the dashboard for their current department.
+- Dashboard aggregation is performed in batches and must not issue a query per user.
+- Dashboard output groups users by department and exposes the same formula version and frozen raw metrics as personal KPI output.
+- KPI is an explainable management aid. The system must not use it to automatically promote, demote, discipline, dismiss, or otherwise make HR decisions.
 
 ## Staff Movement And KPI
 
