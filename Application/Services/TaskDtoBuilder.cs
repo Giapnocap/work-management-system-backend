@@ -14,6 +14,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly IGenericRepository<Unit> _unitRepo;
         private readonly IGenericRepository<UploadFile> _uploadRepo;
         private readonly IGenericRepository<SubTask> _subTaskRepo;
+        private readonly IAppDbContext _context;
         private readonly IMapper _mapper;
 
         public TaskDtoBuilder(
@@ -22,6 +23,7 @@ namespace WorkManagementSystem.Application.Services
             IGenericRepository<Unit> unitRepo,
             IGenericRepository<UploadFile> uploadRepo,
             IGenericRepository<SubTask> subTaskRepo,
+            IAppDbContext context,
             IMapper mapper)
         {
             _assigneeRepo = assigneeRepo;
@@ -29,6 +31,7 @@ namespace WorkManagementSystem.Application.Services
             _unitRepo = unitRepo;
             _uploadRepo = uploadRepo;
             _subTaskRepo = subTaskRepo;
+            _context = context;
             _mapper = mapper;
         }
 
@@ -75,9 +78,26 @@ namespace WorkManagementSystem.Application.Services
                 .Where(s => taskIds.Contains(s.TaskId))
                 .ToListAsync(cancellationToken);
 
+            var blockingTasks = await (
+                    from dependency in _context.TaskDependencies.AsNoTracking()
+                    join predecessor in _context.Tasks.AsNoTracking()
+                        on dependency.DependsOnTaskId equals predecessor.Id
+                    where taskIds.Contains(dependency.TaskId) &&
+                          predecessor.Status != WorkManagementSystem.Domain.Enums.TaskStatus.Approved
+                    orderby predecessor.Title, predecessor.Id
+                    select new
+                    {
+                        dependency.TaskId,
+                        predecessor.Id,
+                        predecessor.Title,
+                        predecessor.Status
+                    })
+                .ToListAsync(cancellationToken);
+
             var assigneesByTask = assignees.ToLookup(assignee => assignee.TaskId);
             var filesByTask = files.ToLookup(file => file.TaskId);
             var subTasksByTask = subTasks.ToLookup(subTask => subTask.TaskId);
+            var blockingTasksByTask = blockingTasks.ToLookup(blocker => blocker.TaskId);
 
             return tasks.Select(task =>
             {
@@ -95,6 +115,15 @@ namespace WorkManagementSystem.Application.Services
                     .ToList();
                 dto.Files = filesByTask[task.Id].Select(MapFile).ToList();
                 dto.SubTasks = _mapper.Map<List<SubTaskDto>>(subTasksByTask[task.Id]);
+                dto.BlockingTasks = blockingTasksByTask[task.Id]
+                    .Select(blocker => new BlockingTaskDto
+                    {
+                        Id = blocker.Id,
+                        Title = blocker.Title,
+                        Status = blocker.Status.ToString()
+                    })
+                    .ToList();
+                dto.IsBlocked = dto.BlockingTasks.Count > 0;
                 return dto;
             }).ToList();
         }

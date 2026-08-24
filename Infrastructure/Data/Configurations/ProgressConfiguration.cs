@@ -12,7 +12,7 @@ public sealed class ProgressConfiguration : IEntityTypeConfiguration<Progress>
         builder.Property(progress => progress.HoursSpent).HasPrecision(18, 2);
         builder.Property(progress => progress.RowVersion).IsRowVersion();
         builder.HasAlternateKey(progress => new { progress.Id, progress.TaskId });
-        builder.HasIndex(progress => new { progress.TaskId, progress.UpdatedAt });
+        builder.HasIndex(progress => new { progress.TaskId, progress.UpdatedAt, progress.Id });
         builder.HasIndex(progress => new
         {
             progress.UserId,

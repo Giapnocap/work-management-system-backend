@@ -16,10 +16,14 @@ namespace WorkManagementSystem.Domain.Entities
         public int Score { get; set; }
         public string Level { get; set; } = string.Empty;
         public int TotalTasks { get; set; }
+        public int CompletedTasks { get; set; }
         public int CompletedOnTime { get; set; }
         public int CompletedLate { get; set; }
         public int OverdueTasks { get; set; }
         public int RejectedReports { get; set; }
+        public int ProgressReportCount { get; set; }
+        public decimal PlannedEffortHours { get; set; }
+        public decimal ActualHours { get; set; }
         public int BonusPoints { get; set; }
         public int PenaltyPoints { get; set; }
         public int ReviewPenaltyPoints { get; set; }
@@ -28,6 +32,7 @@ namespace WorkManagementSystem.Domain.Entities
         public bool IsManagerKpi { get; set; }
         public bool IsAtRisk { get; set; }
         public string WarningMessage { get; set; } = string.Empty;
+        public string FormulaVersion { get; set; } = "1.0";
 
         public DateTime CalculatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LockedAt { get; set; }

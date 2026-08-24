@@ -17,6 +17,7 @@ public sealed class UploadFileConfiguration : IEntityTypeConfiguration<UploadFil
             .IsRequired();
 
         builder.Property(file => file.TaskId).IsRequired();
+        builder.HasIndex(file => new { file.TaskId, file.CreatedAt, file.Id });
 
         builder.HasOne<TaskItem>()
             .WithMany()

@@ -11,6 +11,12 @@ namespace WorkManagementSystem.Application.Interfaces
         DbSet<UserUnit> UserUnits { get; }
         DbSet<TaskItem> Tasks { get; }
         DbSet<TaskAssignee> TaskAssignees { get; }
+        DbSet<TaskDependency> TaskDependencies { get; }
+        DbSet<RecurringTaskTemplate> RecurringTaskTemplates { get; }
+        DbSet<RecurringTaskAssignee> RecurringTaskAssignees { get; }
+        DbSet<GeneratedTaskOccurrence> GeneratedTaskOccurrences { get; }
+        DbSet<ReminderPolicy> ReminderPolicies { get; }
+        DbSet<ScheduledNotification> ScheduledNotifications { get; }
         DbSet<Progress> Progresses { get; }
         DbSet<UploadFile> UploadFiles { get; }
         DbSet<ReportReview> Reviews { get; }
@@ -24,6 +30,7 @@ namespace WorkManagementSystem.Application.Interfaces
         DbSet<KpiPeriod> KpiPeriods { get; }
         DbSet<KpiResult> KpiResults { get; }
         DbSet<UserWorkHistory> UserWorkHistories { get; }
+        DbSet<UserCapacity> UserCapacities { get; }
         DbSet<AuditLog> AuditLogs { get; }
 
         void SetOriginalRowVersion<TEntity>(TEntity entity, byte[] rowVersion)

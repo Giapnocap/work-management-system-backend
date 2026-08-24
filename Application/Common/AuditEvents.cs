@@ -5,6 +5,10 @@ namespace WorkManagementSystem.Application.Common
         public const string Account = "Account";
         public const string Unit = "Unit";
         public const string Project = "Project";
+        public const string Task = "Task";
+        public const string RecurringTask = "RecurringTask";
+        public const string ReminderPolicy = "ReminderPolicy";
+        public const string DeadlineNotification = "DeadlineNotification";
         public const string KpiPeriod = "KpiPeriod";
     }
 
@@ -21,5 +25,10 @@ namespace WorkManagementSystem.Application.Common
         public const string Updated = "Updated";
         public const string Archived = "Archived";
         public const string Locked = "Locked";
+        public const string Paused = "Paused";
+        public const string Resumed = "Resumed";
+        public const string Generated = "Generated";
+        public const string Sent = "Sent";
+        public const string Suppressed = "Suppressed";
     }
 }

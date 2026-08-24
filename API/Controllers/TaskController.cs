@@ -13,15 +13,24 @@ namespace WorkManagementSystem.API.Controllers
     {
         private readonly ITaskService _service;
         private readonly ITaskQueryService _queryService;
+        private readonly ITaskTimelineService _timelineService;
+        private readonly ITaskDependencyService _dependencyService;
+        private readonly IWorkloadService _workloadService;
         private readonly ICurrentUserService _currentUser;
 
         public TaskController(
             ITaskService service,
             ITaskQueryService queryService,
+            ITaskTimelineService timelineService,
+            ITaskDependencyService dependencyService,
+            IWorkloadService workloadService,
             ICurrentUserService currentUser)
         {
             _service = service;
             _queryService = queryService;
+            _timelineService = timelineService;
+            _dependencyService = dependencyService;
+            _workloadService = workloadService;
             _currentUser = currentUser;
         }
 
@@ -50,6 +59,19 @@ namespace WorkManagementSystem.API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
+        /// <summary>Dự báo workload trước khi giao việc; cảnh báo không chặn thao tác tạo task.</summary>
+        [HttpPost("assignments/preview")]
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<ActionResult<AssignmentPreviewDto>> PreviewAssignment(
+            AssignmentPreviewRequestDto dto)
+        {
+            var managerId = _currentUser.GetRequiredUserId();
+            return Ok(await _workloadService.PreviewAssignmentAsync(
+                managerId,
+                dto,
+                HttpContext.RequestAborted));
+        }
+
         [HttpPut("{id}")]
         [Authorize(Roles = SystemRoles.Manager)]
         public async Task<ActionResult<TaskDto>> Update(Guid id, UpdateTaskDto dto)
@@ -76,6 +98,54 @@ namespace WorkManagementSystem.API.Controllers
             return NoContent();
         }
 
+        [HttpPost("{taskId}/dependencies")]
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<ActionResult<TaskDependencyDto>> AddDependency(
+            Guid taskId,
+            AddTaskDependencyDto dto)
+        {
+            var managerId = _currentUser.GetRequiredUserId();
+            var result = await _dependencyService.AddAsync(
+                taskId,
+                dto.DependsOnTaskId,
+                managerId,
+                HttpContext.RequestAborted);
+            return CreatedAtAction(nameof(GetDependencies), new { taskId }, result);
+        }
+
+        [HttpDelete("{taskId}/dependencies/{dependsOnTaskId}")]
+        [Authorize(Roles = SystemRoles.Manager)]
+        public async Task<IActionResult> RemoveDependency(Guid taskId, Guid dependsOnTaskId)
+        {
+            var managerId = _currentUser.GetRequiredUserId();
+            await _dependencyService.RemoveAsync(
+                taskId,
+                dependsOnTaskId,
+                managerId,
+                HttpContext.RequestAborted);
+            return NoContent();
+        }
+
+        [HttpGet("{taskId}/dependencies")]
+        public async Task<ActionResult<List<TaskDependencyDto>>> GetDependencies(Guid taskId)
+        {
+            var userId = _currentUser.GetRequiredUserId();
+            return Ok(await _dependencyService.GetAsync(
+                taskId,
+                userId,
+                HttpContext.RequestAborted));
+        }
+
+        [HttpGet("{taskId}/dependency-graph")]
+        public async Task<ActionResult<TaskDependencyGraphDto>> GetDependencyGraph(Guid taskId)
+        {
+            var userId = _currentUser.GetRequiredUserId();
+            return Ok(await _dependencyService.GetGraphAsync(
+                taskId,
+                userId,
+                HttpContext.RequestAborted));
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskDto>> GetById(Guid id)
         {
@@ -89,6 +159,21 @@ namespace WorkManagementSystem.API.Controllers
         {
             var userId = _currentUser.GetRequiredUserId();
             var result = await _queryService.GetHistoryAsync(id, userId, HttpContext.RequestAborted);
+            return Ok(result);
+        }
+
+        /// <summary>Returns a stable, permission-scoped activity timeline for a task.</summary>
+        [HttpGet("{taskId}/timeline")]
+        public async Task<ActionResult<TimelinePageDto>> GetTimeline(
+            Guid taskId,
+            [FromQuery] TaskTimelineQueryDto query)
+        {
+            var userId = _currentUser.GetRequiredUserId();
+            var result = await _timelineService.GetTaskTimelineAsync(
+                taskId,
+                userId,
+                query,
+                HttpContext.RequestAborted);
             return Ok(result);
         }
     }

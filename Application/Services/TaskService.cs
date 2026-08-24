@@ -2,6 +2,7 @@ using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
+using System.Globalization;
 using TaskItem = WorkManagementSystem.Domain.Entities.TaskItem;
 using TaskPriorityEnum = WorkManagementSystem.Domain.Enums.TaskPriority;
 using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
@@ -19,6 +20,7 @@ namespace WorkManagementSystem.Application.Services
         private readonly ITaskWorkflowService _workflowService;
         private readonly ITaskBusinessRuleService _taskRules;
         private readonly ITaskDtoBuilder _taskDtoBuilder;
+        private readonly IWorkloadService _workloadService;
         private readonly ITransactionManager _transactionManager;
         private readonly IAppDbContext _context;
 
@@ -32,6 +34,7 @@ namespace WorkManagementSystem.Application.Services
             ITaskWorkflowService workflowService,
             ITaskBusinessRuleService taskRules,
             ITaskDtoBuilder taskDtoBuilder,
+            IWorkloadService workloadService,
             ITransactionManager transactionManager,
             IAppDbContext context)
         {
@@ -44,6 +47,7 @@ namespace WorkManagementSystem.Application.Services
             _workflowService = workflowService;
             _taskRules = taskRules;
             _taskDtoBuilder = taskDtoBuilder;
+            _workloadService = workloadService;
             _transactionManager = transactionManager;
             _context = context;
         }
@@ -61,6 +65,7 @@ namespace WorkManagementSystem.Application.Services
                 throw new BusinessException("Manager chua thuoc phong ban nao.");
 
             ValidateDateRange(dto.StartDate, dto.DueDate);
+            ValidatePlannedEffort(dto.PlannedEffortHours);
             var project = await _taskRules.ValidateProjectScope(
                 dto.ProjectId,
                 creator.UnitId.Value,
@@ -77,6 +82,7 @@ namespace WorkManagementSystem.Application.Services
                 StartDate = dto.StartDate,
                 DueDate = dto.DueDate,
                 RequiresReview = dto.RequiresReview,
+                PlannedEffortHours = dto.PlannedEffortHours,
                 Priority = ParsePriority(dto.Priority),
                 UnitId = creator.UnitId,
                 ProjectId = project?.Id
@@ -87,6 +93,18 @@ namespace WorkManagementSystem.Application.Services
                 dto.UnitIds,
                 creator.UnitId.Value,
                 cancellationToken);
+
+            AssignmentPreviewDto? workloadPreview = null;
+            if (task.PlannedEffortHours.HasValue)
+            {
+                workloadPreview = await _workloadService.PreviewResolvedAssignmentAsync(
+                    userId,
+                    assignmentPlan.UserIds,
+                    task.PlannedEffortHours.Value,
+                    task.StartDate,
+                    task.DueDate,
+                    cancellationToken);
+            }
 
             await _taskRepo.AddAsync(task, cancellationToken);
             await _historyRepo.AddAsync(new TaskHistory
@@ -114,7 +132,11 @@ namespace WorkManagementSystem.Application.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
-            return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
+            var result = await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
+            result.WorkloadWarnings = workloadPreview?.Assignees
+                .Where(assignee => assignee.HasWarning)
+                .ToList() ?? new List<AssignmentWorkloadDto>();
+            return result;
         }
 
         public Task<TaskDto> Update(Guid id, UpdateTaskDto dto, Guid changedBy, CancellationToken cancellationToken = default)
@@ -138,6 +160,7 @@ namespace WorkManagementSystem.Application.Services
                 cancellationToken);
 
             ValidateDateRange(dto.StartDate, dto.DueDate);
+            ValidatePlannedEffort(dto.PlannedEffortHours);
             if (!task.UnitId.HasValue)
                 throw new BusinessException("Cong viec khong co phong ban hop le.");
 
@@ -156,6 +179,13 @@ namespace WorkManagementSystem.Application.Services
             await AddHistoryIfChanged(task, changedBy, "StartDate", task.StartDate?.ToString("yyyy-MM-dd"), dto.StartDate?.ToString("yyyy-MM-dd"), cancellationToken);
             await AddHistoryIfChanged(task, changedBy, "DueDate", task.DueDate?.ToString("yyyy-MM-dd"), dto.DueDate?.ToString("yyyy-MM-dd"), cancellationToken);
             await AddHistoryIfChanged(task, changedBy, "RequiresReview", task.RequiresReview.ToString(), dto.RequiresReview.ToString(), cancellationToken);
+            await AddHistoryIfChanged(
+                task,
+                changedBy,
+                "PlannedEffortHours",
+                FormatHours(task.PlannedEffortHours),
+                FormatHours(dto.PlannedEffortHours),
+                cancellationToken);
             await AddHistoryIfChanged(task, changedBy, "Priority", task.Priority.ToString(), newPriority.ToString(), cancellationToken);
             await AddHistoryIfChanged(
                 task,
@@ -170,6 +200,7 @@ namespace WorkManagementSystem.Application.Services
             task.StartDate = dto.StartDate;
             task.DueDate = dto.DueDate;
             task.RequiresReview = dto.RequiresReview;
+            task.PlannedEffortHours = dto.PlannedEffortHours;
             task.Priority = newPriority;
             task.ProjectId = project?.Id;
 
@@ -315,6 +346,18 @@ namespace WorkManagementSystem.Application.Services
             if (startDate.HasValue && dueDate.HasValue && dueDate.Value < startDate.Value)
                 throw new BusinessException("Deadline khong duoc som hon ngay bat dau.");
         }
+
+        private static void ValidatePlannedEffort(decimal? plannedEffortHours)
+        {
+            if (plannedEffortHours.HasValue &&
+                plannedEffortHours.Value is <= 0m or > 100000m)
+            {
+                throw new BusinessException("Khoi luong ke hoach phai lon hon 0 va khong vuot qua 100000 gio.");
+            }
+        }
+
+        private static string? FormatHours(decimal? hours)
+            => hours?.ToString(CultureInfo.InvariantCulture);
 
     }
 }

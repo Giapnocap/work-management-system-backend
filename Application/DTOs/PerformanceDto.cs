@@ -23,10 +23,19 @@ namespace WorkManagementSystem.Application.DTOs
         public string LevelIcon { get; set; } = string.Empty;
 
         public int TotalTasks { get; set; }
+        public int CompletedTasks { get; set; }
         public int CompletedOnTime { get; set; }
         public int CompletedLate { get; set; }
         public int OverdueTasks { get; set; }
         public int RejectedReports { get; set; }
+        public int ProgressReportCount { get; set; }
+        public decimal PlannedEffortHours { get; set; }
+        public decimal ActualHours { get; set; }
+        public decimal CompletionRate { get; set; }
+        public decimal OverdueRate { get; set; }
+        public decimal ReviewRejectionRate { get; set; }
+        public decimal? EstimationAccuracy { get; set; }
+        public string FormulaVersion { get; set; } = string.Empty;
 
         public int BonusPoints { get; set; }
         public int PenaltyPoints { get; set; }

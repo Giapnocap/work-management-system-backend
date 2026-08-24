@@ -9,6 +9,7 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
     public void Configure(EntityTypeBuilder<TaskItem> builder)
     {
         builder.HasQueryFilter(task => !task.IsDeleted);
+        builder.Property(task => task.PlannedEffortHours).HasPrecision(18, 2);
         builder.Property(task => task.ActualHours).HasPrecision(18, 2);
         builder.Property(task => task.RowVersion).IsRowVersion();
         builder.Property(task => task.UnitId).IsRequired();
@@ -17,6 +18,9 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("CK_Tasks_ActualHours_NonNegative", "[ActualHours] >= 0");
+            table.HasCheckConstraint(
+                "CK_Tasks_PlannedEffortHours_Positive",
+                "[PlannedEffortHours] IS NULL OR [PlannedEffortHours] > 0");
             table.HasCheckConstraint("CK_Tasks_Status_Range", "[Status] >= 0 AND [Status] <= 3");
             table.HasCheckConstraint(
                 "CK_Tasks_Date_Range",

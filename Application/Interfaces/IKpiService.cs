@@ -8,5 +8,9 @@ namespace WorkManagementSystem.Application.Interfaces
         Task<KpiPeriodDto> GetCurrentPeriod(CancellationToken cancellationToken = default);
         Task<KpiPeriodDto> CreatePeriod(CreateKpiPeriodDto dto, Guid createdBy, CancellationToken cancellationToken = default);
         Task<List<PerformanceDto>> LockPeriod(Guid periodId, Guid lockedBy, CancellationToken cancellationToken = default);
+        Task<KpiDashboardDto> GetDashboard(
+            Guid periodId,
+            Guid requesterId,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -40,7 +40,17 @@ namespace WorkManagementSystem.Infrastructure.Data
             CancellationToken cancellationToken)
         {
             if (!_context.Database.IsRelational())
-                return await operation(cancellationToken);
+            {
+                try
+                {
+                    return await operation(cancellationToken);
+                }
+                catch
+                {
+                    _context.ChangeTracker.Clear();
+                    throw;
+                }
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             var strategy = _context.Database.CreateExecutionStrategy();

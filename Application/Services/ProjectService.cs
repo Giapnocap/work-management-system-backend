@@ -267,6 +267,16 @@ namespace WorkManagementSystem.Application.Services
                     $"Khong the luu tru project khi con {activeTaskCount} cong viec chua hoan thanh.");
             }
 
+            var recurringTemplateCount = await _context.RecurringTaskTemplates.CountAsync(
+                template => template.ProjectId == project.Id,
+                cancellationToken);
+            if (recurringTemplateCount > 0)
+            {
+                throw new BusinessException(
+                    $"Không thể lưu trữ dự án khi còn {recurringTemplateCount} lịch công việc định kỳ. " +
+                    "Hãy chuyển lịch sang dự án khác hoặc xóa lịch trước.");
+            }
+
             project.IsArchived = true;
             await _auditService.RecordAsync(
                 AuditEntityTypes.Project,

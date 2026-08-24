@@ -6,6 +6,7 @@ using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Infrastructure.Data;
 using WorkManagementSystem.Infrastructure.Repositories;
 using WorkManagementSystem.Infrastructure.Security;
+using WorkManagementSystem.Infrastructure.Scheduling;
 using WorkManagementSystem.Infrastructure.Storage;
 
 namespace WorkManagementSystem.Infrastructure.DependencyInjection;
@@ -32,6 +33,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IEmployeeCodeGenerator, EmployeeCodeGenerator>();
         services.AddSingleton<IPasswordHashService, BcryptPasswordHashService>();
         services.AddScoped<UploadOrphanCleaner>();
+        services.AddHostedService<RecurringTaskWorker>();
+        services.AddHostedService<DeadlineReminderWorker>();
 
         if (uploadCleanupOptions.Enabled)
             services.AddHostedService<UploadOrphanCleanupWorker>();

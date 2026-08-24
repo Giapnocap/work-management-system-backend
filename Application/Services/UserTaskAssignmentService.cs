@@ -9,13 +9,16 @@ namespace WorkManagementSystem.Application.Services
     {
         private readonly IGenericRepository<TaskItem> _taskRepo;
         private readonly IGenericRepository<TaskAssignee> _assigneeRepo;
+        private readonly IAppDbContext _context;
 
         public UserTaskAssignmentService(
             IGenericRepository<TaskItem> taskRepo,
-            IGenericRepository<TaskAssignee> assigneeRepo)
+            IGenericRepository<TaskAssignee> assigneeRepo,
+            IAppDbContext context)
         {
             _taskRepo = taskRepo;
             _assigneeRepo = assigneeRepo;
+            _context = context;
         }
 
         public async Task EnsureCanChangeAssignmentAsync(
@@ -44,6 +47,7 @@ namespace WorkManagementSystem.Application.Services
                 ThrowIfPending(
                     assignedTasks,
                     "Khong the luan chuyen hoac bo nhiem khi nhan su con cong viec chua hoan thanh");
+                await EnsureNoRecurringAssignmentAsync(user.Id, cancellationToken);
             }
         }
 
@@ -61,6 +65,7 @@ namespace WorkManagementSystem.Application.Services
             ThrowIfPending(
                 pendingTasks,
                 "Khong the xoa nhan su khi van con trach nhiem cong viec");
+            await EnsureNoRecurringAssignmentAsync(user.Id, cancellationToken);
         }
 
         private async Task<List<string>> GetPendingAssignedTasksAsync(
@@ -101,6 +106,30 @@ namespace WorkManagementSystem.Application.Services
             throw new BusinessException(
                 $"{message}. Con {taskTitles.Count} cong viec: {string.Join(", ", taskTitles)}. " +
                 "Vui long hoan thanh hoac ban giao cong viec truoc.");
+        }
+
+        private async Task EnsureNoRecurringAssignmentAsync(
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            var templateTitles = await _context.RecurringTaskAssignees
+                .AsNoTracking()
+                .Where(assignee => assignee.UserId == userId)
+                .Join(
+                    _context.RecurringTaskTemplates.AsNoTracking(),
+                    assignee => assignee.TemplateId,
+                    template => template.Id,
+                    (_, template) => template.Title)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (templateTitles.Count == 0)
+                return;
+
+            throw new BusinessException(
+                $"Không thể điều chuyển hoặc xóa nhân sự đang là người nhận mặc định của " +
+                $"{templateTitles.Count} lịch công việc định kỳ: {string.Join(", ", templateTitles)}. " +
+                "Hãy cập nhật hoặc xóa các lịch trước.");
         }
     }
 }

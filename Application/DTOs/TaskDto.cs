@@ -18,6 +18,8 @@ namespace WorkManagementSystem.Application.DTOs
         [RegularExpression("^(Low|Medium|High|Urgent)$", ErrorMessage = "Muc uu tien khong hop le.")]
         public string Priority { get; set; } = "Medium";
         public bool RequiresReview { get; set; } = true;
+        [Range(0.01, 100000.0, ErrorMessage = "Khoi luong ke hoach phai lon hon 0.")]
+        public decimal? PlannedEffortHours { get; set; }
         public Guid? ProjectId { get; set; }
     }
 
@@ -39,6 +41,8 @@ namespace WorkManagementSystem.Application.DTOs
         [RegularExpression("^(Low|Medium|High|Urgent)$", ErrorMessage = "Muc uu tien khong hop le.")]
         public string Priority { get; set; } = "Medium";
         public bool RequiresReview { get; set; } = true;
+        [Range(0.01, 100000.0, ErrorMessage = "Khoi luong ke hoach phai lon hon 0.")]
+        public decimal? PlannedEffortHours { get; set; }
         public Guid? ProjectId { get; set; }
     }
 
@@ -63,6 +67,7 @@ namespace WorkManagementSystem.Application.DTOs
         public List<UploadFileDto> Files { get; set; } = new();
         public List<SubTaskDto> SubTasks { get; set; } = new();
         public decimal ActualHours { get; set; }
+        public decimal? PlannedEffortHours { get; set; }
         public string Priority { get; set; } = "Medium";
         public bool RequiresReview { get; set; } = true;
         public Guid? UnitId { get; set; }
@@ -71,6 +76,9 @@ namespace WorkManagementSystem.Application.DTOs
         public Guid? ProjectId { get; set; }
         public DateTime? CompletedAt { get; set; }
         public Guid? CompletedBy { get; set; }
+        public bool IsBlocked { get; set; }
+        public List<BlockingTaskDto> BlockingTasks { get; set; } = new();
+        public List<AssignmentWorkloadDto> WorkloadWarnings { get; set; } = new();
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 
@@ -82,6 +90,8 @@ namespace WorkManagementSystem.Application.DTOs
         public string FieldName { get; set; } = string.Empty;
         public string? OldValue { get; set; }
         public string? NewValue { get; set; }
+        public Guid? RelatedEntityId { get; set; }
+        public string? Reason { get; set; }
         public DateTime ChangedAt { get; set; }
     }
 }

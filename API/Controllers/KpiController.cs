@@ -27,6 +27,14 @@ namespace WorkManagementSystem.API.Controllers
         public async Task<ActionResult<KpiPeriodDto>> GetCurrent()
             => Ok(await _service.GetCurrentPeriod(HttpContext.RequestAborted));
 
+        [HttpGet("{id:guid}/dashboard")]
+        [Authorize(Roles = SystemRoles.AdminOrManager)]
+        public async Task<ActionResult<KpiDashboardDto>> GetDashboard(Guid id)
+        {
+            var userId = _currentUser.GetRequiredUserId();
+            return Ok(await _service.GetDashboard(id, userId, HttpContext.RequestAborted));
+        }
+
         [HttpPost]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<ActionResult<KpiPeriodDto>> Create(CreateKpiPeriodDto dto)

@@ -111,6 +111,28 @@ namespace WorkManagementSystem.Migrations
                     b.ToTable("CommentSeens");
                 });
 
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.GeneratedTaskOccurrence", b =>
+                {
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ScheduledForUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("TemplateId", "ScheduledForUtc");
+
+                    b.HasIndex("TaskId")
+                        .IsUnique();
+
+                    b.ToTable("GeneratedTaskOccurrences");
+                });
+
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.KpiPeriod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -169,6 +191,10 @@ namespace WorkManagementSystem.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("ActualHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("BonusPoints")
                         .HasColumnType("int");
 
@@ -181,6 +207,9 @@ namespace WorkManagementSystem.Migrations
                     b.Property<int>("CompletedOnTime")
                         .HasColumnType("int");
 
+                    b.Property<int>("CompletedTasks")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("EffectiveFrom")
                         .HasColumnType("datetime2");
 
@@ -191,6 +220,13 @@ namespace WorkManagementSystem.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FormulaVersion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("1.0");
 
                     b.Property<string>("FullNameSnapshot")
                         .IsRequired()
@@ -220,6 +256,13 @@ namespace WorkManagementSystem.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("PersonalScore")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PlannedEffortHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProgressReportCount")
                         .HasColumnType("int");
 
                     b.Property<int>("RejectedReports")
@@ -271,7 +314,11 @@ namespace WorkManagementSystem.Migrations
                         {
                             t.HasCheckConstraint("CK_KpiResults_Effective_Range", "[EffectiveTo] >= [EffectiveFrom]");
 
-                            t.HasCheckConstraint("CK_KpiResults_NonNegative", "[Score] >= 0 AND [TotalTasks] >= 0 AND [CompletedOnTime] >= 0 AND [CompletedLate] >= 0 AND [OverdueTasks] >= 0 AND [RejectedReports] >= 0 AND [BonusPoints] >= 0 AND [PenaltyPoints] >= 0 AND [ReviewPenaltyPoints] >= 0 AND [UnitAverageScore] >= 0 AND [PersonalScore] >= 0");
+                            t.HasCheckConstraint("CK_KpiResults_FormulaVersion", "LEN([FormulaVersion]) > 0");
+
+                            t.HasCheckConstraint("CK_KpiResults_Metric_Ranges", "[CompletedTasks] <= [TotalTasks] AND [CompletedOnTime] + [CompletedLate] <= [CompletedTasks] AND [OverdueTasks] <= [TotalTasks] AND [RejectedReports] <= [ProgressReportCount]");
+
+                            t.HasCheckConstraint("CK_KpiResults_NonNegative", "[Score] >= 0 AND [TotalTasks] >= 0 AND [CompletedTasks] >= 0 AND [CompletedOnTime] >= 0 AND [CompletedLate] >= 0 AND [OverdueTasks] >= 0 AND [RejectedReports] >= 0 AND [ProgressReportCount] >= 0 AND [PlannedEffortHours] >= 0 AND [ActualHours] >= 0 AND [BonusPoints] >= 0 AND [PenaltyPoints] >= 0 AND [ReviewPenaltyPoints] >= 0 AND [UnitAverageScore] >= 0 AND [PersonalScore] >= 0");
                         });
                 });
 
@@ -338,7 +385,7 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TaskId", "UpdatedAt");
+                    b.HasIndex("TaskId", "UpdatedAt", "Id");
 
                     b.HasIndex("UserId", "Status", "UpdatedAt", "TaskId");
 
@@ -393,6 +440,187 @@ namespace WorkManagementSystem.Migrations
                     b.ToTable("Projects");
                 });
 
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.RecurringTaskAssignee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "TemplateId");
+
+                    b.ToTable("RecurringTaskAssignees");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.RecurringTaskTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("DayOfMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Interval")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastGeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NextRunAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("PlannedEffortHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RecurrenceType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequiresReview")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("UnitId")
+                        .IsRequired()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("IsActive", "NextRunAtUtc");
+
+                    b.HasIndex("ProjectId", "UnitId");
+
+                    b.ToTable("RecurringTaskTemplates", t =>
+                        {
+                            t.HasCheckConstraint("CK_RecurringTaskTemplates_Interval_Positive", "[Interval] >= 1");
+
+                            t.HasCheckConstraint("CK_RecurringTaskTemplates_PlannedEffortHours_Positive", "[PlannedEffortHours] IS NULL OR [PlannedEffortHours] > 0");
+
+                            t.HasCheckConstraint("CK_RecurringTaskTemplates_RecurrenceType_Range", "[RecurrenceType] >= 0 AND [RecurrenceType] <= 2");
+
+                            t.HasCheckConstraint("CK_RecurringTaskTemplates_Schedule_Shape", "([RecurrenceType] = 0 AND [DayOfWeek] IS NULL AND [DayOfMonth] IS NULL) OR ([RecurrenceType] = 1 AND [DayOfWeek] BETWEEN 0 AND 6 AND [DayOfMonth] IS NULL) OR ([RecurrenceType] = 2 AND [DayOfWeek] IS NULL AND [DayOfMonth] BETWEEN 1 AND 31)");
+                        });
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ReminderPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("BeforeDueHours")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("NotifyAssignee")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("NotifyManager")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("OverdueEscalationHours")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("ScopeType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique()
+                        .HasFilter("[ScopeType] = 2 AND [ProjectId] IS NOT NULL");
+
+                    b.HasIndex("ScopeType")
+                        .IsUnique()
+                        .HasFilter("[ScopeType] = 0");
+
+                    b.HasIndex("UnitId")
+                        .IsUnique()
+                        .HasFilter("[ScopeType] = 1 AND [UnitId] IS NOT NULL");
+
+                    b.ToTable("ReminderPolicies", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReminderPolicies_BeforeDueHours_Range", "[BeforeDueHours] >= 1 AND [BeforeDueHours] <= 720");
+
+                            t.HasCheckConstraint("CK_ReminderPolicies_OverdueEscalationHours_Range", "[OverdueEscalationHours] >= 0 AND [OverdueEscalationHours] <= 720");
+
+                            t.HasCheckConstraint("CK_ReminderPolicies_ScopeType_Range", "[ScopeType] >= 0 AND [ScopeType] <= 2");
+
+                            t.HasCheckConstraint("CK_ReminderPolicies_Scope_Shape", "([ScopeType] = 0 AND [UnitId] IS NULL AND [ProjectId] IS NULL) OR ([ScopeType] = 1 AND [UnitId] IS NOT NULL AND [ProjectId] IS NULL) OR ([ScopeType] = 2 AND [UnitId] IS NULL AND [ProjectId] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ReportReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -422,6 +650,72 @@ namespace WorkManagementSystem.Migrations
                     b.HasIndex("ReviewerId");
 
                     b.ToTable("Reviews");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ScheduledNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("ScheduledForUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventKey")
+                        .IsUnique();
+
+                    b.HasIndex("TaskId", "ScheduledForUtc");
+
+                    b.HasIndex("TaskId", "Type")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "ScheduledForUtc", "RetryCount");
+
+                    b.HasIndex("TaskId", "SentAtUtc", "Id");
+
+                    b.ToTable("ScheduledNotifications", t =>
+                        {
+                            t.HasCheckConstraint("CK_ScheduledNotifications_RetryCount_NonNegative", "[RetryCount] >= 0");
+
+                            t.HasCheckConstraint("CK_ScheduledNotifications_Status_Range", "[Status] >= 0 AND [Status] <= 3");
+
+                            t.HasCheckConstraint("CK_ScheduledNotifications_Type_Range", "[Type] >= 0 AND [Type] <= 2");
+                        });
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.SubTask", b =>
@@ -510,7 +804,42 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TaskId", "CreatedAt", "Id");
+
                     b.ToTable("TaskComments");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.TaskDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DependsOnTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("DependsOnTaskId");
+
+                    b.HasIndex("TaskId", "DependsOnTaskId")
+                        .IsUnique();
+
+                    b.ToTable("TaskDependencies", t =>
+                        {
+                            t.HasCheckConstraint("CK_TaskDependencies_NoSelfReference", "[TaskId] <> [DependsOnTaskId]");
+                        });
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.TaskHistory", b =>
@@ -535,6 +864,13 @@ namespace WorkManagementSystem.Migrations
                     b.Property<string>("OldValue")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("RelatedEntityId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TaskId")
                         .HasColumnType("uniqueidentifier");
 
@@ -542,7 +878,7 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasIndex("ChangedBy");
 
-                    b.HasIndex("TaskId", "ChangedAt");
+                    b.HasIndex("TaskId", "ChangedAt", "Id");
 
                     b.ToTable("TaskHistories");
                 });
@@ -578,6 +914,10 @@ namespace WorkManagementSystem.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<decimal?>("PlannedEffortHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Priority")
                         .HasColumnType("int");
@@ -623,6 +963,8 @@ namespace WorkManagementSystem.Migrations
                             t.HasCheckConstraint("CK_Tasks_ActualHours_NonNegative", "[ActualHours] >= 0");
 
                             t.HasCheckConstraint("CK_Tasks_Date_Range", "[StartDate] IS NULL OR [DueDate] IS NULL OR [DueDate] >= [StartDate]");
+
+                            t.HasCheckConstraint("CK_Tasks_PlannedEffortHours_Positive", "[PlannedEffortHours] IS NULL OR [PlannedEffortHours] > 0");
 
                             t.HasCheckConstraint("CK_Tasks_Status_Range", "[Status] >= 0 AND [Status] <= 3");
                         });
@@ -685,11 +1027,11 @@ namespace WorkManagementSystem.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TaskId");
-
                     b.HasIndex("UploadedBy");
 
                     b.HasIndex("ProgressId", "TaskId");
+
+                    b.HasIndex("TaskId", "CreatedAt", "Id");
 
                     b.ToTable("UploadFiles");
                 });
@@ -758,6 +1100,49 @@ namespace WorkManagementSystem.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.UserCapacity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("WeeklyCapacityHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[EffectiveTo] IS NULL");
+
+                    b.HasIndex("UserId", "EffectiveFrom");
+
+                    b.ToTable("UserCapacities", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserCapacities_Effective_Range", "[EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]");
+
+                            t.HasCheckConstraint("CK_UserCapacities_WeeklyHours_Positive", "[WeeklyCapacityHours] > 0");
+                        });
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.UserUnit", b =>
@@ -837,6 +1222,25 @@ namespace WorkManagementSystem.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("ActorUser");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.GeneratedTaskOccurrence", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.TaskItem", "Task")
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.RecurringTaskTemplate", "Template")
+                        .WithMany("Occurrences")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Task");
+
+                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.KpiPeriod", b =>
@@ -924,6 +1328,69 @@ namespace WorkManagementSystem.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.RecurringTaskAssignee", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.RecurringTaskTemplate", "Template")
+                        .WithMany("Assignees")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Template");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.RecurringTaskTemplate", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId", "UnitId")
+                        .HasPrincipalKey("Id", "UnitId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ReminderPolicy", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Unit");
+                });
+
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ReportReview", b =>
                 {
                     b.HasOne("WorkManagementSystem.Domain.Entities.Progress", "Progress")
@@ -940,6 +1407,17 @@ namespace WorkManagementSystem.Migrations
                     b.Navigation("Progress");
 
                     b.Navigation("Reviewer");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.ScheduledNotification", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.TaskItem", "Task")
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Task");
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.TaskAssignee", b =>
@@ -965,6 +1443,27 @@ namespace WorkManagementSystem.Migrations
                     b.Navigation("Unit");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.TaskDependency", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.TaskItem", null)
+                        .WithMany()
+                        .HasForeignKey("DependsOnTaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.TaskItem", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.TaskHistory", b =>
@@ -1039,6 +1538,25 @@ namespace WorkManagementSystem.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.UserCapacity", b =>
+                {
+                    b.HasOne("WorkManagementSystem.Domain.Entities.User", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("WorkManagementSystem.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.UserUnit", b =>
                 {
                     b.HasOne("WorkManagementSystem.Domain.Entities.Unit", "Unit")
@@ -1081,6 +1599,13 @@ namespace WorkManagementSystem.Migrations
                     b.Navigation("Unit");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("WorkManagementSystem.Domain.Entities.RecurringTaskTemplate", b =>
+                {
+                    b.Navigation("Assignees");
+
+                    b.Navigation("Occurrences");
                 });
 
             modelBuilder.Entity("WorkManagementSystem.Domain.Entities.User", b =>

@@ -8,10 +8,12 @@ namespace WorkManagementSystem.Application.Services
     public class NotificationService : INotificationService
     {
         private readonly IAppDbContext _context;
+        private readonly TimeProvider _timeProvider;
 
-        public NotificationService(IAppDbContext context)
+        public NotificationService(IAppDbContext context, TimeProvider timeProvider)
         {
             _context = context;
+            _timeProvider = timeProvider;
         }
 
         public Task AddNotification(Guid userId, string message, CancellationToken cancellationToken = default)
@@ -23,7 +25,7 @@ namespace WorkManagementSystem.Application.Services
                 UserId = userId,
                 Message = message,
                 IsRead = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = _timeProvider.GetUtcNow().UtcDateTime
             });
             return Task.CompletedTask;
         }

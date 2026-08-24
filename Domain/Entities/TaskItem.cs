@@ -15,6 +15,7 @@ namespace WorkManagementSystem.Domain.Entities
         public TaskStatusEnum Status { get; set; } = TaskStatusEnum.NotStarted;
         public TaskPriority Priority { get; set; } = TaskPriority.Medium;
         public bool RequiresReview { get; set; } = true;
+        public decimal? PlannedEffortHours { get; set; }
         public decimal ActualHours { get; set; } = 0;
         public Guid? UnitId { get; set; }
         public Guid? ProjectId { get; set; }
@@ -26,5 +27,36 @@ namespace WorkManagementSystem.Domain.Entities
         public User? Creator { get; set; }
         public Unit? Unit { get; set; }
         public Project? Project { get; set; }
+
+        public void MarkInProgress()
+        {
+            EnsureNotCompleted();
+            Status = TaskStatusEnum.InProgress;
+        }
+
+        public void SubmitForReview()
+        {
+            EnsureNotCompleted();
+            Status = TaskStatusEnum.Submitted;
+        }
+
+        public void Complete(Guid completedBy, DateTime completedAtUtc)
+        {
+            if (completedBy == Guid.Empty)
+                throw new ArgumentException("CompletedBy is required.", nameof(completedBy));
+            if (completedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Completion time must be UTC.", nameof(completedAtUtc));
+
+            EnsureNotCompleted();
+            Status = TaskStatusEnum.Approved;
+            CompletedAt = completedAtUtc;
+            CompletedBy = completedBy;
+        }
+
+        private void EnsureNotCompleted()
+        {
+            if (Status == TaskStatusEnum.Approved)
+                throw new InvalidOperationException("An approved task cannot transition without a reopen policy.");
+        }
     }
 }

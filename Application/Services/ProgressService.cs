@@ -70,6 +70,10 @@ namespace WorkManagementSystem.Application.Services
                     cancellationToken: cancellationToken))
                 throw new ForbiddenException("Ban khong co quyen bao cao tien do cho cong viec nay.");
 
+            await _workflowService.EnsureDependenciesCompletedAsync(
+                dto.TaskId,
+                cancellationToken);
+
             var hasPendingCompletion = await _repo.QueryReadOnly().AnyAsync(p =>
                 p.TaskId == dto.TaskId &&
                 p.UserId == reporterId &&
@@ -122,9 +126,9 @@ namespace WorkManagementSystem.Application.Services
             progress.UserId = reporterId;
             progress.UpdatedAt = DateTime.UtcNow;
             progress.HoursSpent = dto.HoursSpent;
-            progress.Status = dto.Percent == 100
-                ? (requiresReview ? ProgressStatusEnum.Submitted : ProgressStatusEnum.Approved)
-                : ProgressStatusEnum.InProgress;
+            progress.Status = _workflowService.ResolveNewProgressStatus(
+                dto.Percent,
+                requiresReview);
 
             await _repo.AddAsync(progress, cancellationToken);
 
@@ -134,21 +138,12 @@ namespace WorkManagementSystem.Application.Services
                 _uploadRepo.Update(file);
             }
 
-            if (progress.Status == ProgressStatusEnum.Approved)
-            {
-                task.ActualHours += progress.HoursSpent;
-                await _workflowService.ApplyCompletionStateAsync(task, progress.UserId, cancellationToken);
-            }
-            else if (progress.Status == ProgressStatusEnum.Submitted)
-            {
-                task.Status = TaskStatusEnum.Submitted;
-            }
-            else if (task.Status != TaskStatusEnum.Approved)
-            {
-                task.Status = hasPendingSubmittedForTask
-                    ? TaskStatusEnum.Submitted
-                    : TaskStatusEnum.InProgress;
-            }
+            await _workflowService.ApplyProgressReportAsync(
+                task,
+                progress,
+                reporterId,
+                hasPendingSubmittedForTask,
+                cancellationToken);
 
             _taskRepo.Update(task);
 

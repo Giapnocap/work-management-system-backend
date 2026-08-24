@@ -16,6 +16,12 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<UserUnit> UserUnits { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
     public DbSet<TaskAssignee> TaskAssignees { get; set; }
+    public DbSet<TaskDependency> TaskDependencies { get; set; }
+    public DbSet<RecurringTaskTemplate> RecurringTaskTemplates { get; set; }
+    public DbSet<RecurringTaskAssignee> RecurringTaskAssignees { get; set; }
+    public DbSet<GeneratedTaskOccurrence> GeneratedTaskOccurrences { get; set; }
+    public DbSet<ReminderPolicy> ReminderPolicies { get; set; }
+    public DbSet<ScheduledNotification> ScheduledNotifications { get; set; }
     public DbSet<Progress> Progresses { get; set; }
     public DbSet<UploadFile> UploadFiles { get; set; }
     public DbSet<ReportReview> Reviews { get; set; }
@@ -29,6 +35,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<KpiPeriod> KpiPeriods { get; set; }
     public DbSet<KpiResult> KpiResults { get; set; }
     public DbSet<UserWorkHistory> UserWorkHistories { get; set; }
+    public DbSet<UserCapacity> UserCapacities { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
 
     public void SetOriginalRowVersion<TEntity>(TEntity entity, byte[] rowVersion)

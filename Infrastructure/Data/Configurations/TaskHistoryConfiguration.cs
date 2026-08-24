@@ -8,7 +8,11 @@ public sealed class TaskHistoryConfiguration : IEntityTypeConfiguration<TaskHist
 {
     public void Configure(EntityTypeBuilder<TaskHistory> builder)
     {
-        builder.HasIndex(history => new { history.TaskId, history.ChangedAt });
+        builder.Property(history => history.FieldName)
+            .IsRequired();
+        builder.Property(history => history.Reason)
+            .HasMaxLength(1000);
+        builder.HasIndex(history => new { history.TaskId, history.ChangedAt, history.Id });
 
         builder.HasOne<TaskItem>()
             .WithMany()

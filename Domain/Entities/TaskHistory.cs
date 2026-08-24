@@ -8,6 +8,8 @@
         public string FieldName { get; set; } = string.Empty;
         public string? OldValue { get; set; }
         public string? NewValue { get; set; }
+        public Guid? RelatedEntityId { get; set; }
+        public string? Reason { get; set; }
         public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -164,6 +164,14 @@ namespace WorkManagementSystem.Application.Services
                 throw new BusinessException("Không thể xóa! Phòng ban này vẫn đang có nhân sự. Vui lòng luân chuyển toàn bộ Quản lý và Nhân viên sang phòng khác hoặc gỡ tư cách thành viên của họ trước.");
             }
 
+            var hasRecurringTemplates = await _context.RecurringTaskTemplates
+                .AnyAsync(template => template.UnitId == id, cancellationToken);
+            if (hasRecurringTemplates)
+            {
+                throw new BusinessException(
+                    "Không thể xóa phòng ban đang có lịch công việc định kỳ. Hãy xóa các lịch trước.");
+            }
+
             unit.IsDeleted = true;
             _repo.Update(unit);
             await _auditService.RecordAsync(

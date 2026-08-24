@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WorkManagementSystem.Application.Common;
 using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
@@ -301,6 +302,12 @@ namespace WorkManagementSystem.Application.Services
             var eligibleTaskIds = taskQuery.Select(task => task.Id);
             var tasks = await taskQuery.ToListAsync(cancellationToken);
 
+            var assigneeCounts = await _assigneeRepo.QueryReadOnly()
+                .Where(assignee => assignee.UserId.HasValue && eligibleTaskIds.Contains(assignee.TaskId))
+                .GroupBy(assignee => assignee.TaskId)
+                .Select(group => new { TaskId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.TaskId, item => item.Count, cancellationToken);
+
             var progressList = await _context.Progresses
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -308,7 +315,7 @@ namespace WorkManagementSystem.Application.Services
                 .Where(p => p.UpdatedAt >= from && p.UpdatedAt <= to)
                 .ToListAsync(cancellationToken);
 
-            var metrics = CalculatePersonalKpiMetrics(tasks, progressList, now, from, to);
+            var metrics = CalculatePersonalKpiMetrics(tasks, progressList, assigneeCounts, now, from, to);
             var dto = BuildPersonalPerformanceDto(userId, user, metrics);
 
             return ApplyPeriodMetadata(dto, period, filterUnitId, roleForPeriod, from, to, period.Status == "Locked");
@@ -345,6 +352,14 @@ namespace WorkManagementSystem.Application.Services
                     .ToListAsync(cancellationToken);
             var relevantTaskIds = tasks.Select(task => task.Id).ToList();
 
+            var assigneeCounts = relevantTaskIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : await _assigneeRepo.QueryReadOnly()
+                    .Where(assignee => assignee.UserId.HasValue && relevantTaskIds.Contains(assignee.TaskId))
+                    .GroupBy(assignee => assignee.TaskId)
+                    .Select(group => new { TaskId = group.Key, Count = group.Count() })
+                    .ToDictionaryAsync(item => item.TaskId, item => item.Count, cancellationToken);
+
             var progresses = relevantTaskIds.Count == 0
                 ? new List<Progress>()
                 : await _context.Progresses
@@ -360,7 +375,7 @@ namespace WorkManagementSystem.Application.Services
                 .GroupBy(progress => progress.UserId)
                 .ToDictionary(group => group.Key, group => group.ToList());
 
-            return new BatchPersonalKpiData(taskIdsByUser, tasks, progressesByUser);
+            return new BatchPersonalKpiData(taskIdsByUser, tasks, progressesByUser, assigneeCounts);
         }
 
         private PerformanceDto CalculatePersonalPerformanceDto(
@@ -390,7 +405,13 @@ namespace WorkManagementSystem.Application.Services
                     .ToList()
                 : new List<Progress>();
 
-            var metrics = CalculatePersonalKpiMetrics(tasks, progresses, now, from, to);
+            var metrics = CalculatePersonalKpiMetrics(
+                tasks,
+                progresses,
+                batchData.AssigneeCounts,
+                now,
+                from,
+                to);
             var dto = BuildPersonalPerformanceDto(user.Id, user, metrics);
             return ApplyPeriodMetadata(dto, period, filterUnitId, roleForPeriod, from, to, period.Status == "Locked");
         }
@@ -444,10 +465,14 @@ namespace WorkManagementSystem.Application.Services
                 }
             }
 
-            int reviewPenaltyPoints = Math.Min(reviewPenaltyCount * 3, 15);
+            int reviewPenaltyPoints = Math.Min(
+                reviewPenaltyCount * KpiFormula.ManagerReviewPenaltyPerReport,
+                KpiFormula.MaximumManagerReviewPenalty);
 
-            int finalScore = (int)Math.Round(unitAvgScore * 0.7 + personalScore * 0.3) - reviewPenaltyPoints;
-            finalScore = Math.Max(0, finalScore);
+            int finalScore = KpiFormula.CalculateManagerScore(
+                unitAvgScore,
+                personalScore,
+                reviewPenaltyPoints);
 
             string level, levelColor, levelIcon;
             if (finalScore >= 90) { level = "Xuat sac"; levelColor = "green"; levelIcon = "*"; }
@@ -479,10 +504,14 @@ namespace WorkManagementSystem.Application.Services
                 LevelColor = levelColor,
                 LevelIcon = levelIcon,
                 TotalTasks = personalDto.TotalTasks,
+                CompletedTasks = personalDto.CompletedTasks,
                 CompletedOnTime = personalDto.CompletedOnTime,
                 CompletedLate = personalDto.CompletedLate,
                 OverdueTasks = personalDto.OverdueTasks,
                 RejectedReports = personalDto.RejectedReports,
+                ProgressReportCount = personalDto.ProgressReportCount,
+                PlannedEffortHours = personalDto.PlannedEffortHours,
+                ActualHours = personalDto.ActualHours,
                 BonusPoints = personalDto.BonusPoints,
                 PenaltyPoints = personalDto.PenaltyPoints,
                 ReviewPenaltyPoints = reviewPenaltyPoints,
@@ -493,6 +522,7 @@ namespace WorkManagementSystem.Application.Services
                 WarningMessage = warning
             };
 
+            ApplyInsightMetrics(dto);
             return ApplyPeriodMetadata(dto, period, history.UnitId, history.Role, from, to, period.Status == "Locked");
         }
 
@@ -610,6 +640,14 @@ namespace WorkManagementSystem.Application.Services
                 .Where(p => p.UpdatedAt >= from && p.UpdatedAt <= to)
                 .ToListAsync(cancellationToken);
 
+            var assigneeCounts = relevantTaskIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : await _assigneeRepo.QueryReadOnly()
+                    .Where(assignee => assignee.UserId.HasValue && relevantTaskIds.Contains(assignee.TaskId))
+                    .GroupBy(assignee => assignee.TaskId)
+                    .Select(group => new { TaskId = group.Key, Count = group.Count() })
+                    .ToDictionaryAsync(item => item.TaskId, item => item.Count, cancellationToken);
+
             var result = new List<PerformanceDto>();
             foreach (var member in members)
             {
@@ -641,7 +679,17 @@ namespace WorkManagementSystem.Application.Services
                         progress.UpdatedAt <= memberTo)
                     .ToList();
 
-                result.Add(CalculatePersonalKpiInMemory(member.Id, member, now, memberTasks, memberProgress, period, memberFrom, memberTo, unitId));
+                result.Add(CalculatePersonalKpiInMemory(
+                    member.Id,
+                    member,
+                    now,
+                    memberTasks,
+                    memberProgress,
+                    assigneeCounts,
+                    period,
+                    memberFrom,
+                    memberTo,
+                    unitId));
             }
 
             return result;
@@ -651,12 +699,19 @@ namespace WorkManagementSystem.Application.Services
             Guid userId, User user, DateTime now,
             List<TaskItem> tasks,
             List<Progress> progressList,
+            IReadOnlyDictionary<Guid, int> assigneeCounts,
             KpiPeriod period,
             DateTime from,
             DateTime to,
             Guid? unitId)
         {
-            var metrics = CalculatePersonalKpiMetrics(tasks, progressList, now, from, to);
+            var metrics = CalculatePersonalKpiMetrics(
+                tasks,
+                progressList,
+                assigneeCounts,
+                now,
+                from,
+                to);
             var dto = BuildPersonalPerformanceDto(userId, user, metrics);
 
             return ApplyPeriodMetadata(dto, period, unitId, SystemRoles.User, from, to, period.Status == "Locked");
@@ -664,7 +719,7 @@ namespace WorkManagementSystem.Application.Services
 
         private static PerformanceDto BuildPersonalPerformanceDto(Guid userId, User user, PersonalKpiMetrics metrics)
         {
-            return new PerformanceDto
+            var dto = new PerformanceDto
             {
                 UserId = userId,
                 FullName = user.FullName ?? "-",
@@ -674,20 +729,28 @@ namespace WorkManagementSystem.Application.Services
                 LevelColor = metrics.LevelColor,
                 LevelIcon = metrics.LevelIcon,
                 TotalTasks = metrics.TotalTasks,
+                CompletedTasks = metrics.CompletedTasks,
                 CompletedOnTime = metrics.CompletedOnTime,
                 CompletedLate = metrics.CompletedLate,
                 OverdueTasks = metrics.OverdueTasks,
                 RejectedReports = metrics.RejectedReports,
+                ProgressReportCount = metrics.ProgressReportCount,
+                PlannedEffortHours = metrics.PlannedEffortHours,
+                ActualHours = metrics.ActualHours,
                 BonusPoints = metrics.BonusPoints,
                 PenaltyPoints = metrics.PenaltyPoints,
                 IsAtRisk = metrics.IsAtRisk,
                 WarningMessage = metrics.WarningMessage
             };
+
+            ApplyInsightMetrics(dto);
+            return dto;
         }
 
         private static PersonalKpiMetrics CalculatePersonalKpiMetrics(
             List<TaskItem> tasks,
             List<Progress> progressList,
+            IReadOnlyDictionary<Guid, int> assigneeCounts,
             DateTime now,
             DateTime from,
             DateTime to)
@@ -708,6 +771,28 @@ namespace WorkManagementSystem.Application.Services
                                 ? t.CompletedAt.Value >= from && t.CompletedAt.Value <= to
                                 : t.DueDate.Value >= from && t.DueDate.Value <= to))
                 .ToList();
+
+            var completedTasks = tasks
+                .Where(task =>
+                    task.Status == TaskStatusEnum.Approved &&
+                    IsCompletedWithinPeriod(task, progressList, from, to))
+                .ToList();
+            var effortTasks = completedTasks
+                .Where(task => task.PlannedEffortHours.HasValue)
+                .ToList();
+            var effortTaskIds = effortTasks.Select(task => task.Id).ToHashSet();
+            var plannedEffortHours = effortTasks.Sum(task =>
+            {
+                var assigneeCount = assigneeCounts.TryGetValue(task.Id, out var count)
+                    ? Math.Max(1, count)
+                    : 1;
+                return task.PlannedEffortHours!.Value / assigneeCount;
+            });
+            var actualHours = progressList
+                .Where(progress =>
+                    effortTaskIds.Contains(progress.TaskId) &&
+                    progress.Status == ProgressStatusEnum.Approved)
+                .Sum(progress => progress.HoursSpent);
 
             int completedOnTime = 0;
             int completedLate = 0;
@@ -730,13 +815,13 @@ namespace WorkManagementSystem.Application.Services
                     var lastProgress = GetLastProgress(progressList, t.Id);
                     return lastProgress != null && t.DueDate.HasValue && lastProgress.UpdatedAt <= GetEffectiveDeadline(t.DueDate.Value);
                 })
-                .Sum(t => 5 * GetTaskWeight(t)));
+                .Sum(t => KpiFormula.OnTimeCompletionBonus * GetTaskWeight(t)));
 
             bonusPoints += (int)Math.Round(tasks
                 .Where(t => t.Status == TaskStatusEnum.Approved
                             && !t.DueDate.HasValue
                             && (!t.CompletedAt.HasValue || (t.CompletedAt.Value >= from && t.CompletedAt.Value <= to)))
-                .Sum(t => 3 * GetTaskWeight(t)));
+                .Sum(t => KpiFormula.NoDeadlineCompletionBonus * GetTaskWeight(t)));
 
             int currentStreak = 0;
             int maxStreak = 0;
@@ -762,15 +847,21 @@ namespace WorkManagementSystem.Application.Services
                 }
             }
 
-            if (maxStreak >= 5) bonusPoints += 5;
-            else if (maxStreak >= 3) bonusPoints += 2;
+            if (maxStreak >= 5) bonusPoints += KpiFormula.FiveTaskStreakBonus;
+            else if (maxStreak >= 3) bonusPoints += KpiFormula.ThreeTaskStreakBonus;
 
             int penaltyPoints = 0;
             for (int i = 0; i < overdueTasks.Count; i++)
-                penaltyPoints += (int)Math.Round((i == 0 ? 5 : i == 1 ? 8 : 12) * GetTaskWeight(overdueTasks[i]));
+                penaltyPoints += (int)Math.Round(
+                    (i == 0
+                        ? KpiFormula.FirstOverduePenalty
+                        : i == 1
+                            ? KpiFormula.SecondOverduePenalty
+                            : KpiFormula.LaterOverduePenalty) *
+                    GetTaskWeight(overdueTasks[i]));
 
-            penaltyPoints += rejectedCount * 3;
-            int score = Math.Clamp(100 + bonusPoints - penaltyPoints, 0, 120);
+            penaltyPoints += rejectedCount * KpiFormula.RejectedReportPenalty;
+            int score = KpiFormula.CalculatePersonalScore(bonusPoints, penaltyPoints);
             var level = GetLevel(score, tasks.Count);
 
             bool isAtRisk = overdueTasks.Count >= 3 || score < 60;
@@ -786,10 +877,14 @@ namespace WorkManagementSystem.Application.Services
                 LevelColor: level.Color,
                 LevelIcon: level.Icon,
                 TotalTasks: tasks.Count,
+                CompletedTasks: completedTasks.Count,
                 CompletedOnTime: completedOnTime,
                 CompletedLate: completedLate,
                 OverdueTasks: overdueTasks.Count,
                 RejectedReports: rejectedCount,
+                ProgressReportCount: progressList.Count,
+                PlannedEffortHours: plannedEffortHours,
+                ActualHours: actualHours,
                 BonusPoints: bonusPoints,
                 PenaltyPoints: penaltyPoints,
                 IsAtRisk: isAtRisk,
@@ -810,10 +905,14 @@ namespace WorkManagementSystem.Application.Services
             string LevelColor,
             string LevelIcon,
             int TotalTasks,
+            int CompletedTasks,
             int CompletedOnTime,
             int CompletedLate,
             int OverdueTasks,
             int RejectedReports,
+            int ProgressReportCount,
+            decimal PlannedEffortHours,
+            decimal ActualHours,
             int BonusPoints,
             int PenaltyPoints,
             bool IsAtRisk,
@@ -822,12 +921,14 @@ namespace WorkManagementSystem.Application.Services
         private sealed record BatchPersonalKpiData(
             IReadOnlyDictionary<Guid, HashSet<Guid>> TaskIdsByUser,
             IReadOnlyList<TaskItem> Tasks,
-            IReadOnlyDictionary<Guid, List<Progress>> ProgressesByUser)
+            IReadOnlyDictionary<Guid, List<Progress>> ProgressesByUser,
+            IReadOnlyDictionary<Guid, int> AssigneeCounts)
         {
             public static readonly BatchPersonalKpiData Empty = new(
                 new Dictionary<Guid, HashSet<Guid>>(),
                 Array.Empty<TaskItem>(),
-                new Dictionary<Guid, List<Progress>>());
+                new Dictionary<Guid, List<Progress>>(),
+                new Dictionary<Guid, int>());
         }
 
         private async Task<List<UserWorkHistory>> GetOverlappingHistoriesAsync(
@@ -884,7 +985,7 @@ namespace WorkManagementSystem.Application.Services
             var level = GetLevel(score, segments.Sum(s => s.TotalTasks));
 
             var latest = segments.OrderByDescending(s => s.EffectiveFrom ?? period.StartDate).First();
-            return new PerformanceDto
+            var dto = new PerformanceDto
             {
                 UserId = user.Id,
                 FullName = user.FullName ?? "-",
@@ -894,10 +995,14 @@ namespace WorkManagementSystem.Application.Services
                 LevelColor = level.Color,
                 LevelIcon = level.Icon,
                 TotalTasks = segments.Sum(s => s.TotalTasks),
+                CompletedTasks = segments.Sum(s => s.CompletedTasks),
                 CompletedOnTime = segments.Sum(s => s.CompletedOnTime),
                 CompletedLate = segments.Sum(s => s.CompletedLate),
                 OverdueTasks = segments.Sum(s => s.OverdueTasks),
                 RejectedReports = segments.Sum(s => s.RejectedReports),
+                ProgressReportCount = segments.Sum(s => s.ProgressReportCount),
+                PlannedEffortHours = segments.Sum(s => s.PlannedEffortHours),
+                ActualHours = segments.Sum(s => s.ActualHours),
                 BonusPoints = segments.Sum(s => s.BonusPoints),
                 PenaltyPoints = segments.Sum(s => s.PenaltyPoints),
                 ReviewPenaltyPoints = segments.Sum(s => s.ReviewPenaltyPoints),
@@ -918,6 +1023,9 @@ namespace WorkManagementSystem.Application.Services
                 IsPartialPeriod = true,
                 PeriodNote = "KPI trong ky co nhieu giai doan phong ban/chuc vu, diem duoc binh quan theo thoi gian."
             };
+
+            ApplyInsightMetrics(dto);
+            return dto;
         }
 
         private PerformanceDto ApplyPeriodMetadata(PerformanceDto dto, KpiPeriod period, Guid? unitId, string role, DateTime from, DateTime to, bool isLocked)
@@ -943,7 +1051,7 @@ namespace WorkManagementSystem.Application.Services
         {
             var level = GetLevel(result.Score, result.TotalTasks);
 
-            return new PerformanceDto
+            var dto = new PerformanceDto
             {
                 UserId = result.UserId,
                 FullName = string.IsNullOrWhiteSpace(result.FullNameSnapshot)
@@ -967,10 +1075,14 @@ namespace WorkManagementSystem.Application.Services
                 LevelColor = level.Color,
                 LevelIcon = level.Icon,
                 TotalTasks = result.TotalTasks,
+                CompletedTasks = result.CompletedTasks,
                 CompletedOnTime = result.CompletedOnTime,
                 CompletedLate = result.CompletedLate,
                 OverdueTasks = result.OverdueTasks,
                 RejectedReports = result.RejectedReports,
+                ProgressReportCount = result.ProgressReportCount,
+                PlannedEffortHours = result.PlannedEffortHours,
+                ActualHours = result.ActualHours,
                 BonusPoints = result.BonusPoints,
                 PenaltyPoints = result.PenaltyPoints,
                 ReviewPenaltyPoints = result.ReviewPenaltyPoints,
@@ -981,12 +1093,15 @@ namespace WorkManagementSystem.Application.Services
                 WarningMessage = result.WarningMessage,
                 PeriodNote = "KPI da chot, khong thay doi theo du lieu moi."
             };
+
+            ApplyInsightMetrics(dto, result.FormulaVersion);
+            return dto;
         }
 
         private static PerformanceDto CreateEmptyPerformance(Guid userId, User user)
         {
             var level = GetLevel(100, 0);
-            return new PerformanceDto
+            var dto = new PerformanceDto
             {
                 UserId = userId,
                 FullName = user.FullName ?? "-",
@@ -997,6 +1112,41 @@ namespace WorkManagementSystem.Application.Services
                 LevelIcon = level.Icon,
                 PeriodNote = "Chua co du lieu KPI trong ky nay."
             };
+
+            ApplyInsightMetrics(dto);
+            return dto;
+        }
+
+        private static void ApplyInsightMetrics(PerformanceDto dto, string? formulaVersion = null)
+        {
+            dto.CompletionRate = KpiFormula.CalculateRate(dto.CompletedTasks, dto.TotalTasks);
+            dto.OverdueRate = KpiFormula.CalculateRate(dto.OverdueTasks, dto.TotalTasks);
+            dto.ReviewRejectionRate = KpiFormula.CalculateRate(
+                dto.RejectedReports,
+                dto.ProgressReportCount);
+            dto.EstimationAccuracy = KpiFormula.CalculateEstimationAccuracy(
+                dto.PlannedEffortHours,
+                dto.ActualHours);
+            dto.FormulaVersion = string.IsNullOrWhiteSpace(formulaVersion)
+                ? KpiFormula.Version
+                : formulaVersion;
+        }
+
+        private static bool IsCompletedWithinPeriod(
+            TaskItem task,
+            IReadOnlyCollection<Progress> progressList,
+            DateTime from,
+            DateTime to)
+        {
+            var completedAt = task.CompletedAt ?? progressList
+                .Where(progress =>
+                    progress.TaskId == task.Id &&
+                    progress.Status == ProgressStatusEnum.Approved)
+                .OrderByDescending(progress => progress.UpdatedAt)
+                .Select(progress => (DateTime?)progress.UpdatedAt)
+                .FirstOrDefault();
+
+            return completedAt.HasValue && completedAt.Value >= from && completedAt.Value <= to;
         }
 
         private static double GetTaskWeight(TaskItem task)

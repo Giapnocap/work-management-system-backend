@@ -3,7 +3,6 @@ using WorkManagementSystem.Application.DTOs;
 using WorkManagementSystem.Application.Interfaces;
 using WorkManagementSystem.Domain.Entities;
 using ProgressStatusEnum = WorkManagementSystem.Domain.Enums.ProgressStatus;
-using TaskStatusEnum = WorkManagementSystem.Domain.Enums.TaskStatus;
 
 namespace WorkManagementSystem.Application.Services
 {
@@ -39,7 +38,7 @@ namespace WorkManagementSystem.Application.Services
         }
 
         public Task<ReviewDto> Review(ReviewDto dto, Guid reviewerId, CancellationToken cancellationToken = default)
-            => _transactionManager.ExecuteSerializableAsync(
+            => _transactionManager.ExecuteAsync(
                 token => ReviewCore(dto, reviewerId, token),
                 cancellationToken);
 
@@ -78,39 +77,35 @@ namespace WorkManagementSystem.Application.Services
                 p.Id != progress.Id &&
                 p.Status == ProgressStatusEnum.Submitted, cancellationToken);
 
-            progress.Status = dto.Approve ? ProgressStatusEnum.Approved : ProgressStatusEnum.Rejected;
+            var normalizedComment = string.IsNullOrWhiteSpace(dto.Comment)
+                ? null
+                : dto.Comment.Trim();
+
+            await _workflowService.ApplyReviewDecisionAsync(
+                task,
+                progress,
+                dto.Approve,
+                reviewerId,
+                hasOtherSubmittedProgress,
+                normalizedComment,
+                cancellationToken);
+
             _progressRepo.Update(progress);
+            _taskRepo.Update(task);
 
             await _reviewRepo.AddAsync(new ReportReview
             {
                 Id = Guid.NewGuid(),
                 ProgressId = dto.ProgressId,
                 IsApproved = dto.Approve,
-                Comment = dto.Comment,
+                Comment = normalizedComment,
                 ReviewedAt = DateTime.UtcNow,
                 ReviewerId = reviewerId
             }, cancellationToken);
 
-            if (dto.Approve)
-            {
-                task.ActualHours += Math.Max(0, progress.HoursSpent);
-                await _workflowService.ApplyCompletionStateAsync(task, progress.UserId, cancellationToken);
-
-                if (task.Status != TaskStatusEnum.Approved && hasOtherSubmittedProgress)
-                    task.Status = TaskStatusEnum.Submitted;
-            }
-            else if (task.Status != TaskStatusEnum.Approved)
-            {
-                task.Status = hasOtherSubmittedProgress
-                    ? TaskStatusEnum.Submitted
-                    : TaskStatusEnum.InProgress;
-            }
-
-            _taskRepo.Update(task);
-
             var message = dto.Approve
-                ? $"Bao cao cua ban da duoc phe duyet.{(string.IsNullOrWhiteSpace(dto.Comment) ? "" : $" Ghi chu: {dto.Comment}")}"
-                : $"Bao cao cua ban bi tu choi.{(string.IsNullOrWhiteSpace(dto.Comment) ? "" : $" Ly do: {dto.Comment}")}";
+                ? $"Bao cao cua ban da duoc phe duyet.{(normalizedComment == null ? "" : $" Ghi chu: {normalizedComment}")}"
+                : $"Bao cao cua ban bi tu choi. Ly do: {normalizedComment}";
 
             await _notificationService.AddNotification(progress.UserId, message, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);

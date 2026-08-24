@@ -16,5 +16,23 @@ namespace WorkManagementSystem.Domain.Entities
 
         public TaskItem? Task { get; set; }
         public User? User { get; set; }
+
+        public void Approve()
+        {
+            EnsureAwaitingReview();
+            Status = ProgressStatus.Approved;
+        }
+
+        public void Reject()
+        {
+            EnsureAwaitingReview();
+            Status = ProgressStatus.Rejected;
+        }
+
+        private void EnsureAwaitingReview()
+        {
+            if (Status != ProgressStatus.Submitted)
+                throw new InvalidOperationException("Only submitted progress can be reviewed.");
+        }
     }
 }

@@ -121,6 +121,16 @@ namespace WorkManagementSystem.Application.Services
                 .AnyAsync(subTask => subTask.TaskId == task.Id, cancellationToken);
             if (hasSubTask)
                 throw new BusinessException("Khong the xoa cong viec da co cong viec con.");
+
+            var hasDependency = await _context.TaskDependencies.AnyAsync(
+                dependency => dependency.TaskId == task.Id ||
+                              dependency.DependsOnTaskId == task.Id,
+                cancellationToken);
+            if (hasDependency)
+            {
+                throw new BusinessException(
+                    "Khong the xoa cong viec dang tham gia dependency. Hay go dependency truoc.");
+            }
         }
 
         private async Task<List<Guid>> ResolveDirectAssigneeUserIds(

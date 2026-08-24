@@ -152,6 +152,8 @@ namespace WorkManagementSystem.Application.Services
                     FieldName = history.FieldName,
                     OldValue = history.OldValue,
                     NewValue = history.NewValue,
+                    RelatedEntityId = history.RelatedEntityId,
+                    Reason = history.Reason,
                     ChangedAt = history.ChangedAt
                 })
                 .ToListAsync(cancellationToken);
