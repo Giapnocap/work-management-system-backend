@@ -1,34 +1,41 @@
-# WorkManagementSystem Backend
+# Work Management System Backend
 
 [![Backend CI](https://github.com/Giapnocap/work-management-system-backend/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Giapnocap/work-management-system-backend/actions/workflows/backend-ci.yml)
 
-ASP.NET Core 8 backend for a department-based work management system.
+Backend ASP.NET Core 8 cho hệ thống quản lý công việc theo phòng ban. Dự án tập trung vào phân quyền, quy trình giao việc và duyệt báo cáo, lịch sử nhân sự, KPI có thể giải thích, công việc định kỳ, nhắc hạn và tính toàn vẹn dữ liệu.
 
-The backend owns authentication, authorization, department-scoped task workflow, project grouping, durable recurring task scheduling, deadline reminder and escalation, progress review, capacity planning, evidence uploads, KPI periods, staff work history, notifications, comments, exports, database integrity, and automated tests.
+## Mục tiêu hệ thống
 
-## Project Identity
+Hệ thống hỗ trợ luồng làm việc chính:
 
-This project is about **workflow, collaboration, and workforce visibility**. Its central problems are department-scoped authorization, task dependencies, progress/review transitions, capacity planning, durable scheduling, reminders, activity history, and explainable KPI snapshots.
+```text
+Admin quản lý tài khoản/phòng ban
+-> Trưởng phòng tạo dự án và công việc
+-> Phân công nhân viên
+-> Nhân viên báo cáo tiến độ và tải minh chứng
+-> Trưởng phòng duyệt hoặc từ chối báo cáo
+-> Cập nhật trạng thái, lịch sử, thông báo và KPI
+```
 
-That focus is intentionally different from an e-commerce backend centered on catalog, inventory, cart, order, payment, and fulfillment consistency. This repository does not implement those commerce concerns and does not claim microservices, distributed messaging, or independently deployed layers.
+Dự án không triển khai nghiệp vụ thương mại điện tử, microservices, message broker hay hạ tầng cloud. Mục tiêu là hoàn thiện một backend nguyên khối có cấu trúc rõ ràng, kiểm soát nghiệp vụ và có thể chạy lặp lại trong môi trường local/CI.
 
-## Backend Scope
+## Công nghệ sử dụng
 
-- Layered ASP.NET Core Web API architecture with controllers, application services, domain entities, EF Core infrastructure, and global exception handling.
-- JWT authentication and role-based authorization for Admin, Manager, and User workflows.
-- Department-scoped permissions so managers can only create projects, assign tasks, and review work inside their own department.
-- Task lifecycle covering assignment, progress reports, evidence uploads, manager review, completion, a unified activity timeline, and KPI calculation.
-- Capacity planning with effective-dated weekly capacity, date-range workload aggregation, and non-blocking assignment warnings.
-- Durable daily, weekly, and monthly task schedules with database-backed catch-up, pause/resume, and duplicate-occurrence protection.
-- Database-backed deadline reminders and department-scoped escalation with bounded retry and restart-safe event keys.
-- Data integrity through EF Core configuration, unique indexes, check constraints, soft delete, and migrations.
-- Upload hardening with MIME/signature checks, OOXML package validation, macro rejection, safe filenames, and download-root confinement.
-- Request correlation IDs, structured Serilog request context, health checks, and cancellation propagation for operational troubleshooting.
-- Automated tests for permission boundaries, workflow transitions, upload safety, KPI period logic, database constraints, DTO validation, API authorization contracts, pagination guards, and the main HTTP workflow.
+- C# và .NET 8
+- ASP.NET Core Web API
+- Entity Framework Core 8 và SQL Server
+- JWT Bearer Authentication
+- Role-based Authorization
+- SignalR cho cập nhật thảo luận theo thời gian thực
+- Serilog và correlation ID
+- Swagger/OpenAPI
+- xUnit, EF Core InMemory và `WebApplicationFactory`
+- Docker, Docker Compose và EF Core migration bundle
+- GitHub Actions
 
-## Architecture
+## Kiến trúc hiện tại
 
-This repository is a **layered modular monolith**: one ASP.NET Core runtime project and one xUnit test project. `API`, `Application`, `Domain`, and `Infrastructure` are logical folder and namespace boundaries inside the runtime assembly, not separately deployed services.
+Repository sử dụng mô hình **Layered Modular Monolith**. `API`, `Application`, `Domain` và `Infrastructure` là các ranh giới logic trong cùng một runtime project, không phải các service triển khai độc lập.
 
 ```text
 Client -> API -> Application -> Domain
@@ -36,47 +43,162 @@ Client -> API -> Application -> Domain
                     |             |
                 Infrastructure ---+
 
-Program.cs is the composition root for every layer.
+Program.cs là composition root.
 ```
 
-Architecture tests prevent Application from referencing API/Infrastructure and prevent controllers from using data-access types directly. The application layer still uses EF Core query abstractions through `IAppDbContext`, so the project does not claim complete persistence ignorance or full Clean Architecture.
+- `API`: controller, middleware, authentication, Swagger, health check và SignalR hub.
+- `Application`: DTO, interface, validation, service nghiệp vụ và quy tắc truy cập.
+- `Domain`: entity, enum và policy chuyển trạng thái.
+- `Infrastructure`: EF Core, cấu hình database, bảo mật, lưu tệp, background worker và seed demo.
+- `Migrations`: lịch sử thay đổi schema SQL Server.
+- `WorkManagementSystem.Tests`: unit test, HTTP integration test và SQL Server integration test.
 
-See the [architecture and dependency guide](docs/architecture.md).
+Architecture test ngăn `Application` tham chiếu ngược tới `API`/`Infrastructure` và ngăn controller truy cập trực tiếp EF Core. Application vẫn sử dụng abstraction `IAppDbContext`, vì vậy dự án không tự nhận là Clean Architecture hoàn chỉnh.
 
-## Prerequisites
+Xem thêm [tài liệu kiến trúc](docs/architecture.md).
 
-- .NET 8 SDK (`global.json` pins `8.0.400` and allows a later .NET 8 feature band).
-- SQL Server for local execution, or Docker Desktop with Compose v2.
-- The repository-local EF Core CLI restored with `dotnet tool restore`.
+## Vai trò và phạm vi quyền
 
-## Local Configuration
+### Admin
 
-`appsettings.json` contains non-secret defaults and does not contain a JWT signing key. Keep machine-specific, non-secret settings in `appsettings.Local.json`, which is ignored by git.
+- Duyệt hoặc từ chối tài khoản đăng ký đang chờ.
+- Quản lý người dùng, phòng ban, điều chuyển nhân sự và trạng thái tài khoản.
+- Quản lý kỳ KPI, xem dữ liệu toàn hệ thống và audit log.
+- Không tham gia luồng tạo dự án, giao việc hoặc duyệt báo cáo công việc.
 
-Create it from the example file:
+### Manager
+
+- Tạo và lưu trữ dự án thuộc phòng ban hiện tại.
+- Tạo, cập nhật, phân công và quản lý công việc trong phòng ban.
+- Tạo lịch công việc định kỳ và quản lý chính sách nhắc hạn trong phạm vi được phép.
+- Duyệt hoặc từ chối báo cáo tiến độ của công việc thuộc phòng ban.
+- Xem workload, capacity và KPI đúng phạm vi phòng ban hiện tại/lịch sử được phép.
+
+### User
+
+- Xem công việc được giao trực tiếp hoặc giao chung cho phòng ban.
+- Cập nhật tiến độ, tải minh chứng, gửi báo cáo hoàn thành.
+- Bình luận, reaction, seen, xem timeline và thông báo trong phạm vi công việc được truy cập.
+- Xem KPI cá nhân theo kỳ.
+
+Quyền được kiểm tra tại controller và tại service nghiệp vụ quan trọng. JWT còn được đối chiếu với trạng thái tài khoản, vai trò và `TokenVersion` trong database để thu hồi phiên khi tài khoản thay đổi.
+
+## Chức năng chính
+
+- Đăng ký, đăng nhập, duyệt tài khoản, đặt lại/đổi mật khẩu và thu hồi phiên.
+- Quản lý phòng ban, thành viên, điều chuyển và lịch sử làm việc.
+- Quản lý dự án theo phòng ban.
+- Quản lý công việc, công việc con, người được giao và phụ thuộc giữa các công việc.
+- Báo cáo tiến độ, tải minh chứng, gửi duyệt và review một lần.
+- Bình luận, reaction, seen, notification và timeline hoạt động.
+- Lịch công việc định kỳ theo ngày, tuần hoặc tháng.
+- Nhắc trước hạn, cảnh báo quá hạn và chống gửi trùng sau khi worker khởi động lại.
+- Dự báo workload và capacity theo khoảng thời gian.
+- Kỳ KPI, kết quả cá nhân/phòng ban, snapshot khi khóa kỳ và dữ liệu giải thích điểm.
+- Export dữ liệu quản lý.
+- Audit log, health check và structured logging.
+
+## Quy trình công việc
+
+Trạng thái công việc và báo cáo được kiểm soát bởi domain workflow policy, không cập nhật tùy ý từ controller.
+
+Các nguyên tắc chính:
+
+- Chỉ Trưởng phòng được tạo dự án và công việc trong phòng ban của mình.
+- Công việc mới bắt đầu ở trạng thái `NotStarted`.
+- Nhân viên chỉ báo cáo công việc được giao và còn hợp lệ.
+- Công việc phụ thuộc không thể hoàn thành trước công việc tiên quyết.
+- Báo cáo 100% phải có metadata minh chứng khi công việc yêu cầu review.
+- Báo cáo đã gửi chỉ được review một lần.
+- Từ chối báo cáo bắt buộc có lý do và cho phép nhân viên sửa, gửi lại.
+- Công việc đã `Approved` không được cập nhật tiến độ hoặc chuyển trạng thái ngược trái phép.
+- Khi có nhiều người được giao, hệ thống chỉ hoàn thành công việc sau khi đủ điều kiện của toàn bộ tập người thực hiện dự kiến.
+- Transaction, rowversion và unique constraint bảo vệ các luồng review đồng thời.
+
+Chi tiết nằm trong [business rules](docs/business-rules.md) và [sơ đồ workflow](docs/domain-workflows.md).
+
+## Database
+
+Mô hình dữ liệu được cấu hình bằng EF Core trong `Infrastructure/Data` và thay đổi schema qua migration.
+
+Các cơ chế bảo vệ dữ liệu đáng chú ý:
+
+- Unique index cho username, mã nhân viên, tên phòng ban, dự án trong phòng ban, assignment, review, kết quả KPI, occurrence định kỳ và event nhắc hạn.
+- Composite foreign key giữ công việc và dự án cùng phòng ban, đồng thời giữ file báo cáo đúng công việc.
+- Check constraint cho phần trăm tiến độ, ngày kỳ KPI, số liệu KPI, planned effort và cấu trúc reminder policy.
+- Rowversion chống lost update ở các aggregate có chỉnh sửa đồng thời.
+- Soft delete ẩn dữ liệu vận hành nhưng vẫn giữ assignment, tiến độ, lịch sử nhân sự và snapshot KPI phục vụ truy vết.
+- Index phục vụ phân trang timeline, task list, workload và KPI query.
+
+Xem [tài liệu database](docs/database.md).
+
+## Authentication và Authorization
+
+- Mật khẩu được hash bằng BCrypt và áp dụng giới hạn 72 byte của BCrypt.
+- JWT chứa định danh, vai trò và phiên bản token.
+- Mỗi request có token được kiểm tra lại với tài khoản hiện tại trong database.
+- Xóa, khóa, đổi vai trò hoặc thay đổi bảo mật sẽ làm mất hiệu lực token cũ khi phù hợp.
+- Endpoint công khai chỉ gồm đăng ký, đăng nhập và danh sách phòng ban phục vụ đăng ký.
+- Endpoint quản trị dùng role policy; service tiếp tục kiểm tra phạm vi phòng ban/công việc.
+- Lỗi API dùng `ProblemDetails` thống nhất và có `traceId`.
+
+## File upload
+
+Tệp được lưu ngoài thư mục public và chỉ tải xuống qua endpoint có kiểm tra quyền công việc.
+
+Validation hiện có:
+
+- Giới hạn kích thước và loại phần mở rộng.
+- Kiểm tra MIME và chữ ký tệp thực tế.
+- Kiểm tra cấu trúc gói OOXML, chặn macro và nội dung archive nguy hiểm.
+- Chuẩn hóa tên lưu trữ, chống path traversal và giới hạn đường dẫn trong upload root.
+- Bắt buộc `taskId`/`progressId` liên kết đúng ngữ cảnh.
+- Xóa tệp vật lý nếu lưu database thất bại và có worker dọn tệp mồ côi.
+
+Đây là lớp phòng vệ ứng dụng, không thay thế antivirus chuyên dụng.
+
+## KPI
+
+KPI được dùng làm thông tin hỗ trợ quản lý, không tự động đưa ra quyết định nhân sự.
+
+- Chỉ dữ liệu công việc/báo cáo hợp lệ trong kỳ được tính.
+- Điểm cá nhân bắt đầu từ mốc cơ sở, cộng thưởng cho công việc được duyệt/đúng hạn và trừ điểm theo quy tắc quá hạn hoặc báo cáo bị từ chối.
+- KPI Trưởng phòng kết hợp kết quả phòng ban và kết quả cá nhân theo công thức hiện tại.
+- Khi khóa kỳ, hệ thống lưu kết quả, thông tin nhân sự/phòng ban, raw metrics và phiên bản công thức thành snapshot.
+- Thay đổi hồ sơ, phòng ban, chức vụ hoặc dữ liệu vận hành sau khi khóa không viết lại lịch sử KPI.
+- Work history được dùng để giải thích kết quả khi nhân viên điều chuyển giữa các kỳ.
+- `PlannedEffortHours` phục vụ dự báo workload, không tham gia điểm KPI.
+
+Quy tắc KPI là chính sách riêng của dự án và cần được đối chiếu với quy định thực tế trước khi dùng trong tổ chức thật.
+
+## Recurring task và reminder
+
+- Trưởng phòng có thể tạo lịch ngày, tuần hoặc tháng cho phòng ban của mình.
+- Mỗi occurrence tạo một công việc bình thường rồi đi qua workflow hiện có.
+- Lịch và trạng thái worker được lưu trong SQL Server.
+- Khóa `(TemplateId, ScheduledForUtc)` cùng transaction serializable chống tạo occurrence trùng khi nhiều worker chạy đồng thời.
+- Reminder policy có thứ tự ưu tiên `Project > Unit > Global`.
+- Event key và unique constraint chống gửi lặp mốc nhắc hạn/cảnh báo quá hạn.
+- Công việc đã hoàn thành hoặc bị xóa sẽ hủy/suppress event không còn phù hợp.
+
+## Cấu hình local
+
+Yêu cầu:
+
+- .NET 8 SDK. `global.json` ghim feature band .NET 8 phù hợp.
+- SQL Server local hoặc Docker Desktop với Compose v2.
+- EF Core CLI được khai báo trong tool manifest của repository.
+
+Tạo cấu hình local:
 
 ```powershell
 Copy-Item .\appsettings.Local.example.json .\appsettings.Local.json
-dotnet user-secrets set "Jwt:Key" "<a-strong-random-secret-of-at-least-32-characters>"
+dotnet user-secrets set "Jwt:Key" "<chuỗi-ngẫu-nhiên-tối-thiểu-32-ký-tự>"
 ```
 
-Example `appsettings.Local.json`:
+`appsettings.Local.json`, `.env`, log, upload, `bin`, `obj` và test artifact đã được loại khỏi Git. Không đặt secret thật trong `appsettings.json`.
 
-```json
-{
-  "ConnectionStrings": {
-    "Default": "Server=localhost;Database=WorkManagementDB;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;"
-  },
-  "DemoSeed": {
-    "Enabled": false,
-    "ApplyMigrations": false
-  }
-}
-```
-
-Development secrets are loaded from .NET User Secrets. If `Jwt:Key` is omitted in Development, the API creates an ephemeral key and existing tokens become invalid after restart. Environment variables and command-line arguments have higher precedence and should be used by deployed environments.
-
-## Run Locally
+## Chạy bằng .NET CLI
 
 ```powershell
 dotnet tool restore
@@ -85,31 +207,28 @@ dotnet ef database update --project .\WorkManagementSystem.csproj
 dotnet run --launch-profile https
 ```
 
-Swagger:
+Swagger local:
 
 ```text
 https://localhost:7231/swagger
 ```
 
-Swagger includes JWT Bearer support, role notes for protected endpoints, API tags, XML comments when available, and default error responses for validation/auth/server failures.
+Xem hướng dẫn chi tiết tại [getting started](docs/getting-started.md).
 
-For a new checkout, configuration precedence, verification commands, and troubleshooting, use the [clean-clone and local setup guide](docs/getting-started.md).
-
-## Run With Docker
-
-The Compose stack is intended for local development and integration testing. It starts SQL Server, applies EF Core migrations once, and then starts the API.
+## Chạy bằng Docker
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Replace `MSSQL_SA_PASSWORD` and `JWT_KEY` in `.env`, then run:
+Thay `MSSQL_SA_PASSWORD` và `JWT_KEY` trong `.env`, sau đó chạy:
 
 ```powershell
+docker compose config
 docker compose up --build
 ```
 
-Local endpoints:
+Endpoint mặc định:
 
 ```text
 API:     http://localhost:8080
@@ -117,245 +236,124 @@ Swagger: http://localhost:8080/swagger
 SQL:     localhost,14333
 ```
 
-Stop the stack without deleting persisted data:
+Dừng stack nhưng giữ dữ liệu:
 
 ```powershell
 docker compose down
 ```
 
-`compose.yml` deliberately uses the `Development` environment because the local SQL Server container uses a self-signed certificate. Production must use the stricter settings in [production checklist](docs/production-checklist.md).
+`docker compose down --volumes` sẽ xóa dữ liệu SQL, upload và log của stack; chỉ dùng khi chủ động reset toàn bộ môi trường local.
 
-## Optional Demo Seed
+## Dữ liệu demo tùy chọn
 
-Demo seed data is disabled by default. To create a repeatable local test dataset, set this in `appsettings.Local.json`:
+Demo seed mặc định tắt. Có thể bật bằng `DemoSeed:Enabled=true` hoặc `DEMO_SEED_ENABLED=true` trong môi trường Docker.
 
-```json
-{
-  "DemoSeed": {
-    "Enabled": true,
-    "ApplyMigrations": false
-  }
-}
-```
-
-Seeded accounts use password:
-
-```text
-Demo@123456
-```
-
-Seeded usernames:
+Tài khoản demo:
 
 - `demo.admin`
 - `demo.manager`
 - `demo.employee1`
 - `demo.employee2`
 
-The seeder is idempotent: running the app multiple times with demo seed enabled does not duplicate the demo users, project, tasks, or memberships.
+Mật khẩu demo chung: `Demo@123456`.
 
-## Portfolio Demo
+Seeder có tính idempotent và nhận diện cả tên dữ liệu demo của phiên bản cũ, vì vậy chạy lại không tạo trùng người dùng, phòng ban, dự án, công việc hoặc membership.
 
-With the Docker stack running and demo seed enabled, execute the complete Manager-to-User workflow without editing the database:
+Chạy demo workflow:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-workflow.ps1
 ```
 
-The script signs in as the seeded Manager and User, creates a project and assigned task, uploads task-scoped evidence, submits a 100 percent progress report, approves it, and asserts the final task, timeline, and KPI responses.
+Script đăng nhập Trưởng phòng/Nhân viên, tạo dự án và công việc, tải minh chứng, gửi báo cáo, duyệt và xác minh trạng thái/timeline/KPI.
 
-Use the [10 to 15 minute demo guide](docs/demo-guide.md) for presentation order. The [portfolio evidence and interview guide](docs/portfolio-evidence.md) maps suggested CV claims to concrete implementation and tests.
+## Testing
 
-## Important Business Rules
-
-- Only `Manager` can create projects and tasks.
-- A manager can create and assign tasks only inside their own department.
-- Admin manages users/departments but does not participate in task assignment.
-- A task can be assigned to selected users, or to the current staff snapshot of the manager's department.
-- A Manager can create recurring schedules for their own department. Each due occurrence creates a normal `NotStarted` task and then follows the existing progress/review workflow.
-- Recurring schedules are persisted in SQL Server; worker restarts do not lose due work, and `(TemplateId, ScheduledForUtc)` prevents duplicate generation.
-- Reminder policy precedence is `Project > Unit > Global`. Due-soon and overdue reminders target current valid assignees; escalation targets only current Managers in the task department.
-- Reminder milestones are persisted before delivery. `(TaskId, Type)` and `EventKey` prevent duplicate inbox notifications, while completed or deleted tasks suppress pending events.
-- `GET /api/tasks/{taskId}/timeline` combines safe task, assignment, progress, review, comment, file, reminder, escalation, and completion events with stable cursor pagination and normal task authorization.
-- `PlannedEffortHours` is a Manager-owned planning value used for workload forecasts and non-scoring estimation insight; it is not employee-reported time and never changes the KPI score.
-- Busy and overloaded assignment results are warnings only. They never bypass or block the existing task workflow.
-- A progress report can complete a task directly only when review is not required.
-- If review is required, 100 percent progress must include evidence file metadata.
-- A submitted report can be reviewed only once.
-- Rejection requires a reason, and task/progress transitions are validated by an explicit domain workflow policy.
-- Transition history records the actor, old/new state, related progress report, reason, and UTC time.
-- Racing review requests are protected by rowversion, a unique review constraint, and a transaction so approved hours are counted once.
-- KPI periods can be locked to preserve calculated results.
-- User role/unit movement is tracked through work history so old KPI periods remain explainable.
-- Account deletion revokes active sessions and current membership while preserving completed task assignments, progress, and work history.
-- Locked KPI results store employee and department identity snapshots, so later profile edits or account deletion cannot rewrite historical output.
-- Managers can read historical KPI only when the selected period's snapshot or work history belongs to their current department.
-- Personal KPI starts from 100, adds weighted bonuses for approved/on-time work, and subtracts penalties for overdue work or rejected reports.
-- Manager KPI combines department average performance and the manager's own task performance.
-- KPI output separates the score from raw metrics: throughput, completion/overdue/rejection rates, planned effort, approved actual effort, and estimation accuracy.
-- Locked KPI snapshots store the formula version and raw metrics, so later task edits do not rewrite historical explanations.
-- `GET /api/kpi-periods/{id}/dashboard` returns period, department, and user insights; Admin sees organization scope while Manager is restricted to their own department.
-- KPI is management insight only and is not used for automatic HR decisions.
-
-Main workflow:
-
-```text
-Admin setup -> Manager creates project -> Manager creates task
--> User uploads evidence -> User submits progress
--> Manager reviews -> Task is approved -> KPI is updated/read
-```
-
-See [business rules](docs/business-rules.md).
-
-An executable PowerShell walkthrough is available in [sample API workflow](docs/api-workflow.md).
-
-## Database
-
-The data model is configured in `Infrastructure/Data/AppDbContext.cs`.
-
-Key integrity controls:
-
-- Unique indexes for username, employee code, department name, project per department, task assignment, recurring occurrences, reminder-policy scope, deadline event keys, one open capacity period per user, review per progress report, and KPI result per user/period.
-- Check constraints for progress percent and non-negative hours.
-- Check constraints for KPI period date ranges, KPI result effective ranges, and non-negative KPI metrics.
-- Soft-delete query filters for active operational data, while task assignments, progress, staff history, and locked KPI snapshots remain available for authorized historical reads.
-- Timeline read indexes support bounded task/time/id scans without duplicating workflow events into another table.
-- Migrations are the only supported way to change schema.
-
-See [database overview](docs/database.md).
-
-## Error Handling
-
-The backend has a global exception middleware and explicit application exceptions:
-
-- `BusinessException`
-- `NotFoundException`
-- `ForbiddenException`
-- `InvalidCredentialsException`
-
-Response shape:
-
-```json
-{
-  "type": "https://httpstatuses.com/400",
-  "title": "Human-readable error message",
-  "status": 400,
-  "detail": "",
-  "instance": "/api/resource",
-  "code": "business_error",
-  "message": "Human-readable error message",
-  "traceId": "0HN...",
-  "errors": {}
-}
-```
-
-See [API error contract](docs/api-errors.md).
-
-## Tests
-
-The test project is located at:
-
-```text
-WorkManagementSystem.Tests/
-```
-
-Run:
+Test không phụ thuộc SQL Server:
 
 ```powershell
-dotnet test .\WorkManagementSystem.sln --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false
+dotnet test .\WorkManagementSystem.sln `
+  --configuration Release `
+  --filter "Category!=SqlServer"
 ```
 
-The suite grows with each regression case; use the command above for the current verified count.
+Test quan hệ trên SQL Server test riêng:
 
-Current coverage focuses on core backend rules:
+```powershell
+$env:WMS_TEST_SQLSERVER_CONNECTION = "Server=localhost,14333;Database=master;User Id=sa;Password=<test-password>;Encrypt=True;TrustServerCertificate=True"
+dotnet test .\WorkManagementSystem.Tests\WorkManagementSystem.Tests.csproj `
+  --configuration Release `
+  --filter "Category=SqlServer"
+Remove-Item Env:WMS_TEST_SQLSERVER_CONNECTION
+```
 
-- Auth account lifecycle.
-- Task creation permission checks.
-- Department assignment boundary checks.
-- Progress and review state transitions.
-- Upload validation and cleanup behavior.
-- KPI period validation, full-day date boundaries, locked snapshots, and date-only deadline handling.
-- KPI scoring branches for no-task, on-time, overdue, bonus cap, and staff movement scenarios.
-- Staff movement handling for KPI calculation.
-- Account-deactivation regression tests for assignment preservation, work-history closure, token revocation, and historical KPI authorization.
-- Database model integrity constraints.
-- Demo data seeding idempotency.
-- DTO and API contract validation.
-- Controller route and role authorization contracts.
-- Swagger/OpenAPI documentation for JWT, roles, and common error responses.
-- Shared pagination normalization with a maximum page size guard.
-- HTTP integration tests booting the real `Program.cs` pipeline through `WebApplicationFactory<Program>`.
-- HTTP integration flow covering login, project creation, task creation, evidence upload, progress submission, manager review, task approval, and KPI read.
-- HTTP integration authorization test proving normal users cannot create projects or tasks.
-- HTTP integration flow proving account deletion revokes the old JWT while locked KPI remains visible to the authorized historical manager.
-- SQL Server integration tests for migrations from zero, unique/foreign-key/check constraints, transaction rollback, optimistic concurrency, concurrent review safety, recurring scheduling, deadline-worker race/restart safety, and timeline cursor/query-count behavior.
+SQL test tạo database có tên ngẫu nhiên, áp migration, chạy kiểm tra rồi tự xóa database. Phạm vi kiểm thử gồm:
 
-See [testing guide](docs/testing.md).
+- Authentication, authorization và thu hồi token.
+- Ranh giới phòng ban, task access và upload access.
+- Task, dependency, progress, review và KPI workflow.
+- Điều chuyển/xóa nhân sự nhưng vẫn giữ lịch sử.
+- Upload validation và cleanup.
+- Recurring/reminder idempotency khi worker chạy đồng thời hoặc khởi động lại.
+- Unique/foreign-key/check constraint, transaction rollback và optimistic concurrency.
+- Query translation và query budget cho task list, timeline, workload và KPI.
+- HTTP integration test chạy qua pipeline thật của `Program.cs`.
 
-## Known Limitations
+Vòng xác minh gần nhất của repository này đã pass `384` test thường và `24` SQL Server integration test.
 
-- The logical layers compile into one deployable assembly; they are not independently versioned class libraries or microservices.
-- Authentication uses short-lived JWT access tokens plus database-backed `TokenVersion` revocation. There is no refresh-token flow.
-- SQL Server is the only supported relational provider.
-- Uploads use a private local/container volume. There is no object-storage adapter or antivirus engine; built-in validation is defense in depth only.
-- SignalR notifications are in-process and best effort. There is no distributed backplane, message broker, or transactional outbox.
-- API routes are not versioned yet.
-- KPI rules are project-specific policy and require validation against a real organization's HR policy before production use.
-- The repository provides CI, container builds, and deployment checks, but no production CD workflow or cloud infrastructure definition.
+Xem [testing guide](docs/testing.md).
 
 ## Continuous Integration
 
-GitHub Actions runs the following release gate for every push and pull request:
+Workflow `.github/workflows/backend-ci.yml` chạy khi push và pull request:
 
-- Restore the repository-local `dotnet-ef` tool and audit all direct/transitive NuGet dependencies, failing when vulnerability data is unavailable or an advisory is found.
-- Verify formatting.
-- Build Release with warnings treated as errors.
-- Run unit and HTTP integration tests and retain the TRX report.
-- Start SQL Server and require the relational integration suite to pass.
-- Fail when the EF Core model has changes without a migration.
-- Publish the backend artifact.
-- Validate Compose and build both runtime and migration container targets.
-- Start a disposable SQL Server, apply the complete migration bundle from an empty database, and seed the demo dataset.
-- Verify API/database/upload readiness, Docker health, JWT login, role authorization, the latest migration, and expected demo records.
-- Perform a checksum backup, restore it into a temporary database, compare critical records, and run `DBCC CHECKDB` before tearing the stack down.
+- Restore tool/dependency và audit NuGet.
+- Kiểm tra format.
+- Build Release với warning được xem là lỗi.
+- Chạy test thường và test SQL Server.
+- Kiểm tra model không thiếu migration.
+- Publish artifact.
+- Validate/build Docker image API và migration bundle.
+- Khởi động stack từ database rỗng, chạy migration và demo seed.
+- Kiểm tra health, đăng nhập và role authorization qua HTTP.
+- Backup có checksum, restore vào database tạm, đối chiếu dữ liệu và chạy `DBCC CHECKDB`.
+- Lưu test report/artifact và luôn dọn stack CI.
 
-## Documentation Map
+## Tài liệu
 
-- [Architecture](docs/architecture.md): actual dependency direction, request flow, and runtime topology.
-- [Getting started](docs/getting-started.md): clean clone, local SQL Server, Docker Compose, and verification.
-- [Business rules](docs/business-rules.md): role permissions and workflow rules.
-- [Domain workflow diagrams](docs/domain-workflows.md): task review, dependency, authorization, scheduling, reminder, workload, and KPI flows.
-- [Database overview](docs/database.md): entities, relationships, constraints, and migration notes.
-- [Sample API workflow](docs/api-workflow.md): repeatable project-to-task-to-review walkthrough.
-- [Portfolio demo guide](docs/demo-guide.md): assertion-based script and a 10 to 15 minute presentation agenda.
-- [Portfolio evidence](docs/portfolio-evidence.md): truthful CV bullets, code/test evidence, interview questions, and non-goals.
-- [API error contract](docs/api-errors.md): standard error response shape.
-- [Testing guide](docs/testing.md): test categories and commands.
-- [Query performance](docs/performance.md): SQL query budgets, datasets, and index decisions.
-- [Recovery and workers](docs/recovery-and-workers.md): tested restore drill, durable worker state, metrics, and health semantics.
-- [Production checklist](docs/production-checklist.md): deployment configuration and runtime checks.
+- [Kiến trúc](docs/architecture.md)
+- [Bắt đầu và cấu hình local](docs/getting-started.md)
+- [Quy tắc nghiệp vụ](docs/business-rules.md)
+- [Sơ đồ workflow](docs/domain-workflows.md)
+- [Database](docs/database.md)
+- [API workflow mẫu](docs/api-workflow.md)
+- [Demo portfolio](docs/demo-guide.md)
+- [Bằng chứng portfolio và gợi ý phỏng vấn](docs/portfolio-evidence.md)
+- [API error contract](docs/api-errors.md)
+- [Testing](docs/testing.md)
+- [Query performance](docs/performance.md)
+- [Recovery và background worker](docs/recovery-and-workers.md)
+- [Checklist production](docs/production-checklist.md)
 
-## Useful Commands
+## Giới hạn hiện tại
 
-Add a migration:
+- Các layer cùng biên dịch thành một deployable assembly, không phải microservices.
+- Không có refresh token; hệ thống dùng access token ngắn hạn và `TokenVersion` để thu hồi phiên.
+- Chỉ hỗ trợ SQL Server.
+- Upload dùng filesystem/volume riêng, chưa có object storage hoặc antivirus engine.
+- SignalR chạy in-process và best effort, không có distributed backplane hay transactional outbox.
+- API chưa có versioning.
+- Không có production CD hoặc mô tả hạ tầng cloud.
+- KPI cần được xác nhận lại với chính sách của tổ chức trước khi áp dụng thực tế.
 
-```powershell
-dotnet ef migrations add MigrationName
-```
-
-Apply migrations:
-
-```powershell
-dotnet ef database update
-```
-
-Build:
+## Lệnh kiểm tra trước khi commit
 
 ```powershell
-dotnet build .\WorkManagementSystem.sln --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false
-```
-
-Run only backend workflow integration tests:
-
-```powershell
-dotnet test .\WorkManagementSystem.Tests\WorkManagementSystem.Tests.csproj --no-build --filter BackendWorkflowIntegrationTests -p:UseAppHost=false -p:UseSharedCompilation=false
+dotnet tool restore
+dotnet restore .\WorkManagementSystem.sln
+dotnet format .\WorkManagementSystem.sln --verify-no-changes --no-restore
+dotnet build .\WorkManagementSystem.sln --configuration Release --no-restore --warnaserror
+dotnet test .\WorkManagementSystem.sln --configuration Release --no-build --filter "Category!=SqlServer"
+dotnet ef migrations has-pending-model-changes --configuration Release --no-build
+docker compose config --quiet
 ```
