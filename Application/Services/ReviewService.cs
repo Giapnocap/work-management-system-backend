@@ -48,29 +48,29 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var progress = await _progressRepo.GetByIdAsync(dto.ProgressId, cancellationToken)
-                ?? throw new NotFoundException("Progress not found");
+                ?? throw new NotFoundException("Không tìm thấy báo cáo tiến độ.");
 
             var reviewerRole = await _accessService.GetUserRole(reviewerId, cancellationToken);
             if (reviewerRole != SystemRoles.Manager)
-                throw new ForbiddenException("Chi Manager moi duoc duyet bao cao.");
+                throw new ForbiddenException("Chỉ Trưởng phòng mới được duyệt báo cáo.");
 
             if (!await _accessService.CanAccessTask(
                     progress.TaskId,
                     reviewerId,
                     managementOnly: true,
                     cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen duyet bao cao nay.");
+                throw new ForbiddenException("Bạn không có quyền duyệt báo cáo này.");
 
             if (progress.Status != ProgressStatusEnum.Submitted)
-                throw new BusinessException("Bao cao nay khong o trang thai cho duyet hoac da duoc xu ly.");
+                throw new BusinessException("Báo cáo này không ở trạng thái chờ duyệt hoặc đã được xử lý.");
 
             var alreadyReviewed = await _reviewRepo.QueryReadOnly()
                 .AnyAsync(r => r.ProgressId == dto.ProgressId, cancellationToken);
             if (alreadyReviewed)
-                throw new BusinessException("Bao cao nay da co ket qua duyet.");
+                throw new BusinessException("Báo cáo này đã có kết quả duyệt.");
 
             var task = await _taskRepo.GetByIdAsync(progress.TaskId, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             var hasOtherSubmittedProgress = await _progressRepo.QueryReadOnly().AnyAsync(p =>
                 p.TaskId == progress.TaskId &&
@@ -104,8 +104,8 @@ namespace WorkManagementSystem.Application.Services
             }, cancellationToken);
 
             var message = dto.Approve
-                ? $"Bao cao cua ban da duoc phe duyet.{(normalizedComment == null ? "" : $" Ghi chu: {normalizedComment}")}"
-                : $"Bao cao cua ban bi tu choi. Ly do: {normalizedComment}";
+                ? $"Báo cáo của bạn đã được phê duyệt.{(normalizedComment == null ? "" : $" Ghi chú: {normalizedComment}")}"
+                : $"Báo cáo của bạn bị từ chối. Lý do: {normalizedComment}";
 
             await _notificationService.AddNotification(progress.UserId, message, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);

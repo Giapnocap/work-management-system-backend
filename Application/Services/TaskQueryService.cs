@@ -48,7 +48,7 @@ namespace WorkManagementSystem.Application.Services
             size = paging.Size;
 
             var requester = await _userRepo.GetByIdAsync(requesterId, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
             var assigneeId = myTasks ? requesterId : (Guid?)null;
 
             var query = _taskRepo.QueryReadOnly().Where(task => !task.IsDeleted);
@@ -119,12 +119,12 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var task = await _taskRepo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             await EnsureTaskAccess(
                 id,
                 requesterId,
-                "Ban khong co quyen xem cong viec nay.",
+                "Bạn không có quyền xem công việc này.",
                 cancellationToken);
 
             return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
@@ -138,7 +138,7 @@ namespace WorkManagementSystem.Application.Services
             await EnsureTaskAccess(
                 taskId,
                 requesterId,
-                "Ban khong co quyen xem lich su cong viec nay.",
+                "Bạn không có quyền xem lịch sử công việc này.",
                 cancellationToken);
 
             return await _historyRepo.QueryReadOnly()

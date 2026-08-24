@@ -33,7 +33,7 @@ namespace WorkManagementSystem.Application.Services
                 .ToListAsync(cancellationToken);
 
             if (activeHistories.Count > 1)
-                throw new BusinessException("Lich su nhan su khong hop le: co nhieu hon mot giai doan dang mo.");
+                throw new BusinessException("Lịch sử nhân sự không hợp lệ: có nhiều hơn một giai đoạn đang mở.");
 
             var activeHistory = activeHistories.SingleOrDefault();
 
@@ -50,7 +50,7 @@ namespace WorkManagementSystem.Application.Services
                     Role = user.Role,
                     EffectiveFrom = start,
                     ChangedBy = changedBy,
-                    ChangeReason = "Initial history"
+                    ChangeReason = "Lịch sử ban đầu"
                 };
 
                 _context.UserWorkHistories.Add(activeHistory);
@@ -89,7 +89,7 @@ namespace WorkManagementSystem.Application.Services
                 .ToListAsync(cancellationToken);
 
             if (activeHistories.Count > 1)
-                throw new BusinessException("Lich su nhan su khong hop le: co nhieu hon mot giai doan dang mo.");
+                throw new BusinessException("Lịch sử nhân sự không hợp lệ: có nhiều hơn một giai đoạn đang mở.");
 
             var activeHistory = activeHistories.SingleOrDefault();
             if (activeHistory == null)
@@ -106,7 +106,7 @@ namespace WorkManagementSystem.Application.Services
                     Role = user.Role,
                     EffectiveFrom = effectiveFrom,
                     ChangedBy = changedBy,
-                    ChangeReason = "Backfilled before account deactivation"
+                    ChangeReason = "Bổ sung lịch sử trước khi vô hiệu hóa tài khoản"
                 };
                 _context.UserWorkHistories.Add(activeHistory);
             }

@@ -209,7 +209,7 @@ public sealed class WorkloadServiceTests
             workloadService: workloadService);
         var created = await taskService.Create(new CreateTaskDto
         {
-            Title = "Task van duoc tao khi qua tai",
+            Title = "Task van được tạo khi quá tải",
             StartDate = WeekStart,
             DueDate = WeekEnd,
             PlannedEffortHours = 16m,

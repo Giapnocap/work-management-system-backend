@@ -14,11 +14,11 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class CreateSubTaskDto
     {
-        [NotEmptyGuid(ErrorMessage = "TaskId khong duoc rong.")]
+        [NotEmptyGuid(ErrorMessage = "TaskId không được rỗng.")]
         public Guid TaskId { get; set; }
 
-        [Required(ErrorMessage = "Ten cong viec con khong duoc de trong.")]
-        [MaxLength(200, ErrorMessage = "Ten cong viec con toi da 200 ky tu.")]
+        [Required(ErrorMessage = "Tên công việc con không được để trống.")]
+        [MaxLength(200, ErrorMessage = "Tên công việc con tối đa 200 ký tự.")]
         public string Title { get; set; } = string.Empty;
     }
 }

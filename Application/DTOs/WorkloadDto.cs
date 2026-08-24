@@ -4,7 +4,7 @@ namespace WorkManagementSystem.Application.DTOs;
 
 public sealed class UpdateUserCapacityDto
 {
-    [Range(0.01, 168.0, ErrorMessage = "Capacity tuan phai lon hon 0 va khong vuot qua 168 gio.")]
+    [Range(0.01, 168.0, ErrorMessage = "Sức chứa tuần phải lớn hơn 0 và không vượt quá 168 giờ.")]
     public decimal WeeklyCapacityHours { get; set; }
 
     public DateTime? EffectiveFrom { get; set; }
@@ -49,7 +49,7 @@ public sealed class UserWorkloadDto
 
 public sealed class AssignmentPreviewRequestDto
 {
-    [Range(0.01, 100000.0, ErrorMessage = "Khoi luong ke hoach phai lon hon 0.")]
+    [Range(0.01, 100000.0, ErrorMessage = "Khối lượng kế hoạch phải lớn hơn 0.")]
     public decimal PlannedEffortHours { get; set; }
 
     public DateTime? StartDate { get; set; }

@@ -27,19 +27,19 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (dto.NewPassword != dto.ConfirmPassword)
-                throw new BusinessException("Mat khau moi khong khop.");
+                throw new BusinessException("Mật khẩu mới không khớp.");
 
             PasswordPolicy.EnsureValid(dto.NewPassword);
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
             if (user == null)
-                throw new NotFoundException("Khong tim thay nguoi dung.");
+                throw new NotFoundException("Không tìm thấy người dùng.");
 
             if (!_passwordHashService.Verify(dto.OldPassword, user.PasswordHash))
-                throw new BusinessException("Mat khau cu khong dung.");
+                throw new BusinessException("Mật khẩu cũ không đúng.");
 
             if (_passwordHashService.Verify(dto.NewPassword, user.PasswordHash))
-                throw new BusinessException("Mat khau moi phai khac mat khau hien tai.");
+                throw new BusinessException("Mật khẩu mới phải khác mật khẩu hiện tại.");
 
             user.PasswordHash = _passwordHashService.Hash(dto.NewPassword);
             user.InvalidateSessions();

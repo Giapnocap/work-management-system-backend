@@ -115,7 +115,7 @@ namespace WorkManagementSystem.Application.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken)
-                ?? throw new NotFoundException("User not found");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var period = await _periodResolver.ResolveAsync(periodId, cancellationToken);
             if (period.Status == "Locked")
@@ -475,19 +475,19 @@ namespace WorkManagementSystem.Application.Services
                 reviewPenaltyPoints);
 
             string level, levelColor, levelIcon;
-            if (finalScore >= 90) { level = "Xuat sac"; levelColor = "green"; levelIcon = "*"; }
-            else if (finalScore >= 75) { level = "Tot"; levelColor = "blue"; levelIcon = "+"; }
-            else if (finalScore >= 60) { level = "Trung binh"; levelColor = "yellow"; levelIcon = "!"; }
-            else { level = "Yeu"; levelColor = "red"; levelIcon = "!"; }
+            if (finalScore >= 90) { level = "Xuất sắc"; levelColor = "green"; levelIcon = "*"; }
+            else if (finalScore >= 75) { level = "Tốt"; levelColor = "blue"; levelIcon = "+"; }
+            else if (finalScore >= 60) { level = "Trung bình"; levelColor = "yellow"; levelIcon = "!"; }
+            else { level = "Yếu"; levelColor = "red"; levelIcon = "!"; }
 
             bool isAtRisk = finalScore < 60 || reviewPenaltyCount > 0 || personalDto.IsAtRisk;
             List<string> warnings = new List<string>();
 
             if (reviewPenaltyCount > 0)
-                warnings.Add($"Nut that co chai: '{reviewPenaltyCount}' bao cao bi ngam chua duyet qua 48h!");
+                warnings.Add($"Nút thắt phê duyệt: {reviewPenaltyCount} báo cáo chưa được duyệt sau 48 giờ.");
 
             if (finalScore < 60)
-                warnings.Add("Hieu suat lanh dao phong ban thap, anh huong diem KPI quan ly!");
+                warnings.Add("Hiệu suất lãnh đạo phòng ban thấp, ảnh hưởng điểm KPI quản lý.");
 
             if (!string.IsNullOrEmpty(personalDto.WarningMessage))
                 warnings.Add(personalDto.WarningMessage);
@@ -867,9 +867,9 @@ namespace WorkManagementSystem.Application.Services
             bool isAtRisk = overdueTasks.Count >= 3 || score < 60;
             string warning = "";
             if (overdueTasks.Count >= 3)
-                warning = $"Vi pham {overdueTasks.Count} lan qua han! Can cai thien ngay.";
+                warning = $"Vi phạm {overdueTasks.Count} lần quá hạn. Cần cải thiện ngay.";
             else if (score < 60)
-                warning = "Diem hieu suat thap! Can chu y cai thien chat luong cong viec.";
+                warning = "Điểm hiệu suất thấp. Cần chú ý cải thiện chất lượng công việc.";
 
             return new PersonalKpiMetrics(
                 Score: score,
@@ -1021,7 +1021,7 @@ namespace WorkManagementSystem.Application.Services
                 EffectiveTo = segments.Max(s => s.EffectiveTo) ?? period.EndDate,
                 IsLocked = period.Status == "Locked",
                 IsPartialPeriod = true,
-                PeriodNote = "KPI trong ky co nhieu giai doan phong ban/chuc vu, diem duoc binh quan theo thoi gian."
+                PeriodNote = "KPI trong kỳ có nhiều giai đoạn phòng ban/chức vụ, điểm được bình quân theo thời gian."
             };
 
             ApplyInsightMetrics(dto);
@@ -1040,7 +1040,7 @@ namespace WorkManagementSystem.Application.Services
             dto.IsLocked = isLocked;
             dto.IsPartialPeriod = from > period.StartDate || to < period.EndDate;
             dto.PeriodNote = dto.IsPartialPeriod
-                ? "KPI chi tinh trong giai doan nhan su thuoc phong ban/chuc vu nay."
+                ? "KPI chỉ tính trong giai đoạn nhân sự thuộc phòng ban/chức vụ này."
                 : "";
             return dto;
         }
@@ -1091,7 +1091,7 @@ namespace WorkManagementSystem.Application.Services
                 PersonalScore = result.PersonalScore,
                 IsAtRisk = result.IsAtRisk,
                 WarningMessage = result.WarningMessage,
-                PeriodNote = "KPI da chot, khong thay doi theo du lieu moi."
+                PeriodNote = "KPI đã chốt, không thay đổi theo dữ liệu mới."
             };
 
             ApplyInsightMetrics(dto, result.FormulaVersion);
@@ -1110,7 +1110,7 @@ namespace WorkManagementSystem.Application.Services
                 Level = level.Level,
                 LevelColor = level.Color,
                 LevelIcon = level.Icon,
-                PeriodNote = "Chua co du lieu KPI trong ky nay."
+                PeriodNote = "Chưa có dữ liệu KPI trong kỳ này."
             };
 
             ApplyInsightMetrics(dto);
@@ -1169,11 +1169,11 @@ namespace WorkManagementSystem.Application.Services
 
         private static (string Level, string Color, string Icon) GetLevel(int score, int totalTasks)
         {
-            if (totalTasks == 0) return ("Moi/Thu viec", "gray", "*");
-            if (score >= 90) return ("Xuat sac", "green", "*");
-            if (score >= 75) return ("Tot", "blue", "+");
-            if (score >= 60) return ("Trung binh", "yellow", "!");
-            return ("Yeu", "red", "!");
+            if (totalTasks == 0) return ("Mới/Thử việc", "gray", "*");
+            if (score >= 90) return ("Xuất sắc", "green", "*");
+            if (score >= 75) return ("Tốt", "blue", "+");
+            if (score >= 60) return ("Trung bình", "yellow", "!");
+            return ("Yếu", "red", "!");
         }
 
         private static DateTime MaxDate(DateTime a, DateTime b) => a > b ? a : b;

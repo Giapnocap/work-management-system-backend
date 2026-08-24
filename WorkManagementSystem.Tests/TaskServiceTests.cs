@@ -58,7 +58,7 @@ public class TaskServiceTests
             DueDate = new DateTime(2026, 8, 9)
         }, manager.Id));
 
-        Assert.Contains("Deadline", exception.Message);
+        Assert.Contains("Hạn hoàn thành", exception.Message);
         Assert.Empty(context.Tasks);
     }
 

@@ -38,7 +38,7 @@ public class UserKpiWorkHistoryTests
         Assert.True(result.IsPartialPeriod);
         Assert.Equal(2, result.TotalTasks);
         Assert.Equal(2, result.CompletedOnTime);
-        Assert.Contains("nhieu giai doan", result.PeriodNote);
+        Assert.Contains("nhiều giai đoạn", result.PeriodNote);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class UserKpiWorkHistoryTests
         Assert.True(result.IsManagerKpi);
         Assert.True(result.IsPartialPeriod);
         Assert.Equal(1, result.TotalTasks);
-        Assert.Contains("nhieu giai doan", result.PeriodNote);
+        Assert.Contains("nhiều giai đoạn", result.PeriodNote);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class UserKpiWorkHistoryTests
         Assert.Equal(72, result.Score);
         Assert.Equal("Snapshot", result.Level);
         Assert.Equal(5, result.TotalTasks);
-        Assert.Contains("da chot", result.PeriodNote);
+        Assert.Contains("đã chốt", result.PeriodNote);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class UserKpiWorkHistoryTests
             EffectiveFrom = PeriodStart,
             EffectiveTo = PeriodEnd,
             Score = 100,
-            Level = "Moi/Thu viec",
+            Level = "Mới/Thử việc",
             LockedAt = DateTime.UtcNow
         });
         await context.SaveChangesAsync();
@@ -274,7 +274,7 @@ public class UserKpiWorkHistoryTests
         Assert.Equal(1, result.TotalTasks);
         Assert.Equal(unitB.Id, result.UnitId);
         Assert.True(result.IsPartialPeriod);
-        Assert.Contains("nhieu giai doan", result.PeriodNote);
+        Assert.Contains("nhiều giai đoạn", result.PeriodNote);
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public class UserKpiWorkHistoryTests
         var result = await service.GetPerformanceAsync(user.Id, period.Id);
 
         Assert.Equal(100, result.Score);
-        Assert.Equal("Moi/Thu viec", result.Level);
+        Assert.Equal("Mới/Thử việc", result.Level);
         Assert.Equal(0, result.TotalTasks);
         Assert.Equal(0m, result.CompletionRate);
         Assert.Equal(0m, result.OverdueRate);
@@ -351,7 +351,7 @@ public class UserKpiWorkHistoryTests
         Assert.Equal(1, result.CompletedOnTime);
         Assert.Equal(5, result.BonusPoints);
         Assert.Equal(105, result.Score);
-        Assert.Equal("Xuat sac", result.Level);
+        Assert.Equal("Xuất sắc", result.Level);
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public class UserKpiWorkHistoryTests
         Assert.Equal(25, result.PenaltyPoints);
         Assert.Equal(75, result.Score);
         Assert.True(result.IsAtRisk);
-        Assert.Contains("qua han", result.WarningMessage);
+        Assert.Contains("quá hạn", result.WarningMessage);
     }
 
     [Fact]

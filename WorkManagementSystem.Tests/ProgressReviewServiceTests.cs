@@ -347,7 +347,7 @@ public class ProgressReviewServiceTests
         Assert.Equal(ProgressStatusEnum.Approved, savedProgress!.Status);
         Assert.Equal(TaskStatusEnum.Approved, savedTask!.Status);
         Assert.Equal(5, savedTask.ActualHours);
-        Assert.Contains(notifications.Sent, n => n.UserId == user.Id && n.Message.Contains("phe duyet"));
+        Assert.Contains(notifications.Sent, n => n.UserId == user.Id && n.Message.Contains("phê duyệt"));
         Assert.Contains(await context.TaskHistories.AsNoTracking().ToListAsync(), history =>
             history.TaskId == task.Id &&
             history.FieldName == "ProgressStatus" &&
@@ -557,7 +557,7 @@ public class ProgressReviewServiceTests
         {
             ProgressId = firstSubmission.Id,
             Approve = false,
-            Comment = "Can bo sung minh chung."
+            Comment = "Cần bo sung minh chung."
         }, manager.Id);
 
         var rejectedProgress = await context.Progresses
@@ -577,7 +577,7 @@ public class ProgressReviewServiceTests
             history.OldValue == ProgressStatusEnum.Submitted.ToString() &&
             history.NewValue == ProgressStatusEnum.Rejected.ToString() &&
             history.RelatedEntityId == firstSubmission.Id &&
-            history.Reason == "Can bo sung minh chung.");
+            history.Reason == "Cần bo sung minh chung.");
 
         var correctedEvidence = await AddEvidence(
             context,
@@ -596,7 +596,7 @@ public class ProgressReviewServiceTests
         {
             ProgressId = correctedSubmission.Id,
             Approve = true,
-            Comment = "Dat yeu cau."
+            Comment = "Dat yêu cầu."
         }, manager.Id);
 
         var completedTask = await context.Tasks

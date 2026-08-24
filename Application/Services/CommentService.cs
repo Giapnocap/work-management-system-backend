@@ -52,11 +52,11 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!await _accessService.CanAccessTask(dto.TaskId, userId, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen binh luan trong cong viec nay.");
+                throw new ForbiddenException("Bạn không có quyền bình luận trong công việc này.");
 
             var content = dto.Content.Trim();
             if (content.Length == 0)
-                throw new BusinessException("Noi dung binh luan khong duoc de trong.");
+                throw new BusinessException("Nội dung bình luận không được để trống.");
 
             var comment = new TaskComment
             {
@@ -96,7 +96,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!userId.HasValue || !await _accessService.CanAccessTask(taskId, userId.Value, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen xem binh luan cua cong viec nay.");
+                throw new ForbiddenException("Bạn không có quyền xem bình luận của công việc này.");
 
             var comments = await _repo.QueryReadOnly()
                 .Where(c => c.TaskId == taskId && !c.IsDeleted)
@@ -136,7 +136,7 @@ namespace WorkManagementSystem.Application.Services
                     {
                         Emoji = g.Key,
                         Count = g.Count(),
-                        UserFullNames = g.Select(x => users.TryGetValue(x.UserId, out var u) ? u.FullName : "Unknown")
+                        UserFullNames = g.Select(x => users.TryGetValue(x.UserId, out var u) ? u.FullName : "Không xác định")
                             .Where(name => !string.IsNullOrWhiteSpace(name))
                             .Distinct()
                             .ToList()
@@ -145,7 +145,7 @@ namespace WorkManagementSystem.Application.Services
 
                 dto.SeenByUserFullNames = allSeens
                     .Where(s => s.CommentId == c.Id)
-                    .Select(s => users.TryGetValue(s.UserId, out var u) ? u.FullName : "Unknown")
+                    .Select(s => users.TryGetValue(s.UserId, out var u) ? u.FullName : "Không xác định")
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Distinct()
                     .ToList();
@@ -160,7 +160,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!await _accessService.CanAccessTask(taskId, userId, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen danh dau da xem.");
+                throw new ForbiddenException("Bạn không có quyền đánh dấu đã xem.");
 
             var unseenCommentIds = await _repo.QueryReadOnly()
                 .Where(comment =>
@@ -193,14 +193,14 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var comment = await _repo.GetByIdAsync(commentId, cancellationToken)
-                ?? throw new NotFoundException("Comment not found");
+                ?? throw new NotFoundException("Không tìm thấy bình luận.");
 
             if (!await _accessService.CanAccessTask(comment.TaskId, userId, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen thao tac voi binh luan nay.");
+                throw new ForbiddenException("Bạn không có quyền thao tác với bình luận này.");
 
             emoji = emoji.Trim();
             if (emoji.Length is 0 or > 32)
-                throw new BusinessException("Bieu cam khong hop le.");
+                throw new BusinessException("Biểu cảm không hợp lệ.");
 
             var existing = await _reactionRepo.Query()
                 .FirstOrDefaultAsync(r => r.CommentId == commentId && r.UserId == userId, cancellationToken);
@@ -238,14 +238,14 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var comment = await _repo.GetByIdAsync(commentId, cancellationToken)
-                ?? throw new NotFoundException("Comment not found");
+                ?? throw new NotFoundException("Không tìm thấy bình luận.");
 
             if (comment.UserId != userId && !await _accessService.CanAccessTask(
                     comment.TaskId,
                     userId,
                     managementOnly: true,
                     cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen xoa binh luan nay.");
+                throw new ForbiddenException("Bạn không có quyền xóa bình luận này.");
 
             comment.IsDeleted = true;
             _repo.Update(comment);
@@ -268,7 +268,7 @@ namespace WorkManagementSystem.Application.Services
             foreach (var recipientId in recipients.Where(id => id != senderId).Distinct())
                 await _notificationService.AddNotification(
                     recipientId,
-                    $"{sender.FullName} da binh luan trong cong viec: {task.Title}",
+                    $"{sender.FullName} đã bình luận trong công việc: {task.Title}",
                     cancellationToken);
         }
     }

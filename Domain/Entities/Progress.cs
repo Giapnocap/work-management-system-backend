@@ -32,7 +32,7 @@ namespace WorkManagementSystem.Domain.Entities
         private void EnsureAwaitingReview()
         {
             if (Status != ProgressStatus.Submitted)
-                throw new InvalidOperationException("Only submitted progress can be reviewed.");
+                throw new InvalidOperationException("Chỉ báo cáo đã gửi duyệt mới có thể được đánh giá.");
         }
     }
 }

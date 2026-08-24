@@ -20,7 +20,7 @@ namespace WorkManagementSystem.API.Controllers
         }
 
         /// <summary>
-        /// Phê duyệt hoặc từ chối báo cáo (Manager)
+        /// Phê duyệt hoặc từ chối báo cáo (Trưởng phòng)
         /// </summary>
         [HttpPost]
         public async Task<ActionResult<ReviewDto>> Review(ReviewDto dto)

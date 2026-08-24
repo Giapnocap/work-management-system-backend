@@ -25,7 +25,7 @@ namespace WorkManagementSystem.Application.Services
                 return await periods.FirstOrDefaultAsync(
                     period => period.Id == periodId.Value,
                     cancellationToken)
-                    ?? throw new NotFoundException("KPI period not found");
+                    ?? throw new NotFoundException("Không tìm thấy kỳ KPI.");
             }
 
             var now = DateTime.UtcNow;
@@ -35,7 +35,7 @@ namespace WorkManagementSystem.Application.Services
                     period => period.StartDate <= now && period.EndDate >= now,
                     cancellationToken)
                 ?? throw new NotFoundException(
-                    "Khong co ky KPI cho thoi gian hien tai. Admin can tao ky KPI truoc khi xem hieu suat.");
+                    "Không có kỳ KPI cho thời gian hiện tại. Admin cần tạo kỳ KPI trước khi xem hiệu suất.");
         }
     }
 }

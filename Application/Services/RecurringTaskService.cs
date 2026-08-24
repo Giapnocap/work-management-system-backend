@@ -434,7 +434,7 @@ public sealed class RecurringTaskService : IRecurringTaskService
         {
             Id = template.Id,
             UnitId = template.UnitId
-                ?? throw new InvalidOperationException("Recurring task template has no unit."),
+                ?? throw new InvalidOperationException("Lịch công việc định kỳ không có phòng ban."),
             ProjectId = template.ProjectId,
             Title = template.Title,
             Description = template.Description,

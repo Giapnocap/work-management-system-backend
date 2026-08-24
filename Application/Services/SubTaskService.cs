@@ -38,15 +38,15 @@ namespace WorkManagementSystem.Application.Services
                     userId,
                     managementOnly: true,
                     cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen them cong viec con.");
+                throw new ForbiddenException("Bạn không có quyền thêm công việc con.");
 
             var title = dto.Title.Trim();
             if (title.Length == 0)
-                throw new BusinessException("Ten cong viec con khong duoc de trong.");
+                throw new BusinessException("Tên công việc con không được để trống.");
 
             var exists = await _repo.QueryReadOnly()
                 .AnyAsync(s => s.TaskId == dto.TaskId && s.Title == title, cancellationToken);
-            if (exists) throw new BusinessException("Cong viec con nay da ton tai trong task.");
+            if (exists) throw new BusinessException("Công việc con này đã tồn tại trong công việc.");
 
             var subTask = new SubTask
             {
@@ -74,10 +74,10 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var subTask = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Sub-task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc con.");
 
             if (!await _accessService.CanAccessTask(subTask.TaskId, userId, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen cap nhat cong viec con nay.");
+                throw new ForbiddenException("Bạn không có quyền cập nhật công việc con này.");
 
             subTask.IsCompleted = !subTask.IsCompleted;
             _repo.Update(subTask);
@@ -96,14 +96,14 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var subTask = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Sub-task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc con.");
 
             if (!await _accessService.CanAccessTask(
                     subTask.TaskId,
                     userId,
                     managementOnly: true,
                     cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen xoa cong viec con nay.");
+                throw new ForbiddenException("Bạn không có quyền xóa công việc con này.");
 
             var taskId = subTask.TaskId;
             _repo.Delete(subTask);
@@ -118,7 +118,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!await _accessService.CanAccessTask(taskId, userId, cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen xem cong viec con.");
+                throw new ForbiddenException("Bạn không có quyền xem công việc con.");
 
             var list = await _repo.QueryReadOnly()
                 .Where(s => s.TaskId == taskId)

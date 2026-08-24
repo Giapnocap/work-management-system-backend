@@ -102,7 +102,7 @@ public class SupportingServiceTests
                         ConfirmPassword = "NewPassword@123"
                     }));
 
-        Assert.Equal("Mat khau cu khong dung.", exception.Message);
+        Assert.Equal("Mật khẩu cũ không đúng.", exception.Message);
         Assert.Equal(originalHash, employee.PasswordHash);
         Assert.True(BCrypt.Net.BCrypt.Verify("Password@123", employee.PasswordHash));
     }

@@ -19,21 +19,21 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class CreateProjectDto
     {
-        [Required(ErrorMessage = "Ten project khong duoc de trong.")]
-        [MaxLength(200, ErrorMessage = "Ten project toi da 200 ky tu.")]
+        [Required(ErrorMessage = "Tên dự án không được để trống.")]
+        [MaxLength(200, ErrorMessage = "Tên dự án tối đa 200 ký tự.")]
         public string Name { get; set; } = string.Empty;
 
-        [MaxLength(1000, ErrorMessage = "Mo ta project toi da 1000 ky tu.")]
+        [MaxLength(1000, ErrorMessage = "Mô tả dự án tối đa 1000 ký tự.")]
         public string Description { get; set; } = string.Empty;
 
-        [NotEmptyGuid(ErrorMessage = "UnitId khong duoc rong.")]
+        [NotEmptyGuid(ErrorMessage = "UnitId không được rỗng.")]
         public Guid? UnitId { get; set; }
     }
 
     public class UpdateProjectDto : CreateProjectDto
     {
-        [Required]
-        [MinLength(1, ErrorMessage = "RowVersion khong hop le.")]
+        [Required(ErrorMessage = "RowVersion không được để trống.")]
+        [MinLength(1, ErrorMessage = "RowVersion không hợp lệ.")]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 

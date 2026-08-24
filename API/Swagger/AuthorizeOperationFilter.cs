@@ -25,8 +25,8 @@ namespace WorkManagementSystem.API.Swagger
             if (!authorizeAttributes.Any())
                 return;
 
-            operation.Responses.TryAdd("401", new OpenApiResponse { Description = "Unauthorized - missing or invalid JWT token." });
-            operation.Responses.TryAdd("403", new OpenApiResponse { Description = "Forbidden - authenticated user does not have permission." });
+            operation.Responses.TryAdd("401", new OpenApiResponse { Description = "Chưa xác thực - JWT bị thiếu hoặc không hợp lệ." });
+            operation.Responses.TryAdd("403", new OpenApiResponse { Description = "Bị từ chối - người dùng đã xác thực nhưng không đủ quyền." });
 
             var roles = authorizeAttributes
                 .SelectMany(attribute => (attribute.Roles ?? string.Empty)
@@ -36,7 +36,7 @@ namespace WorkManagementSystem.API.Swagger
 
             if (roles.Any())
             {
-                var roleText = $"Required role(s): {string.Join(", ", roles)}.";
+                var roleText = $"Vai trò bắt buộc: {string.Join(", ", roles)}.";
                 operation.Description = string.IsNullOrWhiteSpace(operation.Description)
                     ? roleText
                     : $"{operation.Description}{Environment.NewLine}{Environment.NewLine}{roleText}";

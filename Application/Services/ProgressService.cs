@@ -51,24 +51,24 @@ namespace WorkManagementSystem.Application.Services
         private async Task<ProgressDto> UpdateCore(CreateProgressDto dto, Guid reporterId, CancellationToken cancellationToken)
         {
             var task = await _taskRepo.GetByIdAsync(dto.TaskId, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             if (task.IsDeleted)
-                throw new NotFoundException("Task not found");
+                throw new NotFoundException("Không tìm thấy công việc.");
 
             if (task.Status == TaskStatusEnum.Approved)
-                throw new BusinessException("Cong viec da hoan thanh, khong the bao cao them tien do.");
+                throw new BusinessException("Công việc đã hoàn thành, không thể báo cáo thêm tiến độ.");
 
             var reporter = await _userRepo.GetByIdAsync(reporterId, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
             if (reporter.Role != SystemRoles.User)
-                throw new ForbiddenException("Chi nhan vien moi duoc bao cao tien do.");
+                throw new ForbiddenException("Chỉ nhân viên mới được báo cáo tiến độ.");
 
             if (!await _accessService.CanAccessTask(
                     dto.TaskId,
                     reporterId,
                     cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen bao cao tien do cho cong viec nay.");
+                throw new ForbiddenException("Bạn không có quyền báo cáo tiến độ cho công việc này.");
 
             await _workflowService.EnsureDependenciesCompletedAsync(
                 dto.TaskId,
@@ -80,7 +80,7 @@ namespace WorkManagementSystem.Application.Services
                 p.Status == ProgressStatusEnum.Submitted, cancellationToken);
 
             if (hasPendingCompletion)
-                throw new BusinessException("Ban dang co bao cao hoan thanh cho duyet, vui long cho quan ly xu ly truoc khi bao cao tiep.");
+                throw new BusinessException("Bạn đang có báo cáo hoàn thành chờ duyệt, vui lòng cho quản lý xử lý trước khi báo cáo tiếp.");
 
             var hasPendingSubmittedForTask = await _repo.QueryReadOnly().AnyAsync(p =>
                 p.TaskId == dto.TaskId &&
@@ -91,7 +91,7 @@ namespace WorkManagementSystem.Application.Services
 
             var requiresReview = task.RequiresReview || dto.SubmitForReview == true;
             if (dto.Percent == 100 && requiresReview && !dto.FileId.HasValue)
-                throw new BusinessException("Vui long dinh kem file minh chung khi nop bao cao hoan thanh.");
+                throw new BusinessException("Vui lòng đính kèm tệp minh chứng khi nộp báo cáo hoàn thành.");
 
             if (dto.Percent == 100)
             {
@@ -102,23 +102,23 @@ namespace WorkManagementSystem.Application.Services
                     (p.Status == ProgressStatusEnum.Submitted || p.Status == ProgressStatusEnum.Approved), cancellationToken);
 
                 if (hasCompleted)
-                    throw new BusinessException("Ban da co bao cao hoan thanh dang cho duyet hoac da duoc duyet cho cong viec nay.");
+                    throw new BusinessException("Bạn đã có báo cáo hoàn thành đang chờ duyệt hoặc đã được duyệt cho công việc này.");
             }
 
             UploadFile? file = null;
             if (dto.FileId.HasValue)
             {
                 file = await _uploadRepo.GetByIdAsync(dto.FileId.Value, cancellationToken)
-                    ?? throw new NotFoundException("File dinh kem khong ton tai.");
+                    ?? throw new NotFoundException("Tệp đính kèm không tồn tại.");
 
                 if (file.UploadedBy.HasValue && file.UploadedBy.Value != reporterId)
-                    throw new ForbiddenException("Ban khong co quyen dung file dinh kem nay.");
+                    throw new ForbiddenException("Bạn không có quyền dùng tệp đính kèm này.");
 
                 if (file.TaskId != task.Id)
-                    throw new ForbiddenException("File dinh kem khong thuoc cong viec nay.");
+                    throw new ForbiddenException("Tệp đính kèm không thuộc công việc này.");
 
                 if (file.ProgressId.HasValue)
-                    throw new BusinessException("File dinh kem nay da duoc su dung cho bao cao khac.");
+                    throw new BusinessException("Tệp đính kèm này đã được sử dụng cho báo cáo khác.");
             }
 
             var progress = _mapper.Map<Progress>(dto);
@@ -174,7 +174,7 @@ namespace WorkManagementSystem.Application.Services
             {
                 await _notificationService.AddNotification(
                     manager.Id,
-                    $"Nhan vien {user.FullName} da nop bao cao tien do cho cong viec: {task.Title}",
+                    $"Nhân viên {user.FullName} đã nộp báo cáo tiến độ cho công việc: {task.Title}",
                     cancellationToken);
             }
         }

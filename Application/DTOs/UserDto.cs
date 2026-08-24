@@ -17,12 +17,12 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class UpdateUserDto
     {
-        [Required]
-        [MinLength(1, ErrorMessage = "RowVersion khong hop le.")]
+        [Required(ErrorMessage = "RowVersion không được để trống.")]
+        [MinLength(1, ErrorMessage = "RowVersion không hợp lệ.")]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
-        [Required]
-        [RegularExpression("^(User|Manager)$", ErrorMessage = "Role chi co the la User hoac Manager.")]
+        [Required(ErrorMessage = "Vai trò không được để trống.")]
+        [RegularExpression("^(User|Manager)$", ErrorMessage = "Vai trò chỉ có thể là User hoặc Manager.")]
         public string Role { get; set; } = string.Empty;
         public Guid? UnitId { get; set; }
         public Guid? OldManagerId { get; set; }

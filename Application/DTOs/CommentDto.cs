@@ -27,11 +27,11 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class CreateCommentDto
     {
-        [NotEmptyGuid(ErrorMessage = "TaskId khong duoc rong.")]
+        [NotEmptyGuid(ErrorMessage = "TaskId không được rỗng.")]
         public Guid TaskId { get; set; }
 
-        [Required(ErrorMessage = "Noi dung binh luan khong duoc de trong.")]
-        [MaxLength(1000, ErrorMessage = "Noi dung binh luan toi da 1000 ky tu.")]
+        [Required(ErrorMessage = "Nội dung bình luận không được để trống.")]
+        [MaxLength(1000, ErrorMessage = "Nội dung bình luận tối đa 1000 ký tự.")]
         public string Content { get; set; } = string.Empty;
     }
 }

@@ -7,7 +7,7 @@ namespace WorkManagementSystem.Application.Validation
     {
         public NotEmptyGuidAttribute()
         {
-            ErrorMessage = "Id khong duoc rong.";
+            ErrorMessage = "Id không được rỗng.";
         }
 
         public override bool IsValid(object? value)

@@ -54,7 +54,7 @@ namespace WorkManagementSystem.Application.Services
                 .Where(user => user.Id == requesterId && user.IsApproved && !user.IsDeleted)
                 .Select(user => new { user.Role, user.UnitId })
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var query = _progressRepo.QueryReadOnly();
 
@@ -93,14 +93,14 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             _ = await _taskRepo.GetByIdAsync(taskId, cancellationToken)
-                ?? throw new NotFoundException("Task not found.");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             if (!await _accessService.CanAccessTask(
                     taskId,
                     requesterId,
                     cancellationToken: cancellationToken))
             {
-                throw new ForbiddenException("Ban khong co quyen xem lich su bao cao cua cong viec nay.");
+                throw new ForbiddenException("Bạn không có quyền xem lịch sử báo cáo của công việc này.");
             }
 
             var progresses = await _progressRepo.QueryReadOnly()
@@ -125,7 +125,7 @@ namespace WorkManagementSystem.Application.Services
                 .Where(user => user.Id == requesterId && user.IsApproved && !user.IsDeleted)
                 .Select(user => new { user.Role, user.UnitId })
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var query = _progressRepo.QueryReadOnly();
             if (requester.Role == SystemRoles.Manager)

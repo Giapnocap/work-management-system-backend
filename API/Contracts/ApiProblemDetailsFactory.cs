@@ -36,7 +36,7 @@ public static class ApiProblemDetailsFactory
                 entry => entry.Key,
                 entry => entry.Value!.Errors
                     .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                        ? "Gia tri khong hop le."
+                        ? "Gia trị không hợp lệ."
                         : error.ErrorMessage)
                     .ToArray());
 
@@ -44,7 +44,7 @@ public static class ApiProblemDetailsFactory
             context.HttpContext,
             StatusCodes.Status400BadRequest,
             "validation_error",
-            "Du lieu gui len khong hop le.",
+            "Dữ liệu gửi lên không hợp lệ.",
             errors: errors);
 
         return new BadRequestObjectResult(problem)

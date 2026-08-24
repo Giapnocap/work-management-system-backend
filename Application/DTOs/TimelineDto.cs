@@ -36,7 +36,7 @@ public sealed class TaskTimelineQueryDto
 {
     public string? Cursor { get; set; }
 
-    [Range(1, 100)]
+    [Range(1, 100, ErrorMessage = "Kích thước trang phải từ 1 đến 100.")]
     public int Size { get; set; } = 20;
 
     public string? Type { get; set; }

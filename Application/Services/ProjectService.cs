@@ -43,13 +43,13 @@ namespace WorkManagementSystem.Application.Services
                 .FirstOrDefaultAsync(
                     u => u.Id == userId && u.IsApproved && !u.IsDeleted,
                     cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             if (user.Role != SystemRoles.Manager)
-                throw new ForbiddenException("Only managers can view projects.");
+                throw new ForbiddenException("Chỉ Trưởng phòng mới được xem danh sách dự án.");
 
             if (!user.UnitId.HasValue)
-                throw new BusinessException("Manager chua thuoc phong ban nao.");
+                throw new BusinessException("Trưởng phòng chưa thuộc phòng ban nào.");
 
             var query = _context.Projects
                 .AsNoTracking()
@@ -94,20 +94,20 @@ namespace WorkManagementSystem.Application.Services
                 .FirstOrDefaultAsync(
                     u => u.Id == userId && u.IsApproved && !u.IsDeleted,
                     cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             if (user.Role != SystemRoles.Manager)
-                throw new ForbiddenException("Chi Manager moi duoc tao project.");
+                throw new ForbiddenException("Chỉ Trưởng phòng mới được tạo dự án.");
 
             if (!user.UnitId.HasValue)
-                throw new BusinessException("Manager chua thuoc phong ban nao.");
+                throw new BusinessException("Trưởng phòng chưa thuộc phòng ban nào.");
 
             var unitId = user.UnitId.Value;
             if (dto.UnitId.HasValue && dto.UnitId.Value != unitId)
-                throw new ForbiddenException("Ban khong co quyen tao project cho phong ban nay.");
+                throw new ForbiddenException("Bạn không có quyền tạo dự án cho phòng ban này.");
 
             if (!await _accessService.CanManageUnit(unitId, userId, cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen tao project cho phong ban nay.");
+                throw new ForbiddenException("Bạn không có quyền tạo dự án cho phòng ban này.");
 
             var name = dto.Name.Trim();
             var exists = await _context.Projects
@@ -115,7 +115,7 @@ namespace WorkManagementSystem.Application.Services
                 .AnyAsync(
                     p => p.UnitId == unitId && p.Name == name,
                     cancellationToken);
-            if (exists) throw new BusinessException("Project cung ten da ton tai trong phong ban.");
+            if (exists) throw new BusinessException("Dự án cùng tên đã tồn tại trong phòng ban.");
 
             var project = new Project
             {
@@ -166,13 +166,13 @@ namespace WorkManagementSystem.Application.Services
                 .FirstOrDefaultAsync(
                     p => p.Id == id && !p.IsArchived,
                     cancellationToken)
-                ?? throw new NotFoundException("Project not found.");
+                ?? throw new NotFoundException("Không tìm thấy dự án.");
 
             if (!await CanManageProject(project, userId, cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen cap nhat project nay.");
+                throw new ForbiddenException("Bạn không có quyền cập nhật dự án này.");
 
             if (dto.UnitId.HasValue && dto.UnitId != project.UnitId)
-                throw new BusinessException("Khong the thay doi phong ban cua project sau khi tao.");
+                throw new BusinessException("Không thể thay đổi phòng ban của dự án sau khi tạo.");
 
             var name = dto.Name.Trim();
             var duplicateName = await _context.Projects
@@ -184,7 +184,7 @@ namespace WorkManagementSystem.Application.Services
                         candidate.Name == name,
                     cancellationToken);
             if (duplicateName)
-                throw new BusinessException("Project cung ten da ton tai trong phong ban.");
+                throw new BusinessException("Dự án cùng tên đã tồn tại trong phòng ban.");
 
             var oldName = project.Name;
             var oldDescription = project.Description;
@@ -249,10 +249,10 @@ namespace WorkManagementSystem.Application.Services
                 .FirstOrDefaultAsync(
                     p => p.Id == id && !p.IsArchived,
                     cancellationToken)
-                ?? throw new NotFoundException("Project not found.");
+                ?? throw new NotFoundException("Không tìm thấy dự án.");
 
             if (!await CanManageProject(project, userId, cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen luu tru project nay.");
+                throw new ForbiddenException("Bạn không có quyền lưu trữ dự án này.");
 
             var activeTaskCount = await _context.Tasks.CountAsync(
                 task =>
@@ -264,7 +264,7 @@ namespace WorkManagementSystem.Application.Services
             if (activeTaskCount > 0)
             {
                 throw new BusinessException(
-                    $"Khong the luu tru project khi con {activeTaskCount} cong viec chua hoan thanh.");
+                    $"Không thể lưu trữ dự án khi còn {activeTaskCount} công việc chưa hoàn thành.");
             }
 
             var recurringTemplateCount = await _context.RecurringTaskTemplates.CountAsync(
@@ -362,10 +362,10 @@ namespace WorkManagementSystem.Application.Services
         {
             return status switch
             {
-                TaskStatusEnum.NotStarted => "Chua bat dau",
-                TaskStatusEnum.InProgress => "Dang lam",
-                TaskStatusEnum.Submitted => "Cho duyet",
-                TaskStatusEnum.Approved => "Hoan thanh",
+                TaskStatusEnum.NotStarted => "Chưa bắt đầu",
+                TaskStatusEnum.InProgress => "Đang làm",
+                TaskStatusEnum.Submitted => "Chờ duyệt",
+                TaskStatusEnum.Approved => "Hoàn thành",
                 _ => status.ToString()
             };
         }

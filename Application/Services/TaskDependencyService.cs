@@ -146,10 +146,10 @@ public sealed class TaskDependencyService : ITaskDependencyService
         CancellationToken cancellationToken)
     {
         if (taskId == Guid.Empty || dependsOnTaskId == Guid.Empty)
-            throw new BusinessException("Cong viec va cong viec tien quyet phai hop le.");
+            throw new BusinessException("Công việc và công việc tiên quyết phải hợp lệ.");
 
         if (taskId == dependsOnTaskId)
-            throw new BusinessException("Cong viec khong the phu thuoc chinh no.");
+            throw new BusinessException("Công việc không thể phụ thuộc chính nó.");
 
         var task = await GetTaskAsync(taskId, cancellationToken);
         await EnsureCanManageAsync(task.Id, actorUserId, cancellationToken);
@@ -165,7 +165,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
                               dependency.DependsOnTaskId == dependsOnTaskId,
                 cancellationToken))
         {
-            throw new BusinessException("Dependency nay da ton tai.");
+            throw new BusinessException("Quan hệ phụ thuộc này đã tồn tại.");
         }
 
         var existingEdges = await BuildScopeQuery(task)
@@ -180,7 +180,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
             .ToListAsync(cancellationToken);
 
         if (WouldCreateCycle(taskId, dependsOnTaskId, existingEdges))
-            throw new BusinessException("Dependency tao thanh chu trinh cong viec khong hop le.");
+            throw new BusinessException("Quan hệ phụ thuộc tạo thành chu trình công việc không hợp lệ.");
 
         var dependency = new TaskDependency
         {
@@ -232,7 +232,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
             item => item.TaskId == taskId && item.DependsOnTaskId == dependsOnTaskId,
             cancellationToken);
         if (dependency == null)
-            throw new NotFoundException("Dependency not found.");
+            throw new NotFoundException("Không tìm thấy quan hệ phụ thuộc.");
 
         var wasBlocking = predecessor.Status != TaskStatusEnum.Approved;
         _context.TaskDependencies.Remove(dependency);
@@ -272,7 +272,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
                 requesterId,
                 cancellationToken: cancellationToken))
         {
-            throw new ForbiddenException("Ban khong co quyen xem dependency cua cong viec nay.");
+            throw new ForbiddenException("Bạn không có quyền xem quan hệ phụ thuộc của công việc này.");
         }
 
         return task;
@@ -283,7 +283,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
         return await _context.Tasks
             .AsNoTracking()
             .SingleOrDefaultAsync(task => task.Id == taskId, cancellationToken)
-            ?? throw new NotFoundException("Task not found.");
+            ?? throw new NotFoundException("Không tìm thấy công việc.");
     }
 
     private async Task EnsureCanManageAsync(
@@ -299,7 +299,7 @@ public sealed class TaskDependencyService : ITaskDependencyService
                 managementOnly: true,
                 cancellationToken))
         {
-            throw new ForbiddenException("Ban khong co quyen quan ly dependency cua cong viec nay.");
+            throw new ForbiddenException("Bạn không có quyền quản lý quan hệ phụ thuộc của công việc này.");
         }
     }
 
@@ -317,16 +317,16 @@ public sealed class TaskDependencyService : ITaskDependencyService
     private static void EnsureDependencyCanChange(TaskItem task)
     {
         if (task.Status == TaskStatusEnum.Approved)
-            throw new BusinessException("Cong viec da hoan thanh, khong the thay doi dependency.");
+            throw new BusinessException("Công việc đã hoàn thành, không thể thay đổi quan hệ phụ thuộc.");
     }
 
     private static void EnsureSameScope(TaskItem task, TaskItem predecessor)
     {
         if (task.UnitId != predecessor.UnitId)
-            throw new ForbiddenException("Hai cong viec phai thuoc cung mot phong ban.");
+            throw new ForbiddenException("Hai công việc phải thuộc cùng một phòng ban.");
 
         if (task.ProjectId != predecessor.ProjectId)
-            throw new BusinessException("Hai cong viec phai thuoc cung mot project.");
+            throw new BusinessException("Hai công việc phải thuộc cùng một dự án.");
     }
 
     private async Task<bool> HasOtherBlockingDependencyAsync(

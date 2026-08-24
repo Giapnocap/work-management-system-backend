@@ -5,11 +5,11 @@ namespace WorkManagementSystem.Application.DTOs
 {
     public class ReviewDto
     {
-        [NotEmptyGuid(ErrorMessage = "ProgressId khong duoc rong.")]
+        [NotEmptyGuid(ErrorMessage = "ProgressId không được rỗng.")]
         public Guid ProgressId { get; set; }
         public bool Approve { get; set; }
 
-        [MaxLength(1000, ErrorMessage = "Ghi chu duyet toi da 1000 ky tu.")]
+        [MaxLength(1000, ErrorMessage = "Ghi chú duyệt tối đa 1000 ký tự.")]
         public string Comment { get; set; } = string.Empty;
     }
 }

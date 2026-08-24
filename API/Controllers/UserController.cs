@@ -19,7 +19,7 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>Lấy danh sách người dùng (Admin xem tất cả, Manager xem phòng mình)</summary>
+        /// <summary>Lấy danh sách người dùng (Admin xem tất cả, Trưởng phòng xem phòng mình)</summary>
         [HttpGet]
         [Authorize(Roles = SystemRoles.AdminOrManager)]
         public async Task<ActionResult<List<UserDto>>> GetAll()
@@ -70,7 +70,7 @@ namespace WorkManagementSystem.API.Controllers
                 currentUserId, id, periodId, HttpContext.RequestAborted));
         }
 
-        /// <summary>Xem bảng KPI toàn phòng (Manager xem nhân viên phòng mình)</summary>
+        /// <summary>Xem bảng KPI toàn phòng (Trưởng phòng xem nhân viên phòng mình)</summary>
         [HttpGet("performance/unit")]
         [Authorize(Roles = SystemRoles.ManagerOrAdmin)]
         public async Task<ActionResult<List<PerformanceDto>>> GetUnitPerformance(Guid? periodId = null)

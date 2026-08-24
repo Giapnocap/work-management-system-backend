@@ -11,16 +11,16 @@ public static class PasswordPolicy
     public static string? GetValidationError(string? password)
     {
         if (string.IsNullOrEmpty(password) || password.Length < MinimumLength)
-            return $"Mat khau phai co it nhat {MinimumLength} ky tu.";
+            return $"Mật khẩu phải có ít nhất {MinimumLength} ký tự.";
 
         if (Encoding.UTF8.GetByteCount(password) > MaximumUtf8Bytes)
-            return $"Mat khau toi da {MaximumUtf8Bytes} byte UTF-8.";
+            return $"Mật khẩu tối đa {MaximumUtf8Bytes} byte UTF-8.";
 
         if (!password.Any(char.IsUpper) ||
             !password.Any(char.IsLower) ||
             !password.Any(char.IsDigit))
         {
-            return "Mat khau phai co chu hoa, chu thuong va chu so.";
+            return "Mật khẩu phải có chữ hoa, chữ thường và chữ số.";
         }
 
         return null;

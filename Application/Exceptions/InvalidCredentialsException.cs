@@ -4,7 +4,7 @@ namespace WorkManagementSystem.Application.Exceptions
     {
         public InvalidCredentialsException()
             : base(
-                "Ten dang nhap hoac mat khau khong dung.",
+                "Tên đăng nhập hoặc mật khẩu không đúng.",
                 StatusCodes.Status401Unauthorized,
                 "invalid_credentials")
         {

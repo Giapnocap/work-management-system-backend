@@ -20,7 +20,7 @@ namespace WorkManagementSystem.Application.Services
             var requester = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == requestedBy, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var taskQuery = _context.Tasks.AsNoTracking().Where(t => !t.IsDeleted);
             if (requester.Role == SystemRoles.Manager)
@@ -32,7 +32,7 @@ namespace WorkManagementSystem.Application.Services
             }
             else if (requester.Role != SystemRoles.Admin)
             {
-                throw new ForbiddenException("Ban khong co quyen export danh sach cong viec.");
+                throw new ForbiddenException("Bạn không có quyền xuất danh sách công việc.");
             }
 
             var tasks = await taskQuery.OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
@@ -46,14 +46,14 @@ namespace WorkManagementSystem.Application.Services
             var sheet = workbook.Worksheets.Add("Tasks");
 
             sheet.Cell(1, 1).Value = "STT";
-            sheet.Cell(1, 2).Value = "Ten cong viec";
-            sheet.Cell(1, 3).Value = "Mo ta";
-            sheet.Cell(1, 4).Value = "Trang thai";
-            sheet.Cell(1, 5).Value = "Uu tien";
-            sheet.Cell(1, 6).Value = "Bat dau";
-            sheet.Cell(1, 7).Value = "Deadline";
-            sheet.Cell(1, 8).Value = "Phong ban";
-            sheet.Cell(1, 9).Value = "Gio thuc te";
+            sheet.Cell(1, 2).Value = "Tên công việc";
+            sheet.Cell(1, 3).Value = "Mô tả";
+            sheet.Cell(1, 4).Value = "Trạng thái";
+            sheet.Cell(1, 5).Value = "Ưu tiên";
+            sheet.Cell(1, 6).Value = "Bắt đầu";
+            sheet.Cell(1, 7).Value = "Hạn hoàn thành";
+            sheet.Cell(1, 8).Value = "Phòng ban";
+            sheet.Cell(1, 9).Value = "Giờ thực tế";
 
             var header = sheet.Range("A1:I1");
             header.Style.Font.Bold = true;
@@ -94,7 +94,7 @@ namespace WorkManagementSystem.Application.Services
             var requester = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == requestedBy, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var taskQuery = _context.Tasks.AsNoTracking().Where(t => !t.IsDeleted);
             if (requester.Role == SystemRoles.Manager)
@@ -106,7 +106,7 @@ namespace WorkManagementSystem.Application.Services
             }
             else if (requester.Role != SystemRoles.Admin)
             {
-                throw new ForbiddenException("Ban khong co quyen export tien do.");
+                throw new ForbiddenException("Bạn không có quyền xuất báo cáo tiến độ.");
             }
 
             var tasks = await taskQuery.ToDictionaryAsync(t => t.Id, t => t, cancellationToken);
@@ -127,13 +127,13 @@ namespace WorkManagementSystem.Application.Services
             var sheet = workbook.Worksheets.Add("Progress");
 
             sheet.Cell(1, 1).Value = "STT";
-            sheet.Cell(1, 2).Value = "Cong viec";
-            sheet.Cell(1, 3).Value = "Nhan vien";
-            sheet.Cell(1, 4).Value = "Mo ta";
-            sheet.Cell(1, 5).Value = "Phan tram";
-            sheet.Cell(1, 6).Value = "Trang thai";
-            sheet.Cell(1, 7).Value = "Gio bao cao";
-            sheet.Cell(1, 8).Value = "Ngay cap nhat";
+            sheet.Cell(1, 2).Value = "Công việc";
+            sheet.Cell(1, 3).Value = "Nhân viên";
+            sheet.Cell(1, 4).Value = "Mô tả";
+            sheet.Cell(1, 5).Value = "Phần trăm";
+            sheet.Cell(1, 6).Value = "Trạng thái";
+            sheet.Cell(1, 7).Value = "Giờ báo cáo";
+            sheet.Cell(1, 8).Value = "Ngày cập nhật";
 
             var header = sheet.Range("A1:H1");
             header.Style.Font.Bold = true;

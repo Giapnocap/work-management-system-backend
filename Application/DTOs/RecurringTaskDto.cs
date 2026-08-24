@@ -43,7 +43,7 @@ public sealed class CreateRecurringTaskDto : RecurringTaskDefinitionDto
 
 public sealed class UpdateRecurringTaskDto : RecurringTaskDefinitionDto
 {
-    [Required]
+    [Required(ErrorMessage = "RowVersion không được để trống.")]
     [MinLength(1, ErrorMessage = "RowVersion không hợp lệ.")]
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

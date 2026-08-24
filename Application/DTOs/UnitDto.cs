@@ -11,15 +11,15 @@ namespace WorkManagementSystem.Application.DTOs
 
     public class CreateUnitDto
     {
-        [Required(ErrorMessage = "Ten phong ban khong duoc de trong.")]
-        [MaxLength(100, ErrorMessage = "Ten phong ban toi da 100 ky tu.")]
+        [Required(ErrorMessage = "Tên phòng ban không được để trống.")]
+        [MaxLength(100, ErrorMessage = "Tên phòng ban tối đa 100 ký tự.")]
         public string Name { get; set; } = string.Empty;
     }
 
     public class UpdateUnitDto : CreateUnitDto
     {
-        [Required]
-        [MinLength(1, ErrorMessage = "RowVersion khong hop le.")]
+        [Required(ErrorMessage = "RowVersion không được để trống.")]
+        [MinLength(1, ErrorMessage = "RowVersion không hợp lệ.")]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

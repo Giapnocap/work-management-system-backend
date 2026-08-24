@@ -87,7 +87,7 @@ namespace WorkManagementSystem.Application.Services
             {
                 SystemRoles.Admin => await GetAll(cancellationToken),
                 SystemRoles.Manager => await GetByManager(requesterId, cancellationToken),
-                _ => throw new ForbiddenException("Ban khong co quyen xem danh sach nhan su.")
+                _ => throw new ForbiddenException("Bạn không có quyền xem danh sách nhân sự.")
             };
         }
 
@@ -138,7 +138,7 @@ namespace WorkManagementSystem.Application.Services
             {
                 SystemRoles.Admin => await Search(keyword, role, unitId, cancellationToken: cancellationToken),
                 SystemRoles.Manager => await Search(keyword, role, null, requesterId, cancellationToken),
-                _ => throw new ForbiddenException("Ban khong co quyen tim kiem nhan su.")
+                _ => throw new ForbiddenException("Bạn không có quyền tìm kiếm nhân sự.")
             };
         }
 
@@ -158,7 +158,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var user = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("User not found");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var now = DateTime.UtcNow;
             var replacement = await ResolveManagerReplacementAsync(user, dto, cancellationToken);
@@ -183,7 +183,7 @@ namespace WorkManagementSystem.Application.Services
                     SystemRoles.User,
                     replacement.NewUnitId,
                     changedBy,
-                    "Replaced manager",
+                    "Thay thế Trưởng phòng",
                     now,
                     cancellationToken: cancellationToken);
             }
@@ -193,7 +193,7 @@ namespace WorkManagementSystem.Application.Services
                 dto.Role,
                 dto.UnitId,
                 changedBy,
-                "Admin updated user assignment",
+                "Admin cập nhật phân công nhân sự",
                 now,
                 replacement?.Manager.Id,
                 cancellationToken);
@@ -215,7 +215,7 @@ namespace WorkManagementSystem.Application.Services
             if (dto.Role != SystemRoles.Manager || !dto.UnitId.HasValue)
             {
                 if (hasReplacementInput)
-                    throw new BusinessException("Chi duoc gui thong tin thay Truong phong khi bo nhiem Manager.");
+                    throw new BusinessException("Chỉ được gửi thông tin thay Trưởng phòng khi bổ nhiệm vai trò Manager.");
 
                 return null;
             }
@@ -231,27 +231,27 @@ namespace WorkManagementSystem.Application.Services
                 .ToListAsync(cancellationToken);
 
             if (managerIds.Count > 1)
-                throw new BusinessException("Du lieu phong ban khong hop le: co nhieu hon mot Truong phong.");
+                throw new BusinessException("Dữ liệu phòng ban không hợp lệ: có nhiều hơn một Trưởng phòng.");
 
             if (managerIds.Count == 0)
             {
                 if (hasReplacementInput)
-                    throw new BusinessException("Phong ban khong co Truong phong can thay the.");
+                    throw new BusinessException("Phòng ban không có Trưởng phòng cần thay thế.");
 
                 return null;
             }
 
             var existingManagerId = managerIds[0];
             if (dto.OldManagerId != existingManagerId)
-                throw new BusinessException("OldManagerId khong khop voi Truong phong hien tai.");
+                throw new BusinessException("OldManagerId không khớp với Trưởng phòng hiện tại.");
 
             var existingManager = await _repo.GetByIdAsync(existingManagerId, cancellationToken)
-                ?? throw new NotFoundException("Current manager not found");
+                ?? throw new NotFoundException("Không tìm thấy Trưởng phòng hiện tại.");
 
             if (dto.OldManagerAction == "Remove")
             {
                 if (dto.OldManagerNewUnitId.HasValue)
-                    throw new BusinessException("Khong duoc gui phong ban moi khi chon Remove.");
+                    throw new BusinessException("Không được gửi phòng ban mới khi chọn Remove.");
 
                 return new ManagerReplacement(existingManager, null);
             }
@@ -259,15 +259,15 @@ namespace WorkManagementSystem.Application.Services
             if (dto.OldManagerAction == "Transfer")
             {
                 if (!dto.OldManagerNewUnitId.HasValue)
-                    throw new BusinessException("Can chon phong ban moi cho Truong phong cu.");
+                    throw new BusinessException("Cần chọn phòng ban mới cho Trưởng phòng cũ.");
 
                 if (dto.OldManagerNewUnitId == dto.UnitId)
-                    throw new BusinessException("Truong phong cu phai duoc chuyen sang phong ban khac.");
+                    throw new BusinessException("Trưởng phòng cũ phải được chuyển sang phòng ban khác.");
 
                 return new ManagerReplacement(existingManager, dto.OldManagerNewUnitId);
             }
 
-            throw new BusinessException("OldManagerAction chi co the la Transfer hoac Remove.");
+            throw new BusinessException("OldManagerAction chỉ có thể là Transfer hoặc Remove.");
         }
 
         public async Task Delete(
@@ -290,7 +290,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var user = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("User not found");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             await _taskAssignmentService.EnsureCanDeleteAsync(user, cancellationToken);
 
@@ -330,7 +330,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!await CanViewPerformanceAsync(requesterId, targetUserId, periodId, cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen xem KPI cua nhan su nay.");
+                throw new ForbiddenException("Bạn không có quyền xem KPI của nhân sự này.");
 
             return await GetPerformanceAsync(targetUserId, periodId, cancellationToken);
         }
@@ -366,7 +366,7 @@ namespace WorkManagementSystem.Application.Services
                     user.IsApproved &&
                     !user.IsDeleted,
                     cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
         }
 
         private sealed record ManagerReplacement(User Manager, Guid? NewUnitId);

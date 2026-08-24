@@ -59,10 +59,10 @@ namespace WorkManagementSystem.Application.Services
 
         private async Task<TaskDto> CreateCore(CreateTaskDto dto, Guid userId, CancellationToken cancellationToken)
         {
-            var creator = await GetManagerOrThrow(userId, "tao cong viec", cancellationToken);
+            var creator = await GetManagerOrThrow(userId, "tạo công việc", cancellationToken);
 
             if (!creator.UnitId.HasValue)
-                throw new BusinessException("Manager chua thuoc phong ban nao.");
+                throw new BusinessException("Trưởng phòng chưa thuộc phòng ban nào.");
 
             ValidateDateRange(dto.StartDate, dto.DueDate);
             ValidatePlannedEffort(dto.PlannedEffortHours);
@@ -126,8 +126,8 @@ namespace WorkManagementSystem.Application.Services
                 }, cancellationToken);
 
                 var message = assignmentPlan.IsDepartmentAssignment
-                    ? $"Phong ban cua ban vua duoc giao cong viec moi: {task.Title}"
-                    : $"Ban vua duoc giao cong viec moi: {task.Title}";
+                    ? $"Phòng ban của bạn vừa được giao công việc mới: {task.Title}"
+                    : $"Bạn vừa được giao công việc mới: {task.Title}";
                 await _notificationService.AddNotification(assigneeId, message, cancellationToken);
             }
 
@@ -147,22 +147,22 @@ namespace WorkManagementSystem.Application.Services
         private async Task<TaskDto> UpdateCore(Guid id, UpdateTaskDto dto, Guid changedBy, CancellationToken cancellationToken)
         {
             var task = await _taskRepo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             _taskRules.EnsureCanEdit(task);
 
-            var changer = await GetManagerOrThrow(changedBy, "chinh sua cong viec", cancellationToken);
+            var changer = await GetManagerOrThrow(changedBy, "chỉnh sửa công việc", cancellationToken);
             await EnsureTaskAccess(
                 id,
                 changedBy,
                 true,
-                "Ban khong co quyen chinh sua cong viec nay.",
+                "Bạn không có quyền chỉnh sửa công việc này.",
                 cancellationToken);
 
             ValidateDateRange(dto.StartDate, dto.DueDate);
             ValidatePlannedEffort(dto.PlannedEffortHours);
             if (!task.UnitId.HasValue)
-                throw new BusinessException("Cong viec khong co phong ban hop le.");
+                throw new BusinessException("Công việc không có phòng ban hợp lệ.");
 
             var project = await _taskRules.ValidateProjectScope(
                 dto.ProjectId,
@@ -209,7 +209,7 @@ namespace WorkManagementSystem.Application.Services
 
             var assignedUserIds = await _workflowService.ResolveTaskRecipients(task.Id, cancellationToken);
             foreach (var uid in assignedUserIds.Where(uid => uid != changedBy))
-                await _notificationService.AddNotification(uid, $"Cong viec '{task.Title}' da duoc cap nhat.", cancellationToken);
+                await _notificationService.AddNotification(uid, $"Công việc '{task.Title}' đã được cập nhật.", cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
             return await _taskDtoBuilder.BuildTaskDto(task, cancellationToken);
@@ -227,10 +227,10 @@ namespace WorkManagementSystem.Application.Services
         private async Task DeleteCore(Guid id, Guid userId, CancellationToken cancellationToken)
         {
             var task = await _taskRepo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
-            await GetManagerOrThrow(userId, "xoa cong viec", cancellationToken);
-            await EnsureTaskAccess(id, userId, true, "Ban khong co quyen xoa cong viec nay.", cancellationToken);
+            await GetManagerOrThrow(userId, "xóa công việc", cancellationToken);
+            await EnsureTaskAccess(id, userId, true, "Bạn không có quyền xóa công việc này.", cancellationToken);
             await _taskRules.EnsureCanDelete(task, cancellationToken);
 
             task.IsDeleted = true;
@@ -253,23 +253,23 @@ namespace WorkManagementSystem.Application.Services
         private async Task RemindTaskCore(Guid taskId, Guid reminderId, CancellationToken cancellationToken)
         {
             var task = await _taskRepo.GetByIdAsync(taskId, cancellationToken)
-                ?? throw new NotFoundException("Task not found");
+                ?? throw new NotFoundException("Không tìm thấy công việc.");
 
             if (task.Status == TaskStatusEnum.Approved)
-                throw new BusinessException("Cong viec da hoan thanh, khong can don doc.");
+                throw new BusinessException("Công việc đã hoàn thành, không cần đôn đốc.");
 
-            await GetManagerOrThrow(reminderId, "don doc cong viec", cancellationToken);
-            await EnsureTaskAccess(taskId, reminderId, true, "Ban khong co quyen don doc cong viec nay.", cancellationToken);
+            await GetManagerOrThrow(reminderId, "đôn đốc công việc", cancellationToken);
+            await EnsureTaskAccess(taskId, reminderId, true, "Bạn không có quyền đôn đốc công việc này.", cancellationToken);
 
             var recipients = await _workflowService.ResolveTaskRecipients(taskId, cancellationToken);
             if (!recipients.Any())
-                throw new BusinessException("Khong co nhan vien nao duoc giao cong viec nay.");
+                throw new BusinessException("Không có nhân viên nào được giao công việc này.");
 
             var reminder = await _userRepo.GetByIdAsync(reminderId, cancellationToken);
             foreach (var uid in recipients)
                 await _notificationService.AddNotification(
                     uid,
-                    $"{reminder?.FullName ?? "Quan ly"} da nhac ban ve cong viec: {task.Title}",
+                    $"{reminder?.FullName ?? "Quản lý"} đã nhắc bạn về công việc: {task.Title}",
                     cancellationToken);
 
             await _historyRepo.AddAsync(new TaskHistory
@@ -279,7 +279,7 @@ namespace WorkManagementSystem.Application.Services
                 ChangedBy = reminderId,
                 FieldName = "Remind",
                 OldValue = string.Empty,
-                NewValue = "Da gui nhac nho tien do"
+                NewValue = "Đã gửi nhắc nhở tiến độ"
             }, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -287,10 +287,10 @@ namespace WorkManagementSystem.Application.Services
         private async Task<User> GetManagerOrThrow(Guid userId, string action, CancellationToken cancellationToken)
         {
             var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             if (user.Role != SystemRoles.Manager)
-                throw new ForbiddenException($"Chi Manager moi duoc {action}.");
+                throw new ForbiddenException($"Chỉ Trưởng phòng mới được {action}.");
 
             return user;
         }
@@ -338,13 +338,13 @@ namespace WorkManagementSystem.Application.Services
                 return parsed;
             }
 
-            throw new BusinessException("Muc uu tien khong hop le.");
+            throw new BusinessException("Mức ưu tiên không hợp lệ.");
         }
 
         private static void ValidateDateRange(DateTime? startDate, DateTime? dueDate)
         {
             if (startDate.HasValue && dueDate.HasValue && dueDate.Value < startDate.Value)
-                throw new BusinessException("Deadline khong duoc som hon ngay bat dau.");
+                throw new BusinessException("Hạn hoàn thành không được sớm hơn ngày bắt đầu.");
         }
 
         private static void ValidatePlannedEffort(decimal? plannedEffortHours)
@@ -352,7 +352,7 @@ namespace WorkManagementSystem.Application.Services
             if (plannedEffortHours.HasValue &&
                 plannedEffortHours.Value is <= 0m or > 100000m)
             {
-                throw new BusinessException("Khoi luong ke hoach phai lon hon 0 va khong vuot qua 100000 gio.");
+                throw new BusinessException("Khối lượng kế hoạch phải lớn hơn 0 và không vượt quá 100000 giờ.");
             }
         }
 

@@ -92,7 +92,7 @@ public sealed class WorkloadService : IWorkloadService
         CancellationToken cancellationToken = default)
     {
         if (dto.WeeklyCapacityHours is <= 0m or > 168m)
-            throw new BusinessException("Capacity tuan phai lon hon 0 va khong vuot qua 168 gio.");
+            throw new BusinessException("Sức chứa tuần phải lớn hơn 0 và không vượt quá 168 giờ.");
 
         return _transactionManager.ExecuteSerializableAsync(
             token => UpdateCapacityCoreAsync(requesterId, userId, dto, token),
@@ -132,7 +132,7 @@ public sealed class WorkloadService : IWorkloadService
     {
         ValidatePlannedEffort(plannedEffortHours);
         if (userIds.Count == 0)
-            throw new BusinessException("Khong co nhan vien de du bao khoi luong.");
+            throw new BusinessException("Không có nhân viên để dự báo khối lượng.");
 
         var manager = await LoadManagerAsync(managerId, cancellationToken);
         return await BuildAssignmentPreviewAsync(
@@ -162,7 +162,7 @@ public sealed class WorkloadService : IWorkloadService
 
         var openHistories = histories.Where(capacity => !capacity.EffectiveTo.HasValue).ToList();
         if (openHistories.Count > 1)
-            throw new BusinessException("Du lieu capacity khong hop le: co nhieu giai doan dang mo.");
+            throw new BusinessException("Dữ liệu sức chứa không hợp lệ: có nhiều giai đoạn đang mở.");
 
         var current = openHistories.SingleOrDefault();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -172,7 +172,7 @@ public sealed class WorkloadService : IWorkloadService
         if (current != null)
         {
             if (effectiveFrom < current.EffectiveFrom)
-                throw new BusinessException("Ngay ap dung moi khong duoc som hon capacity hien tai.");
+                throw new BusinessException("Ngày áp dụng mới không được sớm hơn sức chứa hiện tại.");
 
             oldWeeklyHours = current.WeeklyCapacityHours;
             if (effectiveFrom == current.EffectiveFrom)
@@ -193,7 +193,7 @@ public sealed class WorkloadService : IWorkloadService
         {
             var latest = histories.FirstOrDefault();
             if (latest?.EffectiveTo is DateTime latestEnd && effectiveFrom < latestEnd)
-                throw new BusinessException("Ngay ap dung capacity bi chong lap voi lich su hien co.");
+                throw new BusinessException("Ngày áp dụng sức chứa bị chồng lặp với lịch sử hiện có.");
 
             result = CreateCapacity(userId, requesterId, dto.WeeklyCapacityHours, effectiveFrom, now);
             await _context.UserCapacities.AddAsync(result, cancellationToken);
@@ -228,7 +228,7 @@ public sealed class WorkloadService : IWorkloadService
         var range = NormalizePreviewRange(startDate, dueDate);
         var distinctUserIds = userIds.Where(id => id != Guid.Empty).Distinct().ToList();
         if (distinctUserIds.Count == 0)
-            throw new BusinessException("Khong co nhan vien de du bao khoi luong.");
+            throw new BusinessException("Không có nhân viên để dự báo khối lượng.");
 
         var users = await LoadScopedUsersAsync(
             manager,
@@ -236,7 +236,7 @@ public sealed class WorkloadService : IWorkloadService
             distinctUserIds);
 
         if (users.Count != distinctUserIds.Count)
-            throw new ForbiddenException("Chi duoc du bao giao viec cho nhan vien trong phong ban cua ban.");
+            throw new ForbiddenException("Chỉ được dự báo giao việc cho nhân viên trong phòng ban của bạn.");
 
         var workloads = await BuildWorkloadsAsync(users, range, cancellationToken);
         var workloadMap = workloads.ToDictionary(item => item.UserId);
@@ -369,17 +369,17 @@ public sealed class WorkloadService : IWorkloadService
             .Where(user => user.Id == requesterId)
             .Select(user => new RequesterScope(user.Role, user.UnitId))
             .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("User not found.");
+            ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
         if (requester.Role == SystemRoles.Admin)
             return requester with { UnitId = requestedUnitId };
 
         if (requester.Role != SystemRoles.Manager)
-            throw new ForbiddenException("Chi Admin hoac Manager moi duoc xem workload.");
+            throw new ForbiddenException("Chỉ Admin hoặc Trưởng phòng mới được xem khối lượng công việc.");
         if (!requester.UnitId.HasValue)
-            throw new BusinessException("Manager chua thuoc phong ban nao.");
+            throw new BusinessException("Trưởng phòng chưa thuộc phòng ban nào.");
         if (requestedUnitId.HasValue && requestedUnitId != requester.UnitId)
-            throw new ForbiddenException("Manager chi duoc xem workload trong phong ban cua minh.");
+            throw new ForbiddenException("Trưởng phòng chỉ được xem khối lượng công việc trong phòng ban của mình.");
 
         return requester;
     }
@@ -390,7 +390,7 @@ public sealed class WorkloadService : IWorkloadService
     {
         var manager = await ResolveScopeAsync(managerId, null, cancellationToken);
         if (manager.Role != SystemRoles.Manager)
-            throw new ForbiddenException("Chi Manager moi duoc du bao giao viec.");
+            throw new ForbiddenException("Chỉ Trưởng phòng mới được dự báo giao việc.");
         return manager;
     }
 
@@ -442,12 +442,12 @@ public sealed class WorkloadService : IWorkloadService
                 UnitName = candidate.Unit != null ? candidate.Unit.Name : string.Empty
             })
             .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("User not found.");
+            ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
         if (scope.UnitId.HasValue && user.UnitId != scope.UnitId.Value)
-            throw new ForbiddenException("Manager chi duoc quan ly capacity trong phong ban cua minh.");
+            throw new ForbiddenException("Trưởng phòng chỉ được quản lý sức chứa trong phòng ban của mình.");
         if (user.Role != SystemRoles.User || !user.IsApproved || user.UnitId == Guid.Empty)
-            throw new BusinessException("Capacity chi ap dung cho nhan vien dang hoat dong trong phong ban.");
+            throw new BusinessException("Sức chứa chỉ áp dụng cho nhân viên đang hoạt động trong phòng ban.");
 
         return user;
     }
@@ -504,7 +504,7 @@ public sealed class WorkloadService : IWorkloadService
         var range = NormalizeRange(from, to);
         var days = (range.ToInclusive - range.From).Days + 1;
         if (days > _options.MaxRangeDays)
-            throw new BusinessException($"Khoang xem workload khong duoc vuot qua {_options.MaxRangeDays} ngay.");
+            throw new BusinessException($"Khoảng xem khối lượng công việc không được vượt quá {_options.MaxRangeDays} ngày.");
         return range;
     }
 
@@ -527,14 +527,14 @@ public sealed class WorkloadService : IWorkloadService
         {
             fromDate = AsUtcDate(from.Value);
             if (fromDate > DateTime.MaxValue.Date.AddDays(-6))
-                throw new BusinessException("Ngay bat dau workload khong hop le.");
+                throw new BusinessException("Ngày bắt đầu xem khối lượng công việc không hợp lệ.");
             toDate = fromDate.AddDays(6);
         }
         else if (!from.HasValue)
         {
             toDate = AsUtcDate(to!.Value);
             if (toDate < DateTime.MinValue.Date.AddDays(6))
-                throw new BusinessException("Ngay ket thuc workload khong hop le.");
+                throw new BusinessException("Ngày kết thúc xem khối lượng công việc không hợp lệ.");
             fromDate = toDate.AddDays(-6);
         }
         else
@@ -544,9 +544,9 @@ public sealed class WorkloadService : IWorkloadService
         }
 
         if (toDate < fromDate)
-            throw new BusinessException("Ngay ket thuc workload khong duoc som hon ngay bat dau.");
+            throw new BusinessException("Ngày kết thúc xem khối lượng công việc không được sớm hơn ngày bắt đầu.");
         if (toDate == DateTime.MaxValue.Date)
-            throw new BusinessException("Ngay ket thuc workload khong hop le.");
+            throw new BusinessException("Ngày kết thúc xem khối lượng công việc không hợp lệ.");
 
         return new DateRange(fromDate, toDate, toDate.AddDays(1));
     }
@@ -589,7 +589,7 @@ public sealed class WorkloadService : IWorkloadService
         if (plannedEffortHours is <= 0m or > 100000m)
         {
             throw new BusinessException(
-                "Khoi luong ke hoach phai lon hon 0 va khong vuot qua 100000 gio.");
+                "Khối lượng kế hoạch phải lớn hơn 0 và không vượt quá 100000 giờ.");
         }
     }
 

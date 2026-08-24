@@ -127,7 +127,7 @@ app.UseStatusCodePages(async statusContext =>
             httpContext,
             StatusCodes.Status404NotFound,
             "not_found",
-            "Khong tim thay tai nguyen yeu cau.",
+            "Không tìm thấy tài nguyên yêu cầu.",
             cancellationToken: httpContext.RequestAborted);
     }
 });

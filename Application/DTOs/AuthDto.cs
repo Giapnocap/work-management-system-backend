@@ -7,47 +7,47 @@ namespace WorkManagementSystem.Application.DTOs
     {
         [Required(ErrorMessage = "Tên đăng nhập không được để trống!")]
         [MinLength(3, ErrorMessage = "Tên đăng nhập phải có ít nhất 3 ký tự!")]
-        [MaxLength(100, ErrorMessage = "Ten dang nhap toi da 100 ky tu.")]
+        [MaxLength(100, ErrorMessage = "Tên đăng nhập tối đa 100 ký tự.")]
         public string Username { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Họ tên không được để trống!")]
-        [MaxLength(150, ErrorMessage = "Ho ten toi da 150 ky tu.")]
+        [MaxLength(150, ErrorMessage = "Họ tên tối đa 150 ký tự.")]
         public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Mật khẩu không được để trống!")]
-        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mat khau phai co it nhat 8 ky tu.")]
-        [MaxLength(72, ErrorMessage = "Mat khau toi da 72 ky tu.")]
+        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mật khẩu phải có ít nhất 8 ký tự.")]
+        [MaxLength(72, ErrorMessage = "Mật khẩu tối đa 72 ký tự.")]
         [PasswordPolicy]
         public string Password { get; set; } = string.Empty;
 
         public string Role { get; set; } = SystemRoles.User;
         public Guid? UnitId { get; set; }
-        [MaxLength(30, ErrorMessage = "So dien thoai toi da 30 ky tu.")]
+        [MaxLength(30, ErrorMessage = "Số điện thoại tối đa 30 ký tự.")]
         public string? PhoneNumber { get; set; }
     }
 
     public class LoginDto
     {
         [Required(ErrorMessage = "Tên đăng nhập không được để trống!")]
-        [MaxLength(100, ErrorMessage = "Ten dang nhap toi da 100 ky tu.")]
+        [MaxLength(100, ErrorMessage = "Tên đăng nhập tối đa 100 ký tự.")]
         [System.Text.Json.Serialization.JsonPropertyName("username")]
         public string Username { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Mật khẩu không được để trống!")]
-        [MaxLength(72, ErrorMessage = "Mat khau toi da 72 ky tu.")]
+        [MaxLength(72, ErrorMessage = "Mật khẩu tối đa 72 ký tự.")]
         [System.Text.Json.Serialization.JsonPropertyName("password")]
         public string Password { get; set; } = string.Empty;
     }
 
     public class ResetPasswordDto
     {
-        [Required]
-        [MaxLength(100, ErrorMessage = "Ten dang nhap toi da 100 ky tu.")]
+        [Required(ErrorMessage = "Tên đăng nhập không được để trống.")]
+        [MaxLength(100, ErrorMessage = "Tên đăng nhập tối đa 100 ký tự.")]
         public string Username { get; set; } = string.Empty;
 
-        [Required]
-        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mat khau moi phai co it nhat 8 ky tu.")]
-        [MaxLength(72, ErrorMessage = "Mat khau moi toi da 72 ky tu.")]
+        [Required(ErrorMessage = "Mật khẩu mới không được để trống.")]
+        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mật khẩu mới phải có ít nhất 8 ký tự.")]
+        [MaxLength(72, ErrorMessage = "Mật khẩu mới tối đa 72 ký tự.")]
         [PasswordPolicy]
         public string NewPassword { get; set; } = string.Empty;
     }

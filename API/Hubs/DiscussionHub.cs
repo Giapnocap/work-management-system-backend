@@ -23,7 +23,7 @@ namespace WorkManagementSystem.API.Hubs
                     taskId,
                     userId,
                     cancellationToken: Context.ConnectionAborted))
-                throw new HubException("You do not have access to this task.");
+                throw new HubException("Bạn không có quyền truy cập công việc này.");
 
             await Groups.AddToGroupAsync(
                 Context.ConnectionId,
@@ -45,7 +45,7 @@ namespace WorkManagementSystem.API.Hubs
                 ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             if (!Guid.TryParse(rawId, out var userId))
-                throw new HubException("Unauthenticated.");
+                throw new HubException("Bạn chưa đăng nhập.");
 
             return userId;
         }

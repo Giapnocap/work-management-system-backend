@@ -44,10 +44,10 @@ public class DemoDataSeederTests
         Assert.Equal(4, await context.Users.IgnoreQueryFilters()
             .CountAsync(u => u.Username.StartsWith("demo.") && u.TokenVersion == 0));
         Assert.Single(await context.Units.IgnoreQueryFilters()
-            .Where(u => u.Name == "Demo Engineering")
+            .Where(u => u.Name == "Phòng Kỹ thuật Demo")
             .ToListAsync());
         Assert.Single(await context.Projects.IgnoreQueryFilters()
-            .Where(p => p.Name == "Demo Workflow Project")
+            .Where(p => p.Name == "Dự án Quy trình Demo")
             .ToListAsync());
         Assert.Single(await context.KpiPeriods.ToListAsync());
         Assert.Equal(4, await context.Tasks.IgnoreQueryFilters()

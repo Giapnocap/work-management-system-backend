@@ -45,7 +45,7 @@ namespace WorkManagementSystem.Infrastructure.Data
 
                 var value = await command.ExecuteScalarAsync(cancellationToken);
                 return value == null || value == DBNull.Value
-                    ? throw new InvalidOperationException("Khong the sinh ma nhan vien.")
+                    ? throw new InvalidOperationException("Không thể sinh mã nhân viên.")
                     : Convert.ToInt64(value);
             }
             finally

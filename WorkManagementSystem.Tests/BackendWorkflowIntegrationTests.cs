@@ -126,7 +126,7 @@ public class BackendWorkflowIntegrationTests
         var notifications = await app.GetJsonAsync<List<NotificationDto>>("/api/notifications");
         Assert.Contains(
             notifications,
-            notification => notification.Message.Contains("phe duyet", StringComparison.OrdinalIgnoreCase));
+            notification => notification.Message.Contains("phê duyệt", StringComparison.OrdinalIgnoreCase));
 
         var performance = await app.GetJsonAsync<PerformanceDto>($"/api/users/performance/{app.EmployeeId}");
         Assert.Equal(app.EmployeeId, performance.UserId);

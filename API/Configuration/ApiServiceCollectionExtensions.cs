@@ -106,7 +106,7 @@ public static class ApiServiceCollectionExtensions
                                 context.HttpContext,
                                 StatusCodes.Status401Unauthorized,
                                 "unauthorized",
-                                "Yeu cau can dang nhap hoac token khong hop le.",
+                                "Yêu cầu cần đăng nhập hoặc token không hợp lệ.",
                                 cancellationToken: context.HttpContext.RequestAborted);
                         }
                     },
@@ -118,7 +118,7 @@ public static class ApiServiceCollectionExtensions
                                 context.HttpContext,
                                 StatusCodes.Status403Forbidden,
                                 "forbidden",
-                                "Ban khong co quyen thuc hien thao tac nay.",
+                                "Bạn không có quyền thực hiện thao tác này.",
                                 cancellationToken: context.HttpContext.RequestAborted);
                         }
                     }
@@ -150,7 +150,7 @@ public static class ApiServiceCollectionExtensions
                     context.HttpContext,
                     StatusCodes.Status429TooManyRequests,
                     "rate_limit_exceeded",
-                    "Qua nhieu yeu cau. Vui long thu lai sau.",
+                    "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
                     cancellationToken: cancellationToken);
             };
         });
@@ -205,7 +205,7 @@ public static class ApiServiceCollectionExtensions
             {
                 Title = "WorkManagement API",
                 Version = "v1",
-                Description = "Department-based work management API with JWT authentication, task progress review, uploads, and KPI periods."
+                Description = "API quản lý công việc theo phòng ban, sử dụng xác thực JWT, duyệt báo cáo tiến độ, tải tệp và quản lý kỳ KPI."
             });
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
@@ -214,7 +214,7 @@ public static class ApiServiceCollectionExtensions
                 Scheme = "Bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Nhap token dang: Bearer {token}"
+                Description = "Nhập token theo định dạng: Bearer {token}"
             });
             options.OperationFilter<AuthorizeOperationFilter>();
             options.OperationFilter<DefaultResponseOperationFilter>();

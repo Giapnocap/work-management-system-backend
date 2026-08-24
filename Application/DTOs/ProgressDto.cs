@@ -5,14 +5,14 @@ namespace WorkManagementSystem.Application.DTOs
 {
     public class CreateProgressDto
     {
-        [Required]
-        [NotEmptyGuid(ErrorMessage = "TaskId khong duoc rong.")]
+        [Required(ErrorMessage = "TaskId không được để trống.")]
+        [NotEmptyGuid(ErrorMessage = "TaskId không được rỗng.")]
         public Guid TaskId { get; set; }
 
-        [Range(0, 100, ErrorMessage = "Phan tram hoan thanh phai tu 0 den 100!")]
+        [Range(0, 100, ErrorMessage = "Phần trăm hoàn thành phải từ 0 đến 100!")]
         public int Percent { get; set; }
 
-        [MaxLength(500, ErrorMessage = "Mo ta toi da 500 ky tu!")]
+        [MaxLength(500, ErrorMessage = "Mô tả tối đa 500 ký tự!")]
         public string Description { get; set; } = string.Empty;
 
         public Guid? FileId { get; set; }

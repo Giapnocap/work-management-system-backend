@@ -53,13 +53,13 @@ namespace WorkManagementSystem.Application.Services
                 .Where(user => user.Id == requesterId)
                 .Select(user => new { user.Role, user.UnitId })
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw new ForbiddenException("Ban khong co quyen xem dashboard KPI.");
+                ?? throw new ForbiddenException("Bạn không có quyền xem dashboard KPI.");
 
             if (requester.Role != SystemRoles.Admin && requester.Role != SystemRoles.Manager)
-                throw new ForbiddenException("Ban khong co quyen xem dashboard KPI.");
+                throw new ForbiddenException("Bạn không có quyền xem dashboard KPI.");
 
             if (requester.Role == SystemRoles.Manager && !requester.UnitId.HasValue)
-                throw new ForbiddenException("Quan ly chua duoc gan phong ban.");
+                throw new ForbiddenException("Quản lý chưa được gắn phòng ban.");
 
             var period = await _periodResolver.ResolveAsync(periodId, cancellationToken);
             var performances = await _performanceService.GetUnitPerformanceAsync(
@@ -123,7 +123,7 @@ namespace WorkManagementSystem.Application.Services
                 Units = units,
                 Users = orderedPerformances,
                 Formula = BuildFormula(ResolveFormulaVersion(orderedPerformances)),
-                UsageNotice = "KPI chi la du lieu tham khao quan tri, khong duoc dung de tu dong ra quyet dinh nhan su."
+                UsageNotice = "KPI chỉ là dữ liệu tham khảo quản trị, không được dùng để tự động ra quyết định nhân sự."
             };
         }
 
@@ -144,13 +144,13 @@ namespace WorkManagementSystem.Application.Services
             var endDate = NormalizeEndOfDay(dto.EndDate);
 
             if (endDate <= startDate)
-                throw new BusinessException("Ngay ket thuc phai lon hon ngay bat dau.");
+                throw new BusinessException("Ngày kết thúc phải lớn hơn ngày bắt đầu.");
 
             var overlaps = await _context.KpiPeriods.AnyAsync(
                 p => p.StartDate <= endDate && p.EndDate >= startDate,
                 cancellationToken);
             if (overlaps)
-                throw new BusinessException("Ky KPI bi trung khoang thoi gian voi ky da ton tai.");
+                throw new BusinessException("Kỳ KPI bị trùng khoảng thời gian với kỳ đã tồn tại.");
 
             var period = new KpiPeriod
             {
@@ -188,7 +188,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var period = await _context.KpiPeriods.FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
-                ?? throw new NotFoundException("KPI period not found");
+                ?? throw new NotFoundException("Không tìm thấy kỳ KPI.");
 
             if (period.Status == "Locked")
             {

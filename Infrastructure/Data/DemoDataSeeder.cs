@@ -13,6 +13,13 @@ namespace WorkManagementSystem.Infrastructure.Data
     public static class DemoDataSeeder
     {
         private const string DemoPassword = "Demo@123456";
+        private const string DemoUnitName = "Phòng Kỹ thuật Demo";
+        private const string LegacyDemoUnitName = "Demo Engineering";
+        private const string DemoProjectName = "Dự án Quy trình Demo";
+        private const string LegacyDemoProjectName = "Demo Workflow Project";
+        private const string DemoProjectDescription = "Dự án mẫu phục vụ kiểm thử luồng nghiệp vụ lặp lại.";
+        private const string DemoTaskDescription = "Công việc mẫu phục vụ demo backend.";
+        private const string DemoProgressDescription = "Báo cáo tiến độ mẫu phục vụ demo backend.";
         private static readonly DateTime SeedTime = new(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
 
         public static async Task SeedAsync(
@@ -31,10 +38,10 @@ namespace WorkManagementSystem.Infrastructure.Data
                 await context.Database.MigrateAsync(cancellationToken);
 
             var unit = await GetOrCreateUnitAsync(context, cancellationToken);
-            var admin = await GetOrCreateUserAsync(context, passwordHashService, "demo.admin", "Demo Admin", "DEMO0001", SystemRoles.Admin, null, cancellationToken);
-            var manager = await GetOrCreateUserAsync(context, passwordHashService, "demo.manager", "Demo Manager", "DEMO0002", SystemRoles.Manager, unit.Id, cancellationToken);
-            var employeeA = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee1", "Demo Employee 1", "DEMO0003", SystemRoles.User, unit.Id, cancellationToken);
-            var employeeB = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee2", "Demo Employee 2", "DEMO0004", SystemRoles.User, unit.Id, cancellationToken);
+            var admin = await GetOrCreateUserAsync(context, passwordHashService, "demo.admin", "Admin Demo", "DEMO0001", SystemRoles.Admin, null, cancellationToken);
+            var manager = await GetOrCreateUserAsync(context, passwordHashService, "demo.manager", "Trưởng phòng Demo", "DEMO0002", SystemRoles.Manager, unit.Id, cancellationToken);
+            var employeeA = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee1", "Nhân viên Demo 1", "DEMO0003", SystemRoles.User, unit.Id, cancellationToken);
+            var employeeB = await GetOrCreateUserAsync(context, passwordHashService, "demo.employee2", "Nhân viên Demo 2", "DEMO0004", SystemRoles.User, unit.Id, cancellationToken);
 
             await EnsureMembershipAsync(context, manager.Id, unit.Id, cancellationToken);
             await EnsureMembershipAsync(context, employeeA.Id, unit.Id, cancellationToken);
@@ -54,6 +61,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 unit.Id,
                 manager.Id,
                 employeeA.Id,
+                "Demo - Chuẩn bị API tổng quan",
                 "Demo - Prepare dashboard API",
                 TaskStatusEnum.Approved,
                 TaskPriorityEnum.High,
@@ -68,6 +76,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 unit.Id,
                 manager.Id,
                 employeeA.Id,
+                "Demo - Triển khai luồng công việc",
                 "Demo - Implement task workflow",
                 TaskStatusEnum.InProgress,
                 TaskPriorityEnum.Medium,
@@ -82,6 +91,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 unit.Id,
                 manager.Id,
                 employeeB.Id,
+                "Demo - Nộp minh chứng tiến độ",
                 "Demo - Submit progress evidence",
                 TaskStatusEnum.Submitted,
                 TaskPriorityEnum.Medium,
@@ -96,6 +106,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 unit.Id,
                 manager.Id,
                 employeeB.Id,
+                "Demo - Rà soát quy tắc KPI",
                 "Demo - Review KPI rules",
                 TaskStatusEnum.NotStarted,
                 TaskPriorityEnum.Low,
@@ -113,10 +124,13 @@ namespace WorkManagementSystem.Infrastructure.Data
             CancellationToken cancellationToken)
         {
             var unit = await context.Units.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Name == "Demo Engineering", cancellationToken);
+                .FirstOrDefaultAsync(
+                    u => u.Name == DemoUnitName || u.Name == LegacyDemoUnitName,
+                    cancellationToken);
 
             if (unit != null)
             {
+                unit.Name = DemoUnitName;
                 unit.IsDeleted = false;
                 return unit;
             }
@@ -124,7 +138,7 @@ namespace WorkManagementSystem.Infrastructure.Data
             unit = new Unit
             {
                 Id = Guid.NewGuid(),
-                Name = "Demo Engineering"
+                Name = DemoUnitName
             };
             context.Units.Add(unit);
             return unit;
@@ -227,7 +241,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 UnitId = unitId,
                 Role = user.Role,
                 EffectiveFrom = user.JoinedUnitAt == default ? SeedTime : user.JoinedUnitAt,
-                ChangeReason = "Demo seed"
+                ChangeReason = "Dữ liệu demo"
             });
         }
 
@@ -239,11 +253,14 @@ namespace WorkManagementSystem.Infrastructure.Data
         {
             var project = await context.Projects.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(
-                    p => p.UnitId == unitId && p.Name == "Demo Workflow Project",
+                    p => p.UnitId == unitId &&
+                         (p.Name == DemoProjectName || p.Name == LegacyDemoProjectName),
                     cancellationToken);
 
             if (project != null)
             {
+                project.Name = DemoProjectName;
+                project.Description = DemoProjectDescription;
                 project.IsArchived = false;
                 return project;
             }
@@ -251,8 +268,8 @@ namespace WorkManagementSystem.Infrastructure.Data
             project = new Project
             {
                 Id = Guid.NewGuid(),
-                Name = "Demo Workflow Project",
-                Description = "Seeded project for repeatable workflow testing.",
+                Name = DemoProjectName,
+                Description = DemoProjectDescription,
                 UnitId = unitId,
                 CreatedBy = managerId,
                 CreatedAt = SeedTime
@@ -298,6 +315,7 @@ namespace WorkManagementSystem.Infrastructure.Data
             Guid managerId,
             Guid assigneeId,
             string title,
+            string legacyTitle,
             TaskStatusEnum status,
             TaskPriorityEnum priority,
             DateTime createdAt,
@@ -307,7 +325,8 @@ namespace WorkManagementSystem.Infrastructure.Data
         {
             var task = await context.Tasks.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(
-                    t => t.ProjectId == projectId && t.Title == title,
+                    t => t.ProjectId == projectId &&
+                         (t.Title == title || t.Title == legacyTitle),
                     cancellationToken);
 
             if (task == null)
@@ -316,7 +335,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 {
                     Id = Guid.NewGuid(),
                     Title = title,
-                    Description = "Seeded task for backend demo.",
+                    Description = DemoTaskDescription,
                     CreatedBy = managerId,
                     CreatedAt = createdAt,
                     StartDate = createdAt,
@@ -327,6 +346,8 @@ namespace WorkManagementSystem.Infrastructure.Data
                 context.Tasks.Add(task);
             }
 
+            task.Title = title;
+            task.Description = DemoTaskDescription;
             task.Status = status;
             task.Priority = priority;
             task.DueDate = dueDate;
@@ -368,7 +389,7 @@ namespace WorkManagementSystem.Infrastructure.Data
                 }
 
                 progress.Percent = status == TaskStatusEnum.Approved ? 100 : 70;
-                progress.Description = "Seeded progress for backend demo.";
+                progress.Description = DemoProgressDescription;
                 progress.Status = progressStatus.Value;
                 progress.HoursSpent = 2;
                 progress.UpdatedAt = task.CompletedAt ?? dueDate.AddDays(-2);

@@ -20,7 +20,7 @@ namespace WorkManagementSystem.Application.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
             if (user == null)
-                throw new NotFoundException("Khong tim thay ho so.");
+                throw new NotFoundException("Không tìm thấy hồ sơ.");
 
             return new ProfileDto
             {
@@ -37,10 +37,10 @@ namespace WorkManagementSystem.Application.Services
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
             if (user == null)
-                throw new NotFoundException("Khong tim thay nguoi dung.");
+                throw new NotFoundException("Không tìm thấy người dùng.");
 
             if (string.IsNullOrWhiteSpace(dto.FullName))
-                throw new BusinessException("Ho ten khong duoc de trong.");
+                throw new BusinessException("Họ tên không được để trống.");
 
             user.FullName = dto.FullName.Trim();
             user.Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();

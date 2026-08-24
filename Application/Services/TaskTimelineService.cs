@@ -61,13 +61,13 @@ public sealed class TaskTimelineService : ITaskTimelineService
         ArgumentNullException.ThrowIfNull(query);
 
         if (!await _taskAccessService.CanAccessTask(taskId, requesterId, cancellationToken: cancellationToken))
-            throw new ForbiddenException("Ban khong co quyen xem dong hoat dong cua cong viec nay.");
+            throw new ForbiddenException("Bạn không có quyền xem dòng hoạt động của công việc này.");
 
         var normalizedType = NormalizeType(query.Type);
         var fromUtc = query.FromUtc?.UtcDateTime;
         var toUtc = query.ToUtc?.UtcDateTime;
         if (fromUtc.HasValue && toUtc.HasValue && fromUtc.Value > toUtc.Value)
-            throw new BusinessException("Khoang thoi gian timeline khong hop le.");
+            throw new BusinessException("Khoảng thời gian của dòng hoạt động không hợp lệ.");
 
         var cursor = DecodeCursor(query.Cursor);
         var size = Math.Clamp(query.Size, 1, Paging.MaxPageSize);
@@ -386,7 +386,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         {
             return new TimelineActorDto
             {
-                DisplayName = "System"
+                DisplayName = "Hệ thống"
             };
         }
 
@@ -395,7 +395,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
             return new TimelineActorDto
             {
                 Id = actorId,
-                DisplayName = "Deleted user",
+                DisplayName = "Người dùng đã xóa",
                 IsDeleted = true
             };
         }
@@ -403,7 +403,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         return new TimelineActorDto
         {
             Id = user.Id,
-            DisplayName = string.IsNullOrWhiteSpace(user.FullName) ? "Unknown user" : user.FullName,
+            DisplayName = string.IsNullOrWhiteSpace(user.FullName) ? "Người dùng không xác định" : user.FullName,
             EmployeeCode = user.EmployeeCode,
             IsDeleted = user.IsDeleted
         };
@@ -418,7 +418,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         {
             var name = users.TryGetValue(candidate.SubjectUserId.Value, out var user)
                 ? user.FullName
-                : "Deleted user";
+                : "Người dùng đã xóa";
             return new AssignmentTarget("User", candidate.SubjectUserId, name);
         }
 
@@ -426,7 +426,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         {
             var name = units.TryGetValue(candidate.SubjectUnitId.Value, out var unitName)
                 ? unitName
-                : "Deleted unit";
+                : "Phòng ban đã xóa";
             return new AssignmentTarget("Unit", candidate.SubjectUnitId, name);
         }
 
@@ -436,26 +436,26 @@ public sealed class TaskTimelineService : ITaskTimelineService
     private static string GetTitle(TimelineCandidate candidate)
         => candidate.Type switch
         {
-            TimelineEventTypes.TaskCreated => "Task created",
-            TimelineEventTypes.TaskUpdated => "Task updated",
-            TimelineEventTypes.TaskStatusChanged => "Task status changed",
-            TimelineEventTypes.AssignmentAdded => "Assignment added",
-            TimelineEventTypes.ProgressReported => "Progress reported",
-            TimelineEventTypes.ProgressStatusChanged => "Progress status changed",
+            TimelineEventTypes.TaskCreated => "Đã tạo công việc",
+            TimelineEventTypes.TaskUpdated => "Đã cập nhật công việc",
+            TimelineEventTypes.TaskStatusChanged => "Đã thay đổi trạng thái công việc",
+            TimelineEventTypes.AssignmentAdded => "Đã thêm phân công",
+            TimelineEventTypes.ProgressReported => "Đã báo cáo tiến độ",
+            TimelineEventTypes.ProgressStatusChanged => "Đã thay đổi trạng thái báo cáo",
             TimelineEventTypes.ReviewCompleted => candidate.IsApproved == true
-                ? "Progress approved"
-                : "Progress rejected",
-            TimelineEventTypes.CommentAdded => candidate.IsDeleted ? "Comment deleted" : "Comment added",
-            TimelineEventTypes.FileUploaded => "File uploaded",
-            TimelineEventTypes.ReminderSent => "Reminder sent",
-            TimelineEventTypes.EscalationSent => "Manager escalation sent",
-            _ => "Task activity"
+                ? "Đã phê duyệt báo cáo"
+                : "Đã từ chối báo cáo",
+            TimelineEventTypes.CommentAdded => candidate.IsDeleted ? "Đã xóa bình luận" : "Đã thêm bình luận",
+            TimelineEventTypes.FileUploaded => "Đã tải tệp lên",
+            TimelineEventTypes.ReminderSent => "Đã gửi nhắc hạn",
+            TimelineEventTypes.EscalationSent => "Đã gửi cảnh báo cho Trưởng phòng",
+            _ => "Hoạt động công việc"
         };
 
     private static string? GetDescription(TimelineCandidate candidate, string? assignmentTargetName)
     {
         if (candidate.Type == TimelineEventTypes.AssignmentAdded)
-            return assignmentTargetName == null ? null : $"Assigned to {assignmentTargetName}.";
+            return assignmentTargetName == null ? null : $"Đã giao cho {assignmentTargetName}.";
         if (candidate.Type == TimelineEventTypes.CommentAdded && candidate.IsDeleted)
             return null;
         if (candidate.Type == TimelineEventTypes.FileUploaded)
@@ -514,7 +514,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         var normalized = type.Trim();
         var knownType = TimelineEventTypes.All.FirstOrDefault(item =>
             string.Equals(item, normalized, StringComparison.OrdinalIgnoreCase));
-        return knownType ?? throw new BusinessException("Loai su kien timeline khong hop le.");
+        return knownType ?? throw new BusinessException("Loại sự kiện dòng hoạt động không hợp lệ.");
     }
 
     private static string? Limit(string? value)
@@ -561,7 +561,7 @@ public sealed class TaskTimelineService : ITaskTimelineService
         catch (Exception exception) when (
             exception is FormatException or ArgumentOutOfRangeException)
         {
-            throw new BusinessException("Cursor timeline khong hop le.");
+            throw new BusinessException("Con trỏ dòng hoạt động không hợp lệ.");
         }
     }
 

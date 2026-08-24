@@ -44,7 +44,7 @@ namespace WorkManagementSystem.Application.Services
                 var unitExists = await _unitRepo.QueryReadOnly()
                     .AnyAsync(unit => unit.Id == newUnitId.Value && !unit.IsDeleted, cancellationToken);
                 if (!unitExists)
-                    throw new BusinessException("Phong ban khong ton tai hoac da bi luu tru.");
+                    throw new BusinessException("Phòng ban không tồn tại hoặc đã bị lưu trữ.");
             }
 
             if (newRole == SystemRoles.Manager)
@@ -60,7 +60,7 @@ namespace WorkManagementSystem.Application.Services
                         cancellationToken);
 
                 if (hasAnotherManager)
-                    throw new BusinessException("Phong ban da co Truong phong. Can xu ly Truong phong hien tai truoc.");
+                    throw new BusinessException("Phòng ban đã có Trưởng phòng. Cần xử lý Trưởng phòng hiện tại trước.");
             }
 
             await _taskAssignmentService.EnsureCanChangeAssignmentAsync(
@@ -147,13 +147,13 @@ namespace WorkManagementSystem.Application.Services
         private static void ValidateRoleChange(User user, string newRole, Guid? newUnitId)
         {
             if (user.Role == SystemRoles.Admin || newRole == SystemRoles.Admin)
-                throw new BusinessException("Tai khoan Admin khong duoc thay doi qua luong dieu chuyen nhan su.");
+                throw new BusinessException("Tài khoản Admin không được thay đổi qua luồng điều chuyển nhân sự.");
 
             if (newRole != SystemRoles.User && newRole != SystemRoles.Manager)
-                throw new BusinessException("Chuc vu chi co the la User hoac Manager.");
+                throw new BusinessException("Chức vụ chỉ có thể là User hoặc Manager.");
 
             if (newRole == SystemRoles.Manager && !newUnitId.HasValue)
-                throw new BusinessException("Truong phong phai thuoc mot phong ban.");
+                throw new BusinessException("Trưởng phòng phải thuộc một phòng ban.");
         }
     }
 }

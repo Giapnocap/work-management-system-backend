@@ -22,7 +22,7 @@ namespace WorkManagementSystem.API.Swagger
 
             if (RequestBodyMethods.Contains(context.ApiDescription.HttpMethod ?? string.Empty))
             {
-                AddErrorResponse(operation, "400", "Bad Request - validation_error or business_error.", errorSchema);
+                AddErrorResponse(operation, "400", "Yêu cầu không hợp lệ - validation_error hoặc business_error.", errorSchema);
             }
 
             var metadata = context.ApiDescription.ActionDescriptor.EndpointMetadata;
@@ -30,16 +30,16 @@ namespace WorkManagementSystem.API.Swagger
             var requiresAuthorization = metadata.OfType<IAuthorizeData>().Any() && !isAnonymous;
             if (requiresAuthorization)
             {
-                AddErrorResponse(operation, "401", "Unauthorized - missing, invalid, or expired credentials.", errorSchema);
-                AddErrorResponse(operation, "403", "Forbidden - authenticated user lacks permission.", errorSchema);
+                AddErrorResponse(operation, "401", "Chưa xác thực - thông tin xác thực bị thiếu, không hợp lệ hoặc đã hết hạn.", errorSchema);
+                AddErrorResponse(operation, "403", "Bị từ chối - người dùng đã xác thực nhưng không đủ quyền.", errorSchema);
             }
 
-            AddErrorResponse(operation, "404", "Not Found - requested resource does not exist.", errorSchema);
+            AddErrorResponse(operation, "404", "Không tìm thấy tài nguyên được yêu cầu.", errorSchema);
 
             if (!HttpMethods.IsGet(context.ApiDescription.HttpMethod ?? string.Empty))
-                AddErrorResponse(operation, "409", "Conflict - duplicate or concurrently modified data.", errorSchema);
+                AddErrorResponse(operation, "409", "Xung đột do dữ liệu trùng lặp hoặc bị sửa đổi đồng thời.", errorSchema);
 
-            AddErrorResponse(operation, "500", "Internal Server Error - unexpected server-side failure.", errorSchema);
+            AddErrorResponse(operation, "500", "Lỗi máy chủ nội bộ không mong đợi.", errorSchema);
         }
 
         private static void AddErrorResponse(

@@ -23,10 +23,10 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (!manager.UnitId.HasValue)
-                throw new ForbiddenException("Manager chua thuoc phong ban nao.");
+                throw new ForbiddenException("Trưởng phòng chưa thuộc phòng ban nào.");
 
             if (manager.UnitId.Value != taskUnitId)
-                throw new ForbiddenException("Manager chi duoc quan ly cong viec trong phong ban hien tai.");
+                throw new ForbiddenException("Trưởng phòng chỉ được quản lý công việc trong phòng ban hiện tại.");
 
             if (!projectId.HasValue)
                 return null;
@@ -35,13 +35,13 @@ namespace WorkManagementSystem.Application.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == projectId.Value, cancellationToken)
-                ?? throw new NotFoundException("Project not found.");
+                ?? throw new NotFoundException("Không tìm thấy dự án.");
 
             if (project.IsArchived)
-                throw new BusinessException("Project da duoc luu tru, khong the gan hoac mo lai cong viec.");
+                throw new BusinessException("Dự án đã được lưu trữ, không thể gắn hoặc mở lại công việc.");
 
             if (project.UnitId != taskUnitId)
-                throw new ForbiddenException("Task va project phai thuoc cung mot phong ban.");
+                throw new ForbiddenException("Công việc và dự án phải thuộc cùng một phòng ban.");
 
             return project;
         }
@@ -67,14 +67,14 @@ namespace WorkManagementSystem.Application.Services
                 : new List<Guid> { managerUnitId };
 
             if (selectedUnitIds.Any(id => id != managerUnitId))
-                throw new ForbiddenException("Manager chi duoc giao viec trong phong ban cua minh.");
+                throw new ForbiddenException("Trưởng phòng chỉ được giao việc trong phòng ban của mình.");
 
             var userIds = selectedUserIds.Any()
                 ? await ResolveDirectAssigneeUserIds(selectedUserIds, managerUnitId, cancellationToken)
                 : await ResolveUnitSnapshotUserIds(selectedUnitIds, cancellationToken);
 
             if (!userIds.Any())
-                throw new BusinessException("Khong co nhan vien phu hop de giao cong viec.");
+                throw new BusinessException("Không có nhân viên phù hợp để giao công việc.");
 
             return new TaskAssignmentPlan(userIds, !selectedUserIds.Any());
         }
@@ -82,7 +82,7 @@ namespace WorkManagementSystem.Application.Services
         public void EnsureCanEdit(TaskItem task)
         {
             if (task.Status == WorkManagementSystem.Domain.Enums.TaskStatus.Approved)
-                throw new BusinessException("Cong viec da hoan thanh, khong the chinh sua.");
+                throw new BusinessException("Công việc đã hoàn thành, không thể chỉnh sửa.");
         }
 
         public async Task EnsureCanDelete(
@@ -95,32 +95,32 @@ namespace WorkManagementSystem.Application.Services
                 task.ActualHours > 0)
             {
                 throw new BusinessException(
-                    "Chi co the xoa cong viec chua bat dau va chua co du lieu thuc thi.");
+                    "Chỉ có thể xóa công việc chưa bắt đầu và chưa có dữ liệu thực thi.");
             }
 
             var hasProgress = await _context.Progresses
                 .IgnoreQueryFilters()
                 .AnyAsync(progress => progress.TaskId == task.Id, cancellationToken);
             if (hasProgress)
-                throw new BusinessException("Khong the xoa cong viec da co bao cao tien do.");
+                throw new BusinessException("Không thể xóa công việc đã có báo cáo tiến độ.");
 
             var hasUpload = await _context.UploadFiles
                 .IgnoreQueryFilters()
                 .AnyAsync(file => file.TaskId == task.Id, cancellationToken);
             if (hasUpload)
-                throw new BusinessException("Khong the xoa cong viec da co tep dinh kem.");
+                throw new BusinessException("Không thể xóa công việc đã có tệp đính kèm.");
 
             var hasComment = await _context.TaskComments
                 .IgnoreQueryFilters()
                 .AnyAsync(comment => comment.TaskId == task.Id, cancellationToken);
             if (hasComment)
-                throw new BusinessException("Khong the xoa cong viec da co trao doi.");
+                throw new BusinessException("Không thể xóa công việc đã có trao đổi.");
 
             var hasSubTask = await _context.SubTasks
                 .IgnoreQueryFilters()
                 .AnyAsync(subTask => subTask.TaskId == task.Id, cancellationToken);
             if (hasSubTask)
-                throw new BusinessException("Khong the xoa cong viec da co cong viec con.");
+                throw new BusinessException("Không thể xóa công việc đã có công việc con.");
 
             var hasDependency = await _context.TaskDependencies.AnyAsync(
                 dependency => dependency.TaskId == task.Id ||
@@ -129,7 +129,7 @@ namespace WorkManagementSystem.Application.Services
             if (hasDependency)
             {
                 throw new BusinessException(
-                    "Khong the xoa cong viec dang tham gia dependency. Hay go dependency truoc.");
+                    "Không thể xóa công việc đang có quan hệ phụ thuộc. Hãy gỡ quan hệ phụ thuộc trước.");
             }
         }
 
@@ -149,7 +149,7 @@ namespace WorkManagementSystem.Application.Services
 
             var invalidUserIds = directUserIds.Except(assignableUserIds).ToList();
             if (invalidUserIds.Any())
-                throw new ForbiddenException("Chi duoc giao viec cho nhan vien dang hoat dong trong phong ban cua ban.");
+                throw new ForbiddenException("Chỉ được giao việc cho nhân viên đang hoạt động trong phòng ban của bạn.");
 
             return assignableUserIds.Distinct().ToList();
         }

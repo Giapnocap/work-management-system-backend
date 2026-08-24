@@ -32,11 +32,11 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(entityType))
-                throw new ArgumentException("Entity type is required.", nameof(entityType));
+                throw new ArgumentException("Loại thực thể là bắt buộc.", nameof(entityType));
             if (entityId == Guid.Empty)
-                throw new ArgumentException("Entity id is required.", nameof(entityId));
+                throw new ArgumentException("Id thực thể là bắt buộc.", nameof(entityId));
             if (string.IsNullOrWhiteSpace(action))
-                throw new ArgumentException("Audit action is required.", nameof(action));
+                throw new ArgumentException("Hành động audit là bắt buộc.", nameof(action));
 
             await _context.AuditLogs.AddAsync(new AuditLog
             {
@@ -64,7 +64,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (from.HasValue && to.HasValue && from.Value > to.Value)
-                throw new BusinessException("Audit start time must not be after end time.");
+                throw new BusinessException("Thời điểm bắt đầu audit không được sau thời điểm kết thúc.");
 
             var paging = Paging.Normalize(page, size, Paging.DefaultHistoryPageSize);
             var query = _context.AuditLogs.AsNoTracking();

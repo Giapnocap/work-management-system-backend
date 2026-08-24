@@ -42,7 +42,7 @@ namespace WorkManagementSystem.Application.Services
                     resolvedTaskId,
                     uploadedBy,
                     cancellationToken: cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen upload file vao cong viec nay.");
+                throw new ForbiddenException("Bạn không có quyền tải tệp lên công việc này.");
 
             var validation = await _fileValidator.ValidateAsync(file, cancellationToken);
 
@@ -91,14 +91,14 @@ namespace WorkManagementSystem.Application.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(file => file.Id == id, cancellationToken);
             if (upload == null)
-                throw new NotFoundException("File not found.");
+                throw new NotFoundException("Không tìm thấy tệp.");
 
             if (!await _accessService.CanAccessUpload(id, requestedBy, cancellationToken))
-                throw new ForbiddenException("Ban khong co quyen tai file nay.");
+                throw new ForbiddenException("Bạn không có quyền tải tệp này.");
 
             var filePath = ResolveStoragePath(upload.StorageKey);
             if (!File.Exists(filePath))
-                throw new NotFoundException("File physical content not found.");
+                throw new NotFoundException("Không tìm thấy nội dung vật lý của tệp.");
 
             return new UploadFileDownloadDto
             {
@@ -128,7 +128,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             if (!progressId.HasValue && !taskId.HasValue)
-                throw new BusinessException("File phai duoc gan voi mot cong viec hoac bao cao.");
+                throw new BusinessException("Tệp phải được gắn với một công việc hoặc báo cáo.");
 
             if (!progressId.HasValue)
                 return taskId!.Value;
@@ -138,10 +138,10 @@ namespace WorkManagementSystem.Application.Services
                 .Where(progress => progress.Id == progressId.Value)
                 .Select(progress => (Guid?)progress.TaskId)
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw new NotFoundException("Progress not found.");
+                ?? throw new NotFoundException("Không tìm thấy báo cáo tiến độ.");
 
             if (taskId.HasValue && taskId.Value != progressTaskId)
-                throw new BusinessException("Cong viec khong khop voi bao cao da chon.");
+                throw new BusinessException("Công việc không khớp với báo cáo đã chọn.");
 
             return progressTaskId;
         }
@@ -157,7 +157,7 @@ namespace WorkManagementSystem.Application.Services
                     Path.IsPathRooted(storageKey) ||
                     !string.Equals(storageKey, Path.GetFileName(storageKey), StringComparison.Ordinal))
                 {
-                    throw new NotFoundException("File not found.");
+                    throw new NotFoundException("Không tìm thấy tệp.");
                 }
 
                 var uploadsRoot = GetUploadsRoot();
@@ -180,7 +180,7 @@ namespace WorkManagementSystem.Application.Services
                 // Invalid persisted paths are intentionally hidden as missing files.
             }
 
-            throw new NotFoundException("File not found.");
+            throw new NotFoundException("Không tìm thấy tệp.");
         }
 
         private static void DeleteFileIfExists(string filePath)

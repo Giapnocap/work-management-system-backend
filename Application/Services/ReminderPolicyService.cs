@@ -306,7 +306,7 @@ public sealed class ReminderPolicyService : IReminderPolicyService
         if (dto.BeforeDueHours is < 1 or > DeadlineReminderOptions.MaxPolicyHours)
             throw new BusinessException("Mốc nhắc trước hạn phải từ 1 đến 720 giờ.");
         if (dto.OverdueEscalationHours is < 0 or > DeadlineReminderOptions.MaxPolicyHours)
-            throw new BusinessException("Mốc escalation phải từ 0 đến 720 giờ.");
+            throw new BusinessException("Mốc cảnh báo quá hạn phải từ 0 đến 720 giờ.");
     }
 
     private sealed record Requester(string Role, Guid? UnitId);

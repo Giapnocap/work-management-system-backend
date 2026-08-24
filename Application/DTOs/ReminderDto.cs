@@ -22,7 +22,7 @@ public sealed class UpsertReminderPolicyDto
     [Range(
         0,
         DeadlineReminderOptions.MaxPolicyHours,
-        ErrorMessage = "Mốc escalation phải từ 0 đến 720 giờ.")]
+        ErrorMessage = "Mốc cảnh báo quá hạn phải từ 0 đến 720 giờ.")]
     public int OverdueEscalationHours { get; set; } = 24;
 
     public bool NotifyAssignee { get; set; } = true;

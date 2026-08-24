@@ -37,7 +37,7 @@ namespace WorkManagementSystem.Application.Services
                 var managedTasks = await GetPendingManagedTasksAsync(user, cancellationToken);
                 ThrowIfPending(
                     managedTasks,
-                    "Khong the thay doi Truong phong khi phong ban con cong viec chua hoan thanh");
+                    "Không thể thay đổi Trưởng phòng khi phòng ban còn công việc chưa hoàn thành");
                 return;
             }
 
@@ -46,7 +46,7 @@ namespace WorkManagementSystem.Application.Services
                 var assignedTasks = await GetPendingAssignedTasksAsync(user.Id, cancellationToken);
                 ThrowIfPending(
                     assignedTasks,
-                    "Khong the luan chuyen hoac bo nhiem khi nhan su con cong viec chua hoan thanh");
+                    "Không thể luân chuyển hoặc bổ nhiệm khi nhân sự còn công việc chưa hoàn thành");
                 await EnsureNoRecurringAssignmentAsync(user.Id, cancellationToken);
             }
         }
@@ -56,7 +56,7 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (user.Role == SystemRoles.Admin)
-                throw new BusinessException("Khong the xoa tai khoan Admin!");
+                throw new BusinessException("Không thể xóa tài khoản Admin!");
 
             var pendingTasks = user.Role == SystemRoles.Manager
                 ? await GetPendingManagedTasksAsync(user, cancellationToken)
@@ -64,7 +64,7 @@ namespace WorkManagementSystem.Application.Services
 
             ThrowIfPending(
                 pendingTasks,
-                "Khong the xoa nhan su khi van con trach nhiem cong viec");
+                "Không thể xóa nhân sự khi vẫn còn trách nhiệm công việc");
             await EnsureNoRecurringAssignmentAsync(user.Id, cancellationToken);
         }
 
@@ -104,8 +104,8 @@ namespace WorkManagementSystem.Application.Services
                 return;
 
             throw new BusinessException(
-                $"{message}. Con {taskTitles.Count} cong viec: {string.Join(", ", taskTitles)}. " +
-                "Vui long hoan thanh hoac ban giao cong viec truoc.");
+                $"{message}. Còn {taskTitles.Count} công việc: {string.Join(", ", taskTitles)}. " +
+                "Vui lòng hoàn thành hoặc bàn giao công việc trước.");
         }
 
         private async Task EnsureNoRecurringAssignmentAsync(

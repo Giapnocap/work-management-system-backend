@@ -45,14 +45,14 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (file == null || file.Length == 0)
-                throw new BusinessException("File is empty.");
+                throw new BusinessException("Tệp không có nội dung.");
 
             if (file.Length > MaxFileSizeBytes)
-                throw new BusinessException("File vuot qua dung luong toi da 10MB.");
+                throw new BusinessException("Tệp vượt quá dung lượng tối đa 10 MB.");
 
             var extension = Path.GetExtension(file.FileName);
             if (string.IsNullOrWhiteSpace(extension) || !AllowedExtensions.Contains(extension))
-                throw new BusinessException($"Dinh dang file '{extension}' khong duoc phep.");
+                throw new BusinessException($"Định dạng tệp '{extension}' không được phép.");
 
             var normalizedExtension = extension.ToLowerInvariant();
             ValidateContentType(file.ContentType, normalizedExtension);
@@ -63,7 +63,7 @@ namespace WorkManagementSystem.Application.Services
                 header.AsMemory(0, header.Length),
                 cancellationToken);
             if (!HasValidSignature(normalizedExtension, header.AsSpan(0, read)))
-                throw new BusinessException("Noi dung file khong khop voi dinh dang duoc phep.");
+                throw new BusinessException("Nội dung tệp không khớp với định dạng được phép.");
 
             if (IsOoxmlExtension(normalizedExtension))
             {
@@ -97,7 +97,7 @@ namespace WorkManagementSystem.Application.Services
                 AllowedMimeTypes.TryGetValue(extension, out var allowedMimeTypes) &&
                 !allowedMimeTypes.Contains(normalizedContentType, StringComparer.OrdinalIgnoreCase))
             {
-                throw new BusinessException("Content-Type cua file khong khop voi dinh dang duoc phep.");
+                throw new BusinessException("Content-Type của tệp không khớp với định dạng được phép.");
             }
         }
 
@@ -120,7 +120,7 @@ namespace WorkManagementSystem.Application.Services
             {
                 using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
                 if (archive.Entries.Count == 0 || archive.Entries.Count > MaxOoxmlEntries)
-                    throw new BusinessException("Cau truc file Office khong hop le.");
+                    throw new BusinessException("Cấu trúc tệp Office không hợp lệ.");
 
                 long totalUncompressedBytes = 0;
                 var entryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -131,12 +131,12 @@ namespace WorkManagementSystem.Application.Services
 
                     totalUncompressedBytes = checked(totalUncompressedBytes + entry.Length);
                     if (totalUncompressedBytes > MaxOoxmlUncompressedBytes)
-                        throw new BusinessException("File Office co dung luong giai nen vuot qua gioi han an toan.");
+                        throw new BusinessException("Tệp Office có dung lượng giải nén vượt quá giới hạn an toàn.");
 
                     if (entry.FullName.EndsWith("/vbaProject.bin", StringComparison.OrdinalIgnoreCase) ||
                         entry.FullName.Equals("vbaProject.bin", StringComparison.OrdinalIgnoreCase))
                     {
-                        throw new BusinessException("File Office chua macro va khong duoc phep.");
+                        throw new BusinessException("Tệp Office chứa macro và không được phép.");
                     }
 
                     entryNames.Add(entry.FullName.Replace('\\', '/'));
@@ -147,23 +147,23 @@ namespace WorkManagementSystem.Application.Services
                     ".docx" => "word/document.xml",
                     ".xlsx" => "xl/workbook.xml",
                     ".pptx" => "ppt/presentation.xml",
-                    _ => throw new BusinessException("Dinh dang Office khong duoc ho tro.")
+                    _ => throw new BusinessException("Định dạng Office không được hỗ trợ.")
                 };
 
                 if (!entryNames.Contains("[Content_Types].xml") ||
                     !entryNames.Contains("_rels/.rels") ||
                     !entryNames.Contains(requiredDocumentEntry))
                 {
-                    throw new BusinessException("Cau truc file Office khong khop voi phan mo rong.");
+                    throw new BusinessException("Cấu trúc tệp Office không khớp với phần mở rộng.");
                 }
             }
             catch (InvalidDataException)
             {
-                throw new BusinessException("Cau truc file Office khong hop le.");
+                throw new BusinessException("Cấu trúc tệp Office không hợp lệ.");
             }
             catch (OverflowException)
             {
-                throw new BusinessException("File Office co dung luong giai nen vuot qua gioi han an toan.");
+                throw new BusinessException("Tệp Office có dung lượng giải nén vượt quá giới hạn an toàn.");
             }
             finally
             {
@@ -178,7 +178,7 @@ namespace WorkManagementSystem.Application.Services
             if (normalized.StartsWith('/') ||
                 normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Contains(".."))
             {
-                throw new BusinessException("File Office chua duong dan noi bo khong an toan.");
+                throw new BusinessException("Tệp Office chứa đường dẫn nội bộ không an toàn.");
             }
         }
 

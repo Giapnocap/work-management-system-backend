@@ -5,19 +5,19 @@ namespace WorkManagementSystem.Application.DTOs
 {
     public class ChangePasswordDto
     {
-        [Required(ErrorMessage = "Mat khau cu khong duoc de trong.")]
-        [MaxLength(72, ErrorMessage = "Mat khau cu toi da 72 ky tu.")]
+        [Required(ErrorMessage = "Mật khẩu cũ không được để trống.")]
+        [MaxLength(72, ErrorMessage = "Mật khẩu cũ tối đa 72 ký tự.")]
         public string OldPassword { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Mat khau moi khong duoc de trong.")]
-        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mat khau moi phai co it nhat 8 ky tu.")]
-        [MaxLength(72, ErrorMessage = "Mat khau moi toi da 72 ky tu.")]
+        [Required(ErrorMessage = "Mật khẩu mới không được để trống.")]
+        [MinLength(PasswordPolicy.MinimumLength, ErrorMessage = "Mật khẩu mới phải có ít nhất 8 ký tự.")]
+        [MaxLength(72, ErrorMessage = "Mật khẩu mới tối đa 72 ký tự.")]
         [PasswordPolicy]
         public string NewPassword { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Xac nhan mat khau khong duoc de trong.")]
-        [MaxLength(72, ErrorMessage = "Xac nhan mat khau toi da 72 ky tu.")]
-        [Compare(nameof(NewPassword), ErrorMessage = "Mat khau moi khong khop.")]
+        [Required(ErrorMessage = "Xác nhận mật khẩu không được để trống.")]
+        [MaxLength(72, ErrorMessage = "Xác nhận mật khẩu tối đa 72 ký tự.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "Mật khẩu mới không khớp.")]
         public string ConfirmPassword { get; set; } = string.Empty;
     }
 }

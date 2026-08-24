@@ -119,7 +119,7 @@ namespace WorkManagementSystem.API.Middlewares
                 return new ApiError(
                     (int)HttpStatusCode.Conflict,
                     "concurrency_conflict",
-                    "Du lieu da duoc thay doi boi mot yeu cau khac. Vui long tai lai va thu lai.",
+                    "Dữ liệu đã được thay đổi bởi một yêu cầu khác. Vui lòng tải lại và thử lại.",
                     includeDetails ? exception.ToString() : string.Empty);
             }
 
@@ -128,7 +128,7 @@ namespace WorkManagementSystem.API.Middlewares
                 return new ApiError(
                     (int)HttpStatusCode.Conflict,
                     "duplicate_data",
-                    "Du lieu da ton tai hoac vua duoc tao boi mot yeu cau khac.",
+                    "Dữ liệu đã tồn tại hoặc vừa được tạo bởi một yêu cầu khác.",
                     includeDetails ? exception.ToString() : string.Empty);
             }
 
@@ -147,7 +147,7 @@ namespace WorkManagementSystem.API.Middlewares
                 return new ApiError(
                     (int)HttpStatusCode.RequestEntityTooLarge,
                     "request_too_large",
-                    "File dinh kem hoac noi dung vuot qua gioi han may chu.",
+                    "Tệp đính kèm hoặc nội dung vượt quá giới hạn máy chủ.",
                     includeDetails ? exception.Message : string.Empty);
             }
 
@@ -163,7 +163,7 @@ namespace WorkManagementSystem.API.Middlewares
             return new ApiError(
                 (int)HttpStatusCode.InternalServerError,
                 "internal_server_error",
-                "Loi he thong noi bo. Vui long thu lai sau.",
+                "Lỗi hệ thống nội bộ. Vui lòng thử lại sau.",
                 includeDetails ? exception.ToString() : string.Empty);
         }
 

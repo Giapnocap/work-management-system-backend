@@ -5,8 +5,8 @@ namespace WorkManagementSystem.Application.DTOs;
 
 public sealed class AddTaskDependencyDto
 {
-    [Required]
-    [NotEmptyGuid(ErrorMessage = "Cong viec tien quyet khong duoc rong.")]
+    [Required(ErrorMessage = "DependsOnTaskId không được để trống.")]
+    [NotEmptyGuid(ErrorMessage = "Công việc tiên quyết không được rỗng.")]
     public Guid DependsOnTaskId { get; set; }
 }
 

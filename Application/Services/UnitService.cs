@@ -58,7 +58,7 @@ namespace WorkManagementSystem.Application.Services
                     return _mapper.Map<UnitDto>(unit);
             }
 
-            throw new NotFoundException("Ban chua thuoc don vi nao.");
+            throw new NotFoundException("Bạn chưa thuộc phòng ban nào.");
         }
 
         public async Task<List<UserDto>> GetUsers(Guid unitId, CancellationToken cancellationToken = default)
@@ -94,7 +94,7 @@ namespace WorkManagementSystem.Application.Services
         {
             var requester = await GetActiveRequester(requesterId, cancellationToken);
             if (requester.Role != SystemRoles.Admin && requester.UnitId != unitId)
-                throw new ForbiddenException("Ban khong co quyen xem thanh vien phong ban nay.");
+                throw new ForbiddenException("Bạn không có quyền xem thành viên phòng ban này.");
 
             return await GetUsers(unitId, cancellationToken);
         }
@@ -130,7 +130,7 @@ namespace WorkManagementSystem.Application.Services
             if (exists) throw new BusinessException("Tên phòng ban đã tồn tại!");
 
             var unit = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Unit not found");
+                ?? throw new NotFoundException("Không tìm thấy phòng ban.");
             var oldName = unit.Name;
             unit.Name = dto.Name;
             _repo.Update(unit);
@@ -155,13 +155,13 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken = default)
         {
             var unit = await _repo.GetByIdAsync(id, cancellationToken)
-                ?? throw new NotFoundException("Unit not found");
+                ?? throw new NotFoundException("Không tìm thấy phòng ban.");
 
             var hasMembers = await _userUnitRepo.QueryReadOnly().AnyAsync(x => x.UnitId == id, cancellationToken)
                 || await _userRepo.QueryReadOnly().AnyAsync(x => x.UnitId == id && x.IsApproved && !x.IsDeleted, cancellationToken);
             if (hasMembers)
             {
-                throw new BusinessException("Không thể xóa! Phòng ban này vẫn đang có nhân sự. Vui lòng luân chuyển toàn bộ Quản lý và Nhân viên sang phòng khác hoặc gỡ tư cách thành viên của họ trước.");
+                throw new BusinessException("Không thể xóa! Phòng ban này vẫn đang có nhân sự. Vui lòng luân chuyển toàn bộ Trưởng phòng và nhân viên sang phòng khác hoặc gỡ tư cách thành viên của họ trước.");
             }
 
             var hasRecurringTemplates = await _context.RecurringTaskTemplates
@@ -204,21 +204,21 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             _ = await _repo.GetByIdAsync(unitId, cancellationToken)
-                ?? throw new NotFoundException("Unit not found");
+                ?? throw new NotFoundException("Không tìm thấy phòng ban.");
             var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
-                ?? throw new NotFoundException("User not found");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var exists = await _userUnitRepo.QueryReadOnly()
                 .AnyAsync(x => x.UnitId == unitId && x.UserId == userId, cancellationToken);
             if (exists && user.UnitId == unitId)
-                throw new BusinessException("Thành viên đã thuộc đơn vị này!");
+                throw new BusinessException("Thành viên đã thuộc phòng ban này!");
 
             await _staffMovementService.ApplyChangeAsync(
                 user,
                 user.Role,
                 unitId,
                 changedBy,
-                "Added to unit",
+                "Được thêm vào phòng ban",
                 DateTime.UtcNow,
                 cancellationToken: cancellationToken);
 
@@ -265,24 +265,24 @@ namespace WorkManagementSystem.Application.Services
             CancellationToken cancellationToken)
         {
             var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
-                ?? throw new NotFoundException("User not found");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
 
             var userUnit = await _userUnitRepo.QueryReadOnly()
                 .FirstOrDefaultAsync(x => x.UnitId == unitId && x.UserId == userId, cancellationToken);
 
             var hasDirectUnit = user.UnitId == unitId;
             if (userUnit == null && !hasDirectUnit)
-                throw new NotFoundException("Không tìm thấy thành viên thuộc đơn vị này!");
+                throw new NotFoundException("Không tìm thấy thành viên thuộc phòng ban này!");
 
             if (!hasDirectUnit)
-                throw new BusinessException("Dữ liệu membership không đồng bộ với User.UnitId.");
+                throw new BusinessException("Dữ liệu thành viên không đồng bộ với User.UnitId.");
 
             await _staffMovementService.ApplyChangeAsync(
                 user,
                 user.Role,
                 null,
                 changedBy,
-                "Removed from unit",
+                "Được gỡ khỏi phòng ban",
                 DateTime.UtcNow,
                 cancellationToken: cancellationToken);
 
@@ -299,14 +299,14 @@ namespace WorkManagementSystem.Application.Services
                     user.IsApproved &&
                     !user.IsDeleted,
                     cancellationToken)
-                ?? throw new NotFoundException("User not found.");
+                ?? throw new NotFoundException("Không tìm thấy người dùng.");
         }
 
         private async Task EnsureAdmin(Guid requesterId, CancellationToken cancellationToken)
         {
             var requester = await GetActiveRequester(requesterId, cancellationToken);
             if (requester.Role != SystemRoles.Admin)
-                throw new ForbiddenException("Chi Admin moi duoc quan ly thanh vien phong ban.");
+                throw new ForbiddenException("Chỉ Admin mới được quản lý thành viên phòng ban.");
         }
     }
 }

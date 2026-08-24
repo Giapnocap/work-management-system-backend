@@ -43,9 +43,9 @@ namespace WorkManagementSystem.Domain.Entities
         public void Complete(Guid completedBy, DateTime completedAtUtc)
         {
             if (completedBy == Guid.Empty)
-                throw new ArgumentException("CompletedBy is required.", nameof(completedBy));
+                throw new ArgumentException("CompletedBy là bắt buộc.", nameof(completedBy));
             if (completedAtUtc.Kind != DateTimeKind.Utc)
-                throw new ArgumentException("Completion time must be UTC.", nameof(completedAtUtc));
+                throw new ArgumentException("Thời điểm hoàn thành phải ở múi giờ UTC.", nameof(completedAtUtc));
 
             EnsureNotCompleted();
             Status = TaskStatusEnum.Approved;
@@ -56,7 +56,7 @@ namespace WorkManagementSystem.Domain.Entities
         private void EnsureNotCompleted()
         {
             if (Status == TaskStatusEnum.Approved)
-                throw new InvalidOperationException("An approved task cannot transition without a reopen policy.");
+                throw new InvalidOperationException("Công việc đã được duyệt không thể chuyển trạng thái nếu chưa có chính sách mở lại.");
         }
     }
 }

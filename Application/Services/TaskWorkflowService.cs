@@ -91,7 +91,7 @@ namespace WorkManagementSystem.Application.Services
             if (blockingTaskTitles.Count > 0)
             {
                 throw new BusinessException(
-                    $"Cong viec dang bi chan boi: {string.Join(", ", blockingTaskTitles)}.");
+                    $"Công việc đang bị chặn bởi: {string.Join(", ", blockingTaskTitles)}.");
             }
         }
 
@@ -104,10 +104,10 @@ namespace WorkManagementSystem.Application.Services
         {
             var reason = progress.Status switch
             {
-                ProgressStatusEnum.InProgress => "Partial progress reported.",
-                ProgressStatusEnum.Submitted => "Completion report submitted for review.",
-                ProgressStatusEnum.Approved => "Completion report approved automatically because review is not required.",
-                _ => throw new BusinessException("Trang thai bao cao moi khong hop le.")
+                ProgressStatusEnum.InProgress => "Đã báo cáo tiến độ một phần.",
+                ProgressStatusEnum.Submitted => "Đã nộp báo cáo hoàn thành để duyệt.",
+                ProgressStatusEnum.Approved => "Báo cáo hoàn thành được tự động phê duyệt vì công việc không yêu cầu duyệt.",
+                _ => throw new BusinessException("Trạng thái báo cáo mới không hợp lệ.")
             };
 
             switch (progress.Status)
@@ -210,10 +210,10 @@ namespace WorkManagementSystem.Application.Services
                     progressContext))
             {
                 if (!approve && normalizedReason == null)
-                    throw new BusinessException("Tu choi bao cao phai co ly do.");
+                    throw new BusinessException("Từ chối báo cáo phải có lý do.");
 
                 throw new BusinessException(
-                    $"Khong the chuyen bao cao tu {progress.Status} sang {targetProgressStatus}.");
+                    $"Không thể chuyển báo cáo từ {progress.Status} sang {targetProgressStatus}.");
             }
 
             if (approve)
@@ -231,7 +231,7 @@ namespace WorkManagementSystem.Application.Services
                 reviewerId,
                 previousProgressStatus,
                 targetProgressStatus,
-                normalizedReason ?? "Approved by manager.",
+                normalizedReason ?? "Được Trưởng phòng phê duyệt.",
                 cancellationToken);
 
             if (approve)
@@ -255,7 +255,7 @@ namespace WorkManagementSystem.Application.Services
                     TaskTransitionCause.ReviewApproved,
                     dependenciesCompleted: true,
                     completionSatisfied,
-                    normalizedReason ?? "Progress approved by manager.",
+                    normalizedReason ?? "Báo cáo tiến độ được Trưởng phòng phê duyệt.",
                     progress.Id,
                     cancellationToken);
             }
@@ -305,8 +305,8 @@ namespace WorkManagementSystem.Application.Services
                 dependenciesCompleted: true,
                 completionSatisfied,
                 completionSatisfied
-                    ? "Completion requirements satisfied."
-                    : "Waiting for remaining assignees to complete.",
+                    ? "Đã đáp ứng yêu cầu hoàn thành."
+                    : "Đang chờ những người được giao còn lại hoàn thành.",
                 null,
                 cancellationToken);
         }
@@ -357,7 +357,7 @@ namespace WorkManagementSystem.Application.Services
             if (!_policy.CanTransition(previousStatus, targetStatus, actor, cause, transitionContext))
             {
                 throw new BusinessException(
-                    $"Khong the chuyen cong viec tu {previousStatus} sang {targetStatus} trong luong hien tai.");
+                    $"Không thể chuyển công việc từ {previousStatus} sang {targetStatus} trong luồng hiện tại.");
             }
 
             var changedAt = _timeProvider.GetUtcNow().UtcDateTime;
@@ -373,7 +373,7 @@ namespace WorkManagementSystem.Application.Services
                     task.Complete(completionOwnerId, changedAt);
                     break;
                 default:
-                    throw new BusinessException("Trang thai dich cua cong viec khong hop le.");
+                    throw new BusinessException("Trạng thái đích của công việc không hợp lệ.");
             }
 
             await _context.TaskHistories.AddAsync(new TaskHistory
@@ -456,7 +456,7 @@ namespace WorkManagementSystem.Application.Services
                     OldValue = bool.TrueString,
                     NewValue = bool.FalseString,
                     RelatedEntityId = completedTaskId,
-                    Reason = "Blocking predecessor completed.",
+                    Reason = "Công việc tiên quyết đã hoàn thành.",
                     ChangedAt = changedAt
                 }, cancellationToken);
             }

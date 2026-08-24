@@ -28,7 +28,7 @@ namespace WorkManagementSystem.API.Controllers
             => Ok(await _service.GetDashboard(cancellationToken));
 
         /// <summary>
-        /// Lấy thống kê phòng ban (Manager)
+        /// Lấy thống kê phòng ban (Trưởng phòng)
         /// </summary>
         [HttpGet("manager")]
         [Authorize(Roles = SystemRoles.Manager)]
