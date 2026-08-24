@@ -255,12 +255,16 @@ jobs:
                 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM WorkManagementDB.dbo.KpiPeriods;"
             )"
 
-            test "$migration_count" -eq 40
-            test "$latest_migration" = "20260809055810_StoreUploadStorageKeys"
+            test "$migration_count" -eq 47
+            test "$latest_migration" = "20260821024258_AddExplainableKpiInsights"
             test "$user_count" -eq 4
             test "$project_count" -gt 0
             test "$kpi_period_count" -gt 0
           '
+
+      - name: Verify backup and restore recovery
+        shell: pwsh
+        run: ./scripts/backup-restore-drill.ps1
 
       - name: Verify liveness is independent from SQL Server
         shell: bash
