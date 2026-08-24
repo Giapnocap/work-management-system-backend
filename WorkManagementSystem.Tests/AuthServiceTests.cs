@@ -338,4 +338,31 @@ public class AuthServiceTests
         Assert.True(savedUser.IsDeleted);
         Assert.Equal(3, savedUser.TokenVersion);
     }
+
+    [Fact]
+    public async Task RejectUser_WhenAccountIsApproved_RequiresPersonnelDeletionWorkflow()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "approved-user",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password@123"),
+            FullName = "Approved User",
+            EmployeeCode = "EMP0004",
+            Role = "User",
+            IsApproved = true,
+            TokenVersion = 2
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+        var service = TestFactory.CreateAuthService(context);
+
+        var exception = await Assert.ThrowsAsync<BusinessException>(
+            () => service.RejectUser(user.Id));
+
+        Assert.Contains("luồng xóa nhân sự", exception.Message);
+        Assert.False(user.IsDeleted);
+        Assert.Equal(2, user.TokenVersion);
+    }
 }

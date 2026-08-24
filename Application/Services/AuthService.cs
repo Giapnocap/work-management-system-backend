@@ -40,9 +40,9 @@ namespace WorkManagementSystem.Application.Services
             var username = dto.Username.Trim();
             var fullName = dto.FullName.Trim();
             if (username.Length < 3)
-                throw new BusinessException("Ten dang nhap phai co it nhat 3 ky tu.");
+                throw new BusinessException("Tên đăng nhập phải có ít nhất 3 ký tự.");
             if (string.IsNullOrWhiteSpace(fullName))
-                throw new BusinessException("Ho ten khong duoc de trong.");
+                throw new BusinessException("Họ tên không được để trống.");
             PasswordPolicy.EnsureValid(dto.Password);
 
             var exists = await _context.Users.IgnoreQueryFilters()
@@ -179,7 +179,7 @@ namespace WorkManagementSystem.Application.Services
                     UnitId = user.UnitId,
                     Role = user.Role,
                     EffectiveFrom = user.JoinedUnitAt,
-                    ChangeReason = "Approved account"
+                    ChangeReason = "Tài khoản được phê duyệt"
                 });
             }
 
@@ -204,6 +204,12 @@ namespace WorkManagementSystem.Application.Services
         {
             var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy tài khoản!");
+
+            if (user.IsApproved)
+            {
+                throw new BusinessException(
+                    "Tài khoản đã được phê duyệt. Hãy sử dụng luồng xóa nhân sự.");
+            }
 
             user.IsDeleted = true;
             user.InvalidateSessions();
