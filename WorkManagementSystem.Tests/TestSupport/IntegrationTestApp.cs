@@ -150,6 +150,91 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
         await context.SaveChangesAsync();
     }
 
+    public async Task SeedManagerInOtherUnitAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var passwordHashService = scope.ServiceProvider.GetRequiredService<IPasswordHashService>();
+        var now = DateTime.UtcNow;
+        var unit = new Unit
+        {
+            Id = Guid.NewGuid(),
+            Name = "Other Integration Unit"
+        };
+        var manager = CreateUser(
+            "manager-other-it",
+            SystemRoles.Manager,
+            "Other Integration Manager",
+            "MGR9998",
+            unit.Id,
+            now,
+            passwordHashService.Hash("Password@123"));
+
+        context.Units.Add(unit);
+        context.Users.Add(manager);
+        context.UserUnits.Add(new UserUnit
+        {
+            Id = Guid.NewGuid(),
+            UserId = manager.Id,
+            UnitId = unit.Id
+        });
+        context.UserWorkHistories.Add(new UserWorkHistory
+        {
+            Id = Guid.NewGuid(),
+            UserId = manager.Id,
+            UnitId = unit.Id,
+            Role = SystemRoles.Manager,
+            EffectiveFrom = now.AddDays(-1),
+            ChangeReason = "Cross-unit integration seed",
+            CreatedAt = now
+        });
+
+        await context.SaveChangesAsync();
+    }
+
+    public async Task<(Guid UnitId, Guid EmployeeId)> SeedEmployeeInOtherUnitAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var passwordHashService = scope.ServiceProvider.GetRequiredService<IPasswordHashService>();
+        var now = DateTime.UtcNow;
+        var unit = new Unit
+        {
+            Id = Guid.NewGuid(),
+            Name = $"Other Workload Unit {Guid.NewGuid():N}"
+        };
+        var employee = CreateUser(
+            $"employee-other-{Guid.NewGuid():N}",
+            SystemRoles.User,
+            "Other Workload Employee",
+            $"EMP-{Guid.NewGuid():N}",
+            unit.Id,
+            now,
+            passwordHashService.Hash("Password@123"));
+
+        context.Units.Add(unit);
+        context.Users.Add(employee);
+        context.UserUnits.Add(new UserUnit
+        {
+            Id = Guid.NewGuid(),
+            UserId = employee.Id,
+            UnitId = unit.Id
+        });
+        context.UserWorkHistories.Add(new UserWorkHistory
+        {
+            Id = Guid.NewGuid(),
+            UserId = employee.Id,
+            UnitId = unit.Id,
+            Role = SystemRoles.User,
+            EffectiveFrom = now.AddDays(-1),
+            ChangeReason = "Cross-unit workload seed",
+            CreatedAt = now
+        });
+
+        await context.SaveChangesAsync();
+        return (unit.Id, employee.Id);
+    }
+
     public async Task<T> PostJsonAsync<T>(string url, object body)
     {
         var response = await Client.PostAsJsonAsync(url, body);
@@ -303,6 +388,21 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
                 Enabled = false,
                 MinimumAgeHours = 24,
                 IntervalHours = 24
+            },
+            RecurringTasks = new
+            {
+                Enabled = false,
+                PollingIntervalSeconds = 60,
+                MaxTemplatesPerBatch = 50,
+                MaxCatchUpOccurrencesPerTemplate = 10
+            },
+            DeadlineReminders = new
+            {
+                Enabled = false,
+                PollingIntervalSeconds = 60,
+                MaxTasksPerBatch = 100,
+                MaxDeliveriesPerBatch = 200,
+                MaxRetryCount = 3
             },
             DemoSeed = new
             {

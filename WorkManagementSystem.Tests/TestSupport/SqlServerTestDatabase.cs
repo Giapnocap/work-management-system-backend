@@ -71,18 +71,20 @@ public sealed class SqlServerTestDatabase : IAsyncLifetime
         }
     }
 
-    public AppDbContext CreateContext()
+    public AppDbContext CreateContext(params IInterceptor[] interceptors)
     {
         if (string.IsNullOrWhiteSpace(ConnectionString))
             throw new InvalidOperationException("The SQL Server test database is not initialized.");
 
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer(ConnectionString)
             .ConfigureWarnings(warnings =>
-                warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning))
-            .Options;
+                warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
 
-        return new AppDbContext(options);
+        if (interceptors.Length > 0)
+            optionsBuilder.AddInterceptors(interceptors);
+
+        return new AppDbContext(optionsBuilder.Options);
     }
 
     public Task DisposeAsync() => DropDatabaseAsync();

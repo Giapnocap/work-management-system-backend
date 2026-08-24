@@ -17,12 +17,28 @@ public class DatabaseModelTests
         AssertContainsCheckConstraint<Progress>(model, "CK_Progress_Percent_Range");
         AssertContainsCheckConstraint<Progress>(model, "CK_Progress_HoursSpent_NonNegative");
         AssertContainsCheckConstraint<TaskItem>(model, "CK_Tasks_ActualHours_NonNegative");
+        AssertContainsCheckConstraint<TaskItem>(model, "CK_Tasks_PlannedEffortHours_Positive");
         AssertContainsCheckConstraint<TaskItem>(model, "CK_Tasks_Status_Range");
         AssertContainsCheckConstraint<TaskItem>(model, "CK_Tasks_Date_Range");
         AssertContainsCheckConstraint<TaskAssignee>(model, "CK_TaskAssignee_One_Target");
         AssertContainsCheckConstraint<KpiPeriod>(model, "CK_KpiPeriods_Date_Range");
         AssertContainsCheckConstraint<KpiResult>(model, "CK_KpiResults_Effective_Range");
         AssertContainsCheckConstraint<KpiResult>(model, "CK_KpiResults_NonNegative");
+        AssertContainsCheckConstraint<KpiResult>(model, "CK_KpiResults_Metric_Ranges");
+        AssertContainsCheckConstraint<KpiResult>(model, "CK_KpiResults_FormulaVersion");
+        AssertContainsCheckConstraint<UserCapacity>(model, "CK_UserCapacities_WeeklyHours_Positive");
+        AssertContainsCheckConstraint<UserCapacity>(model, "CK_UserCapacities_Effective_Range");
+        AssertContainsCheckConstraint<RecurringTaskTemplate>(model, "CK_RecurringTaskTemplates_Interval_Positive");
+        AssertContainsCheckConstraint<RecurringTaskTemplate>(model, "CK_RecurringTaskTemplates_PlannedEffortHours_Positive");
+        AssertContainsCheckConstraint<RecurringTaskTemplate>(model, "CK_RecurringTaskTemplates_RecurrenceType_Range");
+        AssertContainsCheckConstraint<RecurringTaskTemplate>(model, "CK_RecurringTaskTemplates_Schedule_Shape");
+        AssertContainsCheckConstraint<ReminderPolicy>(model, "CK_ReminderPolicies_ScopeType_Range");
+        AssertContainsCheckConstraint<ReminderPolicy>(model, "CK_ReminderPolicies_Scope_Shape");
+        AssertContainsCheckConstraint<ReminderPolicy>(model, "CK_ReminderPolicies_BeforeDueHours_Range");
+        AssertContainsCheckConstraint<ReminderPolicy>(model, "CK_ReminderPolicies_OverdueEscalationHours_Range");
+        AssertContainsCheckConstraint<ScheduledNotification>(model, "CK_ScheduledNotifications_Type_Range");
+        AssertContainsCheckConstraint<ScheduledNotification>(model, "CK_ScheduledNotifications_Status_Range");
+        AssertContainsCheckConstraint<ScheduledNotification>(model, "CK_ScheduledNotifications_RetryCount_NonNegative");
     }
 
     [Fact]
@@ -44,6 +60,40 @@ public class DatabaseModelTests
             model,
             "[EffectiveTo] IS NULL",
             nameof(UserWorkHistory.UserId));
+        AssertHasUniqueFilteredIndex<UserCapacity>(
+            model,
+            "[EffectiveTo] IS NULL",
+            nameof(UserCapacity.UserId));
+        AssertHasUniqueIndex<RecurringTaskAssignee>(
+            model,
+            nameof(RecurringTaskAssignee.TemplateId),
+            nameof(RecurringTaskAssignee.UserId));
+        AssertHasPrimaryKey<GeneratedTaskOccurrence>(
+            model,
+            nameof(GeneratedTaskOccurrence.TemplateId),
+            nameof(GeneratedTaskOccurrence.ScheduledForUtc));
+        AssertHasUniqueIndex<GeneratedTaskOccurrence>(
+            model,
+            nameof(GeneratedTaskOccurrence.TaskId));
+        AssertHasUniqueFilteredIndex<ReminderPolicy>(
+            model,
+            "[ScopeType] = 0",
+            nameof(ReminderPolicy.ScopeType));
+        AssertHasUniqueFilteredIndex<ReminderPolicy>(
+            model,
+            "[ScopeType] = 1 AND [UnitId] IS NOT NULL",
+            nameof(ReminderPolicy.UnitId));
+        AssertHasUniqueFilteredIndex<ReminderPolicy>(
+            model,
+            "[ScopeType] = 2 AND [ProjectId] IS NOT NULL",
+            nameof(ReminderPolicy.ProjectId));
+        AssertHasUniqueIndex<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.EventKey));
+        AssertHasUniqueIndex<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.TaskId),
+            nameof(ScheduledNotification.Type));
     }
 
     [Fact]
@@ -58,6 +108,13 @@ public class DatabaseModelTests
         AssertIsConcurrencyToken<Unit>(model, nameof(Unit.RowVersion));
         AssertIsConcurrencyToken<Project>(model, nameof(Project.RowVersion));
         AssertIsConcurrencyToken<KpiPeriod>(model, nameof(KpiPeriod.RowVersion));
+        AssertIsConcurrencyToken<RecurringTaskTemplate>(
+            model,
+            nameof(RecurringTaskTemplate.RowVersion));
+        AssertIsConcurrencyToken<ReminderPolicy>(model, nameof(ReminderPolicy.RowVersion));
+        AssertIsConcurrencyToken<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.RowVersion));
     }
 
     [Fact]
@@ -68,7 +125,26 @@ public class DatabaseModelTests
 
         AssertHasIndex<TaskAssignee>(model, nameof(TaskAssignee.UserId), nameof(TaskAssignee.TaskId));
         AssertHasIndex<TaskAssignee>(model, nameof(TaskAssignee.UnitId), nameof(TaskAssignee.TaskId));
-        AssertHasIndex<Progress>(model, nameof(Progress.TaskId), nameof(Progress.UpdatedAt));
+        AssertHasIndex<Progress>(
+            model,
+            nameof(Progress.TaskId),
+            nameof(Progress.UpdatedAt),
+            nameof(Progress.Id));
+        AssertHasIndex<TaskHistory>(
+            model,
+            nameof(TaskHistory.TaskId),
+            nameof(TaskHistory.ChangedAt),
+            nameof(TaskHistory.Id));
+        AssertHasIndex<TaskComment>(
+            model,
+            nameof(TaskComment.TaskId),
+            nameof(TaskComment.CreatedAt),
+            nameof(TaskComment.Id));
+        AssertHasIndex<UploadFile>(
+            model,
+            nameof(UploadFile.TaskId),
+            nameof(UploadFile.CreatedAt),
+            nameof(UploadFile.Id));
         AssertHasIndex<Progress>(
             model,
             nameof(Progress.UserId),
@@ -80,6 +156,32 @@ public class DatabaseModelTests
             model,
             nameof(UserWorkHistory.UnitId),
             nameof(UserWorkHistory.EffectiveFrom));
+        AssertHasIndex<UserCapacity>(
+            model,
+            nameof(UserCapacity.UserId),
+            nameof(UserCapacity.EffectiveFrom));
+        AssertHasIndex<RecurringTaskTemplate>(
+            model,
+            nameof(RecurringTaskTemplate.IsActive),
+            nameof(RecurringTaskTemplate.NextRunAtUtc));
+        AssertHasIndex<RecurringTaskAssignee>(
+            model,
+            nameof(RecurringTaskAssignee.UserId),
+            nameof(RecurringTaskAssignee.TemplateId));
+        AssertHasIndex<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.Status),
+            nameof(ScheduledNotification.ScheduledForUtc),
+            nameof(ScheduledNotification.RetryCount));
+        AssertHasIndex<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.TaskId),
+            nameof(ScheduledNotification.ScheduledForUtc));
+        AssertHasIndex<ScheduledNotification>(
+            model,
+            nameof(ScheduledNotification.TaskId),
+            nameof(ScheduledNotification.SentAtUtc),
+            nameof(ScheduledNotification.Id));
     }
 
     [Fact]
@@ -103,6 +205,8 @@ public class DatabaseModelTests
         AssertDeleteBehavior<KpiResult>(model, DeleteBehavior.NoAction, nameof(KpiResult.UserId));
         AssertDeleteBehavior<UserWorkHistory>(model, DeleteBehavior.NoAction, nameof(UserWorkHistory.UserId));
         AssertDeleteBehavior<UserWorkHistory>(model, DeleteBehavior.NoAction, nameof(UserWorkHistory.UnitId));
+        AssertDeleteBehavior<UserCapacity>(model, DeleteBehavior.NoAction, nameof(UserCapacity.UserId));
+        AssertDeleteBehavior<UserCapacity>(model, DeleteBehavior.NoAction, nameof(UserCapacity.ChangedByUserId));
         AssertDeleteBehavior<UploadFile>(model, DeleteBehavior.NoAction, nameof(UploadFile.TaskId));
         AssertDeleteBehavior<UploadFile>(
             model,
@@ -110,6 +214,47 @@ public class DatabaseModelTests
             nameof(UploadFile.ProgressId),
             nameof(UploadFile.TaskId));
         AssertDeleteBehavior<UploadFile>(model, DeleteBehavior.NoAction, nameof(UploadFile.UploadedBy));
+        AssertDeleteBehavior<RecurringTaskTemplate>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(RecurringTaskTemplate.UnitId));
+        AssertDeleteBehavior<RecurringTaskTemplate>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(RecurringTaskTemplate.ProjectId),
+            nameof(RecurringTaskTemplate.UnitId));
+        AssertDeleteBehavior<RecurringTaskTemplate>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(RecurringTaskTemplate.CreatedByUserId));
+        AssertDeleteBehavior<RecurringTaskAssignee>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(RecurringTaskAssignee.TemplateId));
+        AssertDeleteBehavior<RecurringTaskAssignee>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(RecurringTaskAssignee.UserId));
+        AssertDeleteBehavior<GeneratedTaskOccurrence>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(GeneratedTaskOccurrence.TemplateId));
+        AssertDeleteBehavior<GeneratedTaskOccurrence>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(GeneratedTaskOccurrence.TaskId));
+        AssertDeleteBehavior<ReminderPolicy>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(ReminderPolicy.UnitId));
+        AssertDeleteBehavior<ReminderPolicy>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(ReminderPolicy.ProjectId));
+        AssertDeleteBehavior<ScheduledNotification>(
+            model,
+            DeleteBehavior.NoAction,
+            nameof(ScheduledNotification.TaskId));
     }
 
     [Fact]
@@ -121,6 +266,7 @@ public class DatabaseModelTests
         AssertRequired<Project>(model, nameof(Project.UnitId));
         AssertRequired<TaskItem>(model, nameof(TaskItem.UnitId));
         AssertRequired<UploadFile>(model, nameof(UploadFile.TaskId));
+        AssertRequired<RecurringTaskTemplate>(model, nameof(RecurringTaskTemplate.UnitId));
         AssertDeleteBehavior<TaskItem>(
             model,
             DeleteBehavior.NoAction,
@@ -137,6 +283,7 @@ public class DatabaseModelTests
         AssertRequiredWithMaxLength<KpiResult>(model, nameof(KpiResult.FullNameSnapshot), 200);
         AssertRequiredWithMaxLength<KpiResult>(model, nameof(KpiResult.EmployeeCodeSnapshot), 50);
         AssertRequiredWithMaxLength<KpiResult>(model, nameof(KpiResult.UnitNameSnapshot), 200);
+        AssertRequiredWithMaxLength<KpiResult>(model, nameof(KpiResult.FormulaVersion), 30);
     }
 
     [Fact]
@@ -174,6 +321,16 @@ public class DatabaseModelTests
 
         Assert.Contains(entityType.GetIndexes(), index =>
             index.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
+    }
+
+    private static void AssertHasPrimaryKey<TEntity>(IModel model, params string[] propertyNames)
+    {
+        var entityType = model.FindEntityType(typeof(TEntity))
+            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} not found.");
+        var primaryKey = entityType.FindPrimaryKey()
+            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} has no primary key.");
+
+        Assert.True(primaryKey.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
     }
 
     private static void AssertHasUniqueFilteredIndex<TEntity>(

@@ -118,6 +118,19 @@ public class ProgressReviewServiceTests
         Assert.Equal(0, result.HoursSpent);
         Assert.Equal("InProgress", result.Status);
         Assert.Equal(TaskStatusEnum.InProgress, savedTask!.Status);
+        Assert.Contains(await context.TaskHistories.AsNoTracking().ToListAsync(), history =>
+            history.TaskId == task.Id &&
+            history.FieldName == "Status" &&
+            history.OldValue == TaskStatusEnum.NotStarted.ToString() &&
+            history.NewValue == TaskStatusEnum.InProgress.ToString() &&
+            history.RelatedEntityId == result.Id &&
+            !string.IsNullOrWhiteSpace(history.Reason));
+        Assert.Contains(await context.TaskHistories.AsNoTracking().ToListAsync(), history =>
+            history.TaskId == task.Id &&
+            history.FieldName == "ProgressStatus" &&
+            history.OldValue == null &&
+            history.NewValue == ProgressStatusEnum.InProgress.ToString() &&
+            history.RelatedEntityId == result.Id);
         Assert.Equal(1, transactions.ExecutionCount);
         Assert.Equal(1, saveCounter.Count);
     }
@@ -335,8 +348,15 @@ public class ProgressReviewServiceTests
         Assert.Equal(TaskStatusEnum.Approved, savedTask!.Status);
         Assert.Equal(5, savedTask.ActualHours);
         Assert.Contains(notifications.Sent, n => n.UserId == user.Id && n.Message.Contains("phe duyet"));
+        Assert.Contains(await context.TaskHistories.AsNoTracking().ToListAsync(), history =>
+            history.TaskId == task.Id &&
+            history.FieldName == "ProgressStatus" &&
+            history.OldValue == ProgressStatusEnum.Submitted.ToString() &&
+            history.NewValue == ProgressStatusEnum.Approved.ToString() &&
+            history.RelatedEntityId == progress.Id &&
+            history.Reason == "OK");
         Assert.Equal(1, transactions.ExecutionCount);
-        Assert.Equal(1, transactions.SerializableExecutionCount);
+        Assert.Equal(0, transactions.SerializableExecutionCount);
     }
 
     [Fact]
@@ -468,6 +488,42 @@ public class ProgressReviewServiceTests
     }
 
     [Fact]
+    public async Task Review_RejectWithoutReason_DoesNotMutateWorkflow()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var (manager, user, task) = await SeedAssignedTask(context, requiresReview: true);
+        var progress = new Progress
+        {
+            Id = Guid.NewGuid(),
+            TaskId = task.Id,
+            UserId = user.Id,
+            Percent = 100,
+            Status = ProgressStatusEnum.Submitted,
+            UpdatedAt = DateTime.UtcNow
+        };
+        task.Status = TaskStatusEnum.Submitted;
+        context.Progresses.Add(progress);
+        await context.SaveChangesAsync();
+        var service = TestFactory.CreateReviewService(context);
+
+        await Assert.ThrowsAsync<BusinessException>(() => service.Review(new ReviewDto
+        {
+            ProgressId = progress.Id,
+            Approve = false
+        }, manager.Id));
+
+        Assert.Equal(
+            ProgressStatusEnum.Submitted,
+            (await context.Progresses.AsNoTracking().SingleAsync(item => item.Id == progress.Id)).Status);
+        Assert.Equal(
+            TaskStatusEnum.Submitted,
+            (await context.Tasks.AsNoTracking().SingleAsync(item => item.Id == task.Id)).Status);
+        Assert.False(await context.Reviews.AsNoTracking().AnyAsync(item => item.ProgressId == progress.Id));
+        Assert.False(await context.TaskHistories.AsNoTracking().AnyAsync(item =>
+            item.RelatedEntityId == progress.Id));
+    }
+
+    [Fact]
     public async Task Review_RejectThenCorrectedResubmission_CompletesThroughSupportedWorkflow()
     {
         await using var context = TestFactory.CreateDbContext();
@@ -515,6 +571,13 @@ public class ProgressReviewServiceTests
         Assert.Equal(TaskStatusEnum.InProgress, taskAfterRejection.Status);
         Assert.Null(taskAfterRejection.CompletedAt);
         Assert.Null(taskAfterRejection.CompletedBy);
+        Assert.Contains(await context.TaskHistories.AsNoTracking().ToListAsync(), history =>
+            history.TaskId == task.Id &&
+            history.FieldName == "ProgressStatus" &&
+            history.OldValue == ProgressStatusEnum.Submitted.ToString() &&
+            history.NewValue == ProgressStatusEnum.Rejected.ToString() &&
+            history.RelatedEntityId == firstSubmission.Id &&
+            history.Reason == "Can bo sung minh chung.");
 
         var correctedEvidence = await AddEvidence(
             context,
@@ -599,6 +662,7 @@ public class ProgressReviewServiceTests
             TaskStatusEnum.Submitted,
             (await context.Tasks.AsNoTracking().SingleAsync(item => item.Id == task.Id)).Status);
         Assert.Empty(await context.Reviews.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.TaskHistories.AsNoTracking().ToListAsync());
     }
 
     private static async Task<UploadFile> AddEvidence(

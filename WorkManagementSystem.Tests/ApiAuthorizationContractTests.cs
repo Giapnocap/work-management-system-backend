@@ -40,11 +40,22 @@ public class ApiAuthorizationContractTests
     [InlineData(typeof(TaskController), nameof(TaskController.Update))]
     [InlineData(typeof(TaskController), nameof(TaskController.Delete))]
     [InlineData(typeof(TaskController), nameof(TaskController.Remind))]
+    [InlineData(typeof(TaskController), nameof(TaskController.PreviewAssignment))]
     [InlineData(typeof(ProjectController), nameof(ProjectController.GetProjects))]
     [InlineData(typeof(ProjectController), nameof(ProjectController.Create))]
     [InlineData(typeof(ProjectController), nameof(ProjectController.Update))]
     [InlineData(typeof(ProjectController), nameof(ProjectController.Archive))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.GetAll))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.GetById))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.Create))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.Update))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.Pause))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.Resume))]
+    [InlineData(typeof(RecurringTaskController), nameof(RecurringTaskController.Delete))]
+    [InlineData(typeof(ManagementReminderPolicyController), nameof(ManagementReminderPolicyController.Get))]
+    [InlineData(typeof(ManagementReminderPolicyController), nameof(ManagementReminderPolicyController.Upsert))]
     [InlineData(typeof(ReviewController), nameof(ReviewController.Review))]
+    [InlineData(typeof(KpiController), nameof(KpiController.GetDashboard))]
     public void ManagerWorkflowEndpoints_RequireManagerRole(Type controllerType, string actionName)
     {
         var roles = GetEffectiveRoles(controllerType, actionName);
@@ -59,6 +70,7 @@ public class ApiAuthorizationContractTests
     [InlineData(typeof(AuthController), nameof(AuthController.RejectUser))]
     [InlineData(typeof(KpiController), nameof(KpiController.Create))]
     [InlineData(typeof(KpiController), nameof(KpiController.Lock))]
+    [InlineData(typeof(KpiController), nameof(KpiController.GetDashboard))]
     [InlineData(typeof(UnitController), nameof(UnitController.Create))]
     [InlineData(typeof(UnitController), nameof(UnitController.Update))]
     [InlineData(typeof(UnitController), nameof(UnitController.Delete))]
@@ -67,6 +79,8 @@ public class ApiAuthorizationContractTests
     [InlineData(typeof(UserController), nameof(UserController.Update))]
     [InlineData(typeof(UserController), nameof(UserController.Delete))]
     [InlineData(typeof(AuditController), nameof(AuditController.Get))]
+    [InlineData(typeof(ManagementReminderPolicyController), nameof(ManagementReminderPolicyController.Get))]
+    [InlineData(typeof(ManagementReminderPolicyController), nameof(ManagementReminderPolicyController.Upsert))]
     public void AdminWorkflowEndpoints_RequireAdminRole(Type controllerType, string actionName)
     {
         var roles = GetEffectiveRoles(controllerType, actionName);

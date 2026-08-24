@@ -292,7 +292,45 @@ public class UserKpiWorkHistoryTests
         Assert.Equal(100, result.Score);
         Assert.Equal("Moi/Thu viec", result.Level);
         Assert.Equal(0, result.TotalTasks);
+        Assert.Equal(0m, result.CompletionRate);
+        Assert.Equal(0m, result.OverdueRate);
+        Assert.Equal(0m, result.ReviewRejectionRate);
+        Assert.Null(result.EstimationAccuracy);
+        Assert.Equal("1.0", result.FormulaVersion);
         Assert.False(result.IsAtRisk);
+    }
+
+    [Fact]
+    public async Task GetPerformance_WithPlannedApprovedTask_ExposesRawInsightsWithoutChangingScore()
+    {
+        await using var context = TestFactory.CreateDbContext();
+        var unit = SeedUnit(context, "Unit A");
+        var manager = SeedUser(context, "manager", "Manager", unit.Id);
+        var user = SeedUser(context, "employee", "User", unit.Id);
+        var period = SeedPeriod(context);
+        var task = SeedApprovedTask(
+            context,
+            user.Id,
+            manager.Id,
+            unit.Id,
+            "Planned task",
+            PeriodStart.AddDays(5));
+        task.PlannedEffortHours = 2m;
+        await context.SaveChangesAsync();
+        var service = CreateUserService(context);
+
+        var result = await service.GetPerformanceAsync(user.Id, period.Id);
+
+        Assert.Equal(105, result.Score);
+        Assert.Equal(1, result.CompletedTasks);
+        Assert.Equal(1, result.ProgressReportCount);
+        Assert.Equal(2m, result.PlannedEffortHours);
+        Assert.Equal(1m, result.ActualHours);
+        Assert.Equal(100m, result.CompletionRate);
+        Assert.Equal(0m, result.OverdueRate);
+        Assert.Equal(0m, result.ReviewRejectionRate);
+        Assert.Equal(50m, result.EstimationAccuracy);
+        Assert.Equal("1.0", result.FormulaVersion);
     }
 
     [Fact]
@@ -513,7 +551,7 @@ public class UserKpiWorkHistoryTests
         });
     }
 
-    private static void SeedApprovedTask(AppDbContext context, Guid userId, Guid createdBy, Guid unitId, string title, DateTime completedAt)
+    private static TaskItem SeedApprovedTask(AppDbContext context, Guid userId, Guid createdBy, Guid unitId, string title, DateTime completedAt)
     {
         var task = new TaskItem
         {
@@ -545,6 +583,7 @@ public class UserKpiWorkHistoryTests
             Status = ProgressStatusEnum.Approved,
             UpdatedAt = completedAt
         });
+        return task;
     }
 
     private static void SeedApprovedTaskWithDeadline(

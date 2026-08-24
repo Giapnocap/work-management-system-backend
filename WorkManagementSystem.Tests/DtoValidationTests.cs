@@ -107,6 +107,12 @@ public class DtoValidationTests
         {
             new UpdateTaskDto { Title = "Task" },
             new UpdateProjectDto { Name = "Project" },
+            new UpdateRecurringTaskDto
+            {
+                Title = "Recurring task",
+                RecurrenceType = "Daily",
+                NextRunAtUtc = DateTimeOffset.UtcNow
+            },
             new UpdateUnitDto { Name = "Unit" },
             new UpdateUserDto { Role = "User" }
         };
@@ -138,6 +144,60 @@ public class DtoValidationTests
         Assert.Contains(
             Validate(updateDto),
             error => error.MemberNames.Contains(nameof(UpdateTaskDto.Priority)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void WorkloadDtos_RejectNonPositiveHours(double hours)
+    {
+        var createTask = new CreateTaskDto
+        {
+            Title = "Task",
+            PlannedEffortHours = (decimal)hours
+        };
+        var capacity = new UpdateUserCapacityDto
+        {
+            WeeklyCapacityHours = (decimal)hours
+        };
+        var preview = new AssignmentPreviewRequestDto
+        {
+            PlannedEffortHours = (decimal)hours
+        };
+
+        Assert.Contains(
+            Validate(createTask),
+            error => error.MemberNames.Contains(nameof(CreateTaskDto.PlannedEffortHours)));
+        Assert.Contains(
+            Validate(capacity),
+            error => error.MemberNames.Contains(nameof(UpdateUserCapacityDto.WeeklyCapacityHours)));
+        Assert.Contains(
+            Validate(preview),
+            error => error.MemberNames.Contains(nameof(AssignmentPreviewRequestDto.PlannedEffortHours)));
+    }
+
+    [Theory]
+    [InlineData("Cron", 1, null, null)]
+    [InlineData("Daily", 0, null, null)]
+    [InlineData("Weekly", 1, 7, null)]
+    [InlineData("Monthly", 1, null, 32)]
+    public void RecurringTaskDto_RejectsUnsupportedScheduleValues(
+        string recurrenceType,
+        int interval,
+        int? dayOfWeek,
+        int? dayOfMonth)
+    {
+        var dto = new CreateRecurringTaskDto
+        {
+            Title = "Recurring task",
+            RecurrenceType = recurrenceType,
+            Interval = interval,
+            DayOfWeek = dayOfWeek,
+            DayOfMonth = dayOfMonth,
+            NextRunAtUtc = DateTimeOffset.UtcNow
+        };
+
+        Assert.NotEmpty(Validate(dto));
     }
 
     private static List<ValidationResult> Validate(object dto)
