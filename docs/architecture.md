@@ -1,14 +1,14 @@
-# Architecture
+# Kiến trúc
 
-## Architectural Position
+## Định vị kiến trúc
 
-WorkManagementSystem is a **layered modular monolith**. The production code is compiled into one ASP.NET Core Web API project, while automated tests live in a separate xUnit project.
+WorkManagementSystem là một **layered modular monolith**. Code production được biên dịch thành một project ASP.NET Core Web API, còn automated test nằm trong project xUnit riêng.
 
-The folders represent logical boundaries inside the runtime project. They are not independent deployable services or separate class-library assemblies. The codebase therefore does not claim to be microservices, full Clean Architecture, or a complete DDD implementation.
+Các folder thể hiện ranh giới logic bên trong runtime project. Chúng không phải service triển khai độc lập hoặc class-library assembly riêng. Vì vậy codebase không tuyên bố là microservices, full Clean Architecture hoặc một implementation DDD hoàn chỉnh.
 
-This structure is intentional for the current scope: one deployable API, one SQL Server database, clear ownership boundaries, and enough separation to test business rules without adding deployment complexity.
+Cấu trúc này là chủ đích cho phạm vi hiện tại: một API có thể triển khai, một database SQL Server, ranh giới sở hữu rõ ràng và đủ phân tách để test quy tắc nghiệp vụ mà không tăng độ phức tạp triển khai.
 
-## Dependency Direction
+## Hướng dependency
 
 ```mermaid
 flowchart LR
@@ -22,33 +22,33 @@ flowchart LR
     Composition --> Infrastructure
 ```
 
-The dependency rules currently enforced by tests are:
+Các quy tắc dependency hiện được test bảo vệ:
 
-- `Application` types must not depend on `API` or `Infrastructure` types.
-- Controllers must call application services instead of injecting `AppDbContext`, EF `DbContext`, or repositories.
-- Infrastructure implements application-facing ports such as `IAppDbContext`, `IGenericRepository<T>`, password hashing, transactions, and storage cleanup.
-- `Program.cs` is the composition root and is allowed to know every layer so it can register concrete implementations.
+- Type trong `Application` không được phụ thuộc vào type trong `API` hoặc `Infrastructure`.
+- Controller phải gọi application service thay vì inject `AppDbContext`, EF `DbContext` hoặc repository.
+- Infrastructure triển khai port hướng về Application như `IAppDbContext`, `IGenericRepository<T>`, password hashing, transaction và storage cleanup.
+- `Program.cs` là composition root và được phép biết mọi layer để đăng ký concrete implementation.
 
-The application layer uses EF Core query abstractions through `IAppDbContext`. This is a pragmatic persistence boundary, not persistence ignorance. Moving every layer into a separate assembly would require replacing that interface with narrower query/command ports first.
+Application layer dùng abstraction truy vấn EF Core qua `IAppDbContext`. Đây là persistence boundary thực dụng, không phải persistence ignorance. Muốn chuyển từng layer thành assembly riêng cần thay interface đó bằng query/command port hẹp hơn trước.
 
-## Folder Ownership
+## Trách nhiệm của folder
 
-| Path | Responsibility | Must not contain |
+| Path | Trách nhiệm | Không được chứa |
 | --- | --- | --- |
-| `API/Controllers` | HTTP routing, status codes, authenticated-user context | Business workflow or direct data access |
-| `API/Middlewares` | Correlation, errors, security headers, logging context | Domain decisions |
-| `API/Hubs` | Authorized SignalR connections and in-process notifications | Persistence mutations |
-| `Application/DTOs` | Public request and response contracts | EF entities exposed as API responses |
-| `Application/Interfaces` | Ports used by controllers and application services | Concrete infrastructure implementations |
-| `Application/Services` | Authorization scope, business rules, workflow orchestration | HTTP-specific response handling |
-| `Domain` | Persistent business state and supported enum values | API or infrastructure dependencies |
-| `Infrastructure/Data` | EF Core context, transactions, model configuration, seed data | Controller concerns |
-| `Infrastructure/Security` | BCrypt implementation | Login workflow decisions |
-| `Infrastructure/Storage` | Physical-file reconciliation | Public file authorization |
-| `Infrastructure/Scheduling` | Thin hosted-worker loops that resolve scoped application schedulers | Business rules or in-memory scheduling state |
-| `Migrations` | Versioned SQL Server schema history | Runtime data seeding |
+| `API/Controllers` | HTTP routing, status code, ngữ cảnh User đã xác thực | Business workflow hoặc truy cập dữ liệu trực tiếp |
+| `API/Middlewares` | Correlation, lỗi, security header, logging context | Quyết định domain |
+| `API/Hubs` | Kết nối SignalR đã authorization và notification trong process | Thay đổi persistence |
+| `Application/DTOs` | Hợp đồng request/response công khai | EF entity được trả trực tiếp qua API |
+| `Application/Interfaces` | Port do controller và application service sử dụng | Concrete implementation của infrastructure |
+| `Application/Services` | Phạm vi authorization, quy tắc nghiệp vụ, điều phối workflow | Xử lý response riêng của HTTP |
+| `Domain` | Trạng thái nghiệp vụ bền vững và enum được hỗ trợ | Dependency tới API hoặc infrastructure |
+| `Infrastructure/Data` | EF Core context, transaction, model configuration, seed data | Mối quan tâm của controller |
+| `Infrastructure/Security` | Implementation BCrypt | Quyết định workflow đăng nhập |
+| `Infrastructure/Storage` | Đối soát file vật lý | Authorization file công khai |
+| `Infrastructure/Scheduling` | Hosted-worker loop mỏng resolve application scheduler có scope | Quy tắc nghiệp vụ hoặc scheduling state trong memory |
+| `Migrations` | Lịch sử schema SQL Server có version | Seed dữ liệu runtime |
 
-## Request And Data Flow
+## Luồng request và dữ liệu
 
 ```mermaid
 sequenceDiagram
@@ -74,20 +74,20 @@ sequenceDiagram
     Service-->>Realtime: Best-effort event after persistence
 ```
 
-Important characteristics:
+Đặc điểm quan trọng:
 
-- Read paths use `AsNoTracking` where change tracking is unnecessary.
-- Multi-step mutations use `ITransactionManager`; sensitive staff movement and uniqueness flows use serializable transactions where required.
-- `rowversion` protects mutable records that support optimistic concurrency.
-- Database unique, foreign-key, and check constraints remain the final integrity boundary.
-- Request cancellation is propagated from controllers into services and EF Core calls.
-- Realtime delivery is best effort. A SignalR failure is logged and does not undo an already successful business mutation.
+- Luồng đọc dùng `AsNoTracking` khi không cần change tracking.
+- Thao tác nhiều bước dùng `ITransactionManager`; luồng điều chuyển nhân sự nhạy cảm và đảm bảo uniqueness dùng serializable transaction khi cần.
+- `rowversion` bảo vệ record có thể sửa bằng optimistic concurrency.
+- Unique constraint, foreign key và check constraint trong database là ranh giới toàn vẹn cuối cùng.
+- Cancellation của request được truyền từ controller vào service và EF Core call.
+- Realtime delivery là best effort. Lỗi SignalR được log và không rollback thay đổi nghiệp vụ đã thành công.
 
-The task activity timeline is a read model over existing workflow tables. It issues bounded projections per event source, merges them with deterministic cursor ordering, and batch-loads actor snapshots. It does not duplicate write state in a generic activity table and never exposes raw `AuditLog` JSON.
+Activity timeline của Task là read model trên các bảng workflow hiện có. Nó thực hiện projection có giới hạn theo từng nguồn event, ghép bằng cursor ordering xác định và batch-load actor snapshot. Nó không nhân đôi trạng thái ghi trong bảng activity chung và không bao giờ làm lộ JSON thô của `AuditLog`.
 
-Task and progress state changes are centralized in the domain-specific `TaskWorkflowPolicy` and `TaskWorkflowService`. The policy owns the explicit transition matrix; the service applies domain methods, completion/dependency context, approved hours, and transition history. Reporter and Manager scope checks remain in their command services, so possessing a role alone never authorizes a resource transition. No generic status-mutation endpoint or generic workflow engine exists.
+Thay đổi trạng thái Task và Progress được tập trung trong `TaskWorkflowPolicy` riêng cho domain và `TaskWorkflowService`. Policy sở hữu ma trận transition rõ ràng; service áp dụng domain method, ngữ cảnh completion/dependency, approved hours và transition history. Kiểm tra phạm vi người báo cáo và Manager vẫn nằm trong command service tương ứng, nên chỉ có role không bao giờ đủ quyền chuyển trạng thái tài nguyên. Hệ thống không có generic status-mutation endpoint hoặc generic workflow engine.
 
-## Runtime Topology
+## Topology runtime
 
 ```mermaid
 flowchart TB
@@ -100,23 +100,23 @@ flowchart TB
     Migration[One-shot migration container] --> SqlServer
 ```
 
-The recurring-task and deadline-reminder workers run inside the API process, but their source of truth is SQL Server. A restart loses no schedule or pending reminder state. The Compose stack runs SQL Server, a one-shot migration image, and one API instance. Production topology, TLS termination, backups, log aggregation, and secret storage remain deployment-platform responsibilities.
+Recurring-task và deadline-reminder worker chạy bên trong API process, nhưng SQL Server là nguồn dữ liệu chuẩn. Restart không làm mất schedule hoặc reminder đang chờ. Compose stack chạy SQL Server, một migration image one-shot và một API instance. Production topology, kết thúc TLS, backup, tổng hợp log và lưu secret là trách nhiệm của nền tảng triển khai.
 
-## Cross-Cutting Controls
+## Kiểm soát xuyên suốt
 
-- JWT access tokens include `TokenVersion`; account and security changes revoke older tokens.
-- Role attributes provide the outer API boundary, while services enforce department, assignment, and historical-data scope.
-- Errors use a consistent ProblemDetails-compatible contract with a correlation identifier.
-- Authentication and upload endpoints have fixed-window rate limits.
-- Uploads are private and require task-aware authorization for download.
-- `/health/live` checks the process; `/health/ready` checks SQL Server and upload-storage writability.
-- Serilog records structured correlation and authenticated user context without intentionally logging credentials or tokens.
+- JWT access token chứa `TokenVersion`; thay đổi tài khoản và bảo mật thu hồi token cũ.
+- Role attribute tạo ranh giới API bên ngoài, còn service cưỡng chế phạm vi phòng ban, assignment và dữ liệu lịch sử.
+- Lỗi dùng hợp đồng tương thích ProblemDetails thống nhất với correlation identifier.
+- Endpoint authentication và upload có fixed-window rate limit.
+- Upload là riêng tư và cần authorization theo Task để download.
+- `/health/live` kiểm tra process; `/health/ready` kiểm tra SQL Server và khả năng ghi upload storage.
+- Serilog ghi correlation và ngữ cảnh User đã xác thực theo structured data mà không chủ ý log credential hoặc token.
 
-## Architecture Verification
+## Xác minh kiến trúc
 
-`WorkManagementSystem.Tests/ArchitectureDependencyTests.cs` guards the dependency rules. API contract tests also verify explicit routes, public endpoint allowlisting, and Admin/Manager workflow authorization.
+`WorkManagementSystem.Tests/ArchitectureDependencyTests.cs` bảo vệ các quy tắc dependency. API contract test cũng xác minh route rõ ràng, allowlist public endpoint và authorization workflow Admin/Manager.
 
-Run the relevant tests with:
+Chạy test liên quan bằng:
 
 ```powershell
 dotnet test .\WorkManagementSystem.Tests\WorkManagementSystem.Tests.csproj `

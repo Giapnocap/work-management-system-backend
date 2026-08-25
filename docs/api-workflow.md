@@ -1,10 +1,8 @@
-# Sample API Workflow
+# Workflow API mẫu
 
-For a one-command, assertion-based version of this walkthrough, run
-[`scripts/demo-workflow.ps1`](../scripts/demo-workflow.ps1). The snippets below
-remain useful when explaining each HTTP request independently.
+Để chạy phiên bản một command có assertion của hướng dẫn này, dùng [`scripts/demo-workflow.ps1`](../scripts/demo-workflow.ps1). Các đoạn mẫu bên dưới vẫn hữu ích khi cần giải thích độc lập từng HTTP request.
 
-This flow exercises the same business path protected by the HTTP integration tests:
+Luồng này thực hiện cùng đường nghiệp vụ đang được HTTP integration test bảo vệ:
 
 ```mermaid
 sequenceDiagram
@@ -22,16 +20,15 @@ sequenceDiagram
     User->>API: Read approved task and KPI
 ```
 
-## Prerequisites
+## Điều kiện cần
 
-- Run the API in Development.
-- Enable the optional demo seed.
-- Use PowerShell 7 or later for the multipart `-Form` example below. The automated
-  demo script also supports Windows PowerShell 5.1 by using `curl.exe` for upload.
+- Chạy API trong Development.
+- Bật demo seed tùy chọn.
+- Dùng PowerShell 7 trở lên cho ví dụ multipart `-Form` bên dưới. Automated demo script cũng hỗ trợ Windows PowerShell 5.1 bằng cách dùng `curl.exe` để upload.
 
-The examples below target Docker at `http://localhost:8080`. For the local HTTPS profile, replace the base URL with `https://localhost:7231`.
+Các ví dụ bên dưới gọi Docker tại `http://localhost:8080`. Với profile HTTPS cục bộ, thay base URL bằng `https://localhost:7231`.
 
-## 1. Sign In
+## 1. Đăng nhập
 
 ```powershell
 $baseUrl = "http://localhost:8080"
@@ -57,9 +54,9 @@ $employeeHeaders = @{ Authorization = "Bearer $employeeToken" }
 $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 ```
 
-`POST /api/auth/login` returns the encoded access token as a string. Depending on HTTP content negotiation, clients can receive a plain-text body or a JSON string. This backend currently uses access tokens only; it does not expose a refresh-token endpoint.
+`POST /api/auth/login` trả về access token đã mã hóa dưới dạng string. Tùy content negotiation của HTTP, client có thể nhận plain-text body hoặc JSON string. Backend hiện chỉ dùng access token và không cung cấp refresh-token endpoint.
 
-## 2. Resolve The Employee
+## 2. Tìm nhân viên
 
 ```powershell
 $employees = Invoke-RestMethod `
@@ -71,9 +68,9 @@ $employee = @($employees) | Select-Object -First 1
 if ($null -eq $employee) { throw "Demo employee was not found." }
 ```
 
-The Manager search is restricted to users visible inside the Manager's department.
+Tìm kiếm của Manager chỉ trả về user mà Manager được phép xem trong phòng ban của mình.
 
-## 3. Create A Project
+## 3. Tạo Project
 
 ```powershell
 $project = Invoke-RestMethod `
@@ -87,9 +84,9 @@ $project = Invoke-RestMethod `
     } | ConvertTo-Json)
 ```
 
-The API derives the project department from the authenticated Manager. Supplying another department id is rejected.
+API suy ra phòng ban của Project từ Manager đã xác thực. Gửi id của phòng ban khác sẽ bị từ chối.
 
-## 4. Create And Assign A Task
+## 4. Tạo và giao Task
 
 ```powershell
 $task = Invoke-RestMethod `
@@ -109,9 +106,9 @@ $task = Invoke-RestMethod `
     } | ConvertTo-Json -Depth 4)
 ```
 
-New tasks always start as `NotStarted`. Clients cannot set task status directly.
+Task mới luôn bắt đầu ở `NotStarted`. Client không thể đặt trực tiếp trạng thái Task.
 
-## 5. Upload Evidence
+## 5. Tải evidence lên
 
 ```powershell
 $evidencePath = Join-Path $PWD "evidence.txt"
@@ -124,9 +121,9 @@ $upload = Invoke-RestMethod `
     -Form @{ file = Get-Item -LiteralPath $evidencePath }
 ```
 
-The file is attached to the task context. Uploading an unlinked file, reusing evidence for another task, or downloading without task access is rejected.
+File được gắn vào ngữ cảnh Task. Hệ thống từ chối upload file không liên kết, tái sử dụng evidence cho Task khác hoặc download khi không có quyền truy cập Task.
 
-## 6. Submit Completion
+## 6. Gửi báo cáo hoàn thành
 
 ```powershell
 $progress = Invoke-RestMethod `
@@ -143,11 +140,11 @@ $progress = Invoke-RestMethod `
     } | ConvertTo-Json)
 ```
 
-The endpoint creates a new progress report and returns `201 Created` with the created `ProgressDto` in the response body.
+Endpoint tạo một báo cáo Progress mới và trả về `201 Created` cùng `ProgressDto` vừa tạo trong response body.
 
-Because this task requires review, the progress report and task become `Submitted`; they are not complete yet.
+Vì Task này yêu cầu review, Progress và Task chuyển thành `Submitted`; chúng chưa hoàn thành.
 
-## 7. Approve The Report
+## 7. Duyệt báo cáo
 
 ```powershell
 $review = Invoke-RestMethod `
@@ -162,9 +159,9 @@ $review = Invoke-RestMethod `
     } | ConvertTo-Json)
 ```
 
-Approval completes a single-assignee task. For a multi-assignee task, every required assignee must have an approved completion before the task becomes `Approved`.
+Việc duyệt sẽ hoàn thành Task có một assignee. Với Task có nhiều assignee, mọi assignee bắt buộc phải có lần hoàn thành được duyệt trước khi Task chuyển thành `Approved`.
 
-## 8. Verify Task And KPI
+## 8. Xác minh Task và KPI
 
 ```powershell
 $approvedTask = Invoke-RestMethod `
@@ -183,11 +180,11 @@ $performance | Select-Object userId, score, totalTasks, completedOnTime, overdue
 Remove-Item -LiteralPath $evidencePath
 ```
 
-Expected task status is `Approved`. KPI reads use the current explicit period created by the demo seed; read endpoints do not create missing KPI periods.
+Trạng thái Task mong đợi là `Approved`. Luồng đọc KPI dùng kỳ hiện tại đã được demo seed tạo rõ ràng; read endpoint không tự tạo kỳ KPI còn thiếu.
 
-## Workflow Variants
+## Biến thể workflow
 
-- A task can omit `projectId`; Project is grouping metadata, not a second task workflow.
-- A task with `requiresReview = false` can be approved by the progress workflow without a Manager review.
-- Rejecting a submitted report marks that report `Rejected` and returns the unfinished task to `InProgress`.
-- An archived project cannot accept unfinished work, and task/project departments must always match.
+- Task có thể bỏ `projectId`; Project là metadata gom nhóm, không phải workflow Task thứ hai.
+- Task có `requiresReview = false` có thể được workflow Progress duyệt mà không cần Manager review.
+- Từ chối báo cáo đã gửi sẽ đặt Progress đó thành `Rejected` và đưa Task chưa hoàn thành về `InProgress`.
+- Project đã lưu trữ không thể nhận công việc chưa hoàn thành, và phòng ban của Task/Project phải luôn trùng nhau.

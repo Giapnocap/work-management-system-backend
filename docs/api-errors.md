@@ -1,6 +1,6 @@
-# API Error Contract
+# Hợp đồng lỗi API
 
-The backend returns a consistent JSON shape for errors.
+Backend trả về một cấu trúc JSON thống nhất cho mọi lỗi.
 
 ```json
 {
@@ -16,48 +16,47 @@ The backend returns a consistent JSON shape for errors.
 }
 ```
 
-The response content type is `application/problem+json`. Validation failures use the
-same shape and populate `errors` with field names and message arrays.
+Kiểu nội dung của response là `application/problem+json`. Lỗi validation dùng cùng cấu trúc và điền `errors` bằng tên field cùng mảng thông báo tương ứng.
 
-## Error Codes
+## Mã lỗi
 
-- `validation_error`: request data is invalid.
-- `business_error`: the request is syntactically valid but violates a business rule.
-- `not_found`: the requested resource does not exist or is no longer accessible.
-- `forbidden`: the authenticated user does not have permission.
-- `unauthorized`: the request is missing or has invalid identity information.
-- `request_too_large`: the uploaded file or request body exceeds server limits.
-- `bad_request`: malformed request data.
-- `concurrency_conflict`: the submitted row version is stale.
-- `duplicate_data`: a unique database constraint was violated.
-- `rate_limit_exceeded`: the caller exceeded an endpoint rate limit.
-- `internal_server_error`: unexpected server-side failure.
+- `validation_error`: dữ liệu request không hợp lệ.
+- `business_error`: request đúng cú pháp nhưng vi phạm quy tắc nghiệp vụ.
+- `not_found`: tài nguyên được yêu cầu không tồn tại hoặc không còn quyền truy cập.
+- `forbidden`: người dùng đã xác thực không có quyền thực hiện thao tác.
+- `unauthorized`: request thiếu hoặc chứa thông tin định danh không hợp lệ.
+- `request_too_large`: file tải lên hoặc request body vượt quá giới hạn của server.
+- `bad_request`: dữ liệu request sai định dạng.
+- `concurrency_conflict`: row version gửi lên đã cũ.
+- `duplicate_data`: vi phạm unique constraint trong database.
+- `rate_limit_exceeded`: caller vượt quá rate limit của endpoint.
+- `internal_server_error`: lỗi không mong đợi phía server.
 
-## Exception Mapping
+## Ánh xạ exception
 
 - `BusinessException` -> HTTP 400.
 - `NotFoundException` -> HTTP 404.
 - `ForbiddenException` -> HTTP 403.
-- `UnauthorizedAccessException` -> HTTP 403 fallback for legacy code.
-- `BadHttpRequestException` with request-size errors -> HTTP 413.
-- EF Core concurrency conflicts and unique constraint violations -> HTTP 409.
-- Rate-limit rejection -> HTTP 429.
-- unexpected exceptions -> HTTP 500.
+- `UnauthorizedAccessException` -> HTTP 403 để tương thích với code cũ.
+- `BadHttpRequestException` do kích thước request -> HTTP 413.
+- Xung đột concurrency của EF Core và vi phạm unique constraint -> HTTP 409.
+- Request bị rate limit từ chối -> HTTP 429.
+- Exception không mong đợi -> HTTP 500.
 
-## Notes
+## Lưu ý
 
-- Every response includes `X-Correlation-ID`. A safe client-supplied value is reused; otherwise the server trace identifier is returned.
-- The JSON `traceId`, response correlation header, and structured request log share the same identifier.
-- Services should throw explicit application exceptions instead of generic `Exception`.
-- Controllers delegate application failures to the global exception middleware.
-- Authenticated controllers should resolve the current user id from token claims and return `unauthorized` when the id is missing or invalid.
-- DTO/model validation failures return the same JSON shape with `code = validation_error` and field-level `errors`.
-- Internal exception details are included only in development mode.
-- Client-disconnected requests are treated as cancellation and are not converted into HTTP 500 responses.
-- Swagger documents common `400`, `401`, `403`, `404`, `409`, and `500` responses where applicable, but this document remains the source of truth for the response body shape.
+- Mọi response đều có `X-Correlation-ID`. Giá trị an toàn do client cung cấp sẽ được tái sử dụng; nếu không, server trả về trace identifier.
+- `traceId` trong JSON, correlation header của response và structured request log dùng chung một identifier.
+- Service nên ném application exception cụ thể thay vì `Exception` chung chung.
+- Controller chuyển lỗi ứng dụng cho global exception middleware xử lý.
+- Controller yêu cầu xác thực phải lấy current user id từ token claim và trả về `unauthorized` khi id thiếu hoặc không hợp lệ.
+- Lỗi validation DTO/model trả về cùng cấu trúc JSON với `code = validation_error` và `errors` theo từng field.
+- Chi tiết exception nội bộ chỉ được trả về trong môi trường Development.
+- Request bị client ngắt kết nối được xem là cancellation và không bị chuyển thành HTTP 500.
+- Swagger mô tả các response phổ biến `400`, `401`, `403`, `404`, `409` và `500` tại endpoint phù hợp, nhưng tài liệu này vẫn là nguồn chuẩn cho cấu trúc response body.
 
-## Success Status Codes
+## Status code thành công
 
-- Resource creation returns HTTP `201 Created`.
-- Deletion, archival, and commands with no response body return HTTP `204 No Content`.
-- Reads, updates, reviews, and commands that return data use HTTP `200 OK`.
+- Tạo tài nguyên trả về HTTP `201 Created`.
+- Xóa, lưu trữ và command không có response body trả về HTTP `204 No Content`.
+- Đọc, cập nhật, review và command có dữ liệu trả về dùng HTTP `200 OK`.

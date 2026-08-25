@@ -1,135 +1,135 @@
-# Business Rules
+# Quy tắc nghiệp vụ
 
-This document is the business contract for the WorkManagementSystem backend. Use it as the reference before changing service logic, database schema, or API behavior.
+Tài liệu này là hợp đồng nghiệp vụ của backend WorkManagementSystem. Hãy dùng nó làm nguồn tham chiếu trước khi thay đổi logic service, database schema hoặc hành vi API.
 
-## Core Domain
+## Domain lõi
 
-WorkManagementSystem manages department-scoped work:
+WorkManagementSystem quản lý công việc theo phạm vi phòng ban:
 
-- Admin configures accounts and departments.
-- Manager creates projects and tasks for their own department.
-- User executes assigned tasks and reports progress.
-- Progress completion can require evidence and manager review.
-- KPI is calculated by period and must remain explainable when staff move between departments or roles.
+- Admin cấu hình tài khoản và phòng ban.
+- Manager tạo Project và Task cho phòng ban của mình.
+- User thực hiện Task được giao và báo cáo Progress.
+- Hoàn thành Progress có thể yêu cầu evidence và Manager review.
+- KPI được tính theo kỳ và phải tiếp tục giải thích được khi nhân sự chuyển phòng ban hoặc đổi role.
 
-## System Invariants
+## Invariant của hệ thống
 
-The following rules are the non-negotiable contract for all later refactoring and schema changes:
+Các quy tắc sau là hợp đồng bắt buộc đối với mọi lần refactor và thay đổi schema sau này:
 
-- A user has at most one active department membership at any point in time.
-- Current user department and role must agree with the open `UserWorkHistories` segment.
-- Department transfer, department removal, promotion, or demotion must not leave unfinished work without an owner.
-- An organizational movement with unfinished work must either be rejected or run through an explicit, audited handover transaction.
-- A project's department cannot be changed after the project is created.
-- Every task linked to a project must belong to the same department as that project.
-- Project summaries are derived from task statuses; projects do not duplicate the task workflow.
-- Only an approved completion is final completion for reporting and KPI.
-- A progress, completion, review, bonus, or penalty event can contribute to KPI at most once for the same user and period.
-- Locked KPI results are immutable snapshots and must not change after later staff movements or task edits.
+- Mỗi User có tối đa một membership phòng ban đang hoạt động tại cùng một thời điểm.
+- Phòng ban và role hiện tại của User phải khớp với segment `UserWorkHistories` đang mở.
+- Chuyển phòng ban, xóa khỏi phòng ban, thăng chức hoặc hạ chức không được để công việc chưa hoàn thành mất người chịu trách nhiệm.
+- Thay đổi tổ chức khi còn công việc chưa hoàn thành phải bị từ chối hoặc đi qua một transaction bàn giao rõ ràng, có audit.
+- Không thể thay đổi phòng ban của Project sau khi tạo.
+- Mọi Task liên kết với Project phải thuộc cùng phòng ban với Project đó.
+- Tổng hợp Project được suy ra từ trạng thái Task; Project không sao chép workflow của Task.
+- Chỉ lần hoàn thành đã được duyệt mới là hoàn thành cuối cùng cho báo cáo và KPI.
+- Một event Progress, completion, review, bonus hoặc penalty chỉ được đóng góp vào KPI tối đa một lần cho cùng User và kỳ.
+- Kết quả KPI đã khóa là snapshot bất biến và không thay đổi theo điều chuyển nhân sự hoặc chỉnh sửa Task sau đó.
 
-Until the dedicated handover workflow exists, the safe behavior is to reject an organizational movement when unfinished work would become ambiguous.
+Cho đến khi có workflow bàn giao chuyên dụng, hành vi an toàn là từ chối thay đổi tổ chức nếu công việc chưa hoàn thành sẽ trở nên mơ hồ về trách nhiệm.
 
-## Role Responsibilities
+## Trách nhiệm theo role
 
-| Role | Owns | Must Not Own |
+| Role | Chịu trách nhiệm | Không được chịu trách nhiệm |
 | --- | --- | --- |
-| `Admin` | Account approval, department management, staff data, KPI period administration | Daily project/task assignment |
-| `Manager` | Department project planning, task creation, task assignment, progress review, department KPI monitoring | Assigning work outside their department |
-| `User` | Task execution, progress reporting, evidence upload, personal KPI view | Creating projects/tasks, reviewing reports |
+| `Admin` | Duyệt tài khoản, quản lý phòng ban, dữ liệu nhân sự, quản trị kỳ KPI | Giao Project/Task hằng ngày |
+| `Manager` | Lập kế hoạch Project của phòng ban, tạo Task, giao Task, review Progress, theo dõi KPI phòng ban | Giao việc ngoài phòng ban của mình |
+| `User` | Thực hiện Task, báo cáo Progress, tải evidence, xem KPI cá nhân | Tạo Project/Task, review báo cáo |
 
-### Admin Rules
+### Quy tắc Admin
 
-- Admin can approve or reject registered accounts.
-- Admin can create, update, and delete departments.
-- Admin can update staff role/unit data.
-- Admin can create and lock KPI periods.
-- Admin does not create projects or assign tasks in the daily workflow.
+- Admin có thể duyệt hoặc từ chối tài khoản đã đăng ký.
+- Admin có thể tạo, cập nhật và xóa phòng ban.
+- Admin có thể cập nhật dữ liệu role/unit của nhân sự.
+- Admin có thể tạo và khóa kỳ KPI.
+- Admin không tạo Project hoặc giao Task trong workflow hằng ngày.
 
-This separation keeps the model realistic: Admin controls system setup, Manager controls work execution.
+Sự phân tách này giữ mô hình sát thực tế: Admin kiểm soát thiết lập hệ thống, Manager kiểm soát thực thi công việc.
 
-### Manager Rules
+### Quy tắc Manager
 
-- Manager must belong to a department before creating work.
-- Manager can create projects only for their department.
-- Manager can create tasks only for their department.
-- Manager can assign work only to approved users in their department.
-- Manager can review only progress reports for active tasks in their current department; being the original creator does not bypass current department scope.
+- Manager phải thuộc một phòng ban trước khi tạo công việc.
+- Manager chỉ có thể tạo Project cho phòng ban của mình.
+- Manager chỉ có thể tạo Task cho phòng ban của mình.
+- Manager chỉ có thể giao việc cho User đã được duyệt trong phòng ban của mình.
+- Manager chỉ có thể review báo cáo Progress cho Task đang hoạt động trong phòng ban hiện tại; là người tạo ban đầu không thể bỏ qua phạm vi phòng ban hiện tại.
 
-### User Rules
+### Quy tắc User
 
-- User can see tasks assigned directly to them.
-- User can report progress only on accessible tasks.
-- User identity comes from the JWT token, not from request body data.
-- User cannot create projects, create tasks, or review reports.
-- User cannot report additional progress after the task is approved.
+- User có thể xem Task được giao trực tiếp cho mình.
+- User chỉ có thể báo cáo Progress trên Task được quyền truy cập.
+- Danh tính User lấy từ JWT token, không lấy từ request body.
+- User không thể tạo Project, tạo Task hoặc review báo cáo.
+- User không thể báo cáo thêm Progress sau khi Task được duyệt.
 
-## Role And Permission Matrix
+## Ma trận role và quyền
 
-Role attributes provide the first API boundary. Application services then apply department, assignment, ownership, and historical-period checks; possessing a role never bypasses those scope rules.
+Role attribute cung cấp ranh giới API đầu tiên. Sau đó application service áp dụng kiểm tra phòng ban, assignment, quyền sở hữu và kỳ lịch sử; chỉ sở hữu role không bao giờ được phép bỏ qua các quy tắc phạm vi này.
 
-| Capability | Anonymous | `Admin` | `Manager` | `User` |
+| Khả năng | Anonymous | `Admin` | `Manager` | `User` |
 | --- | --- | --- | --- | --- |
-| Register, login, list public departments | Allowed | Allowed | Allowed | Allowed |
-| Approve/reject accounts, reset another user's password | No | Allowed | No | No |
-| Create/update/delete departments and memberships | No | Allowed | No | No |
-| View users | No | All visible accounts | Own department | No |
-| Change staff role or department | No | Allowed, subject to handover rules | No | No |
-| Create/lock KPI periods | No | Allowed | No | No |
-| Read KPI periods | No | Allowed | Allowed | Allowed |
-| Read personal KPI | No | Any authorized staff history | Self or current/historical department scope | Self |
-| Read department KPI | No | Allowed | Current/historical department scope | No |
-| Read workload/capacity | No | All departments | Current department | No |
-| Configure employee capacity | No | Any active employee | Current department employee | No |
-| Create/update/archive projects | No | No | Own department | No |
-| Create/update/delete/remind tasks | No | No | Own department | No |
-| Manage reminder policies | No | All scopes | Own department/project scopes; Global is read-only | No |
-| View task reminder history | No | Authorized task scope | Own department | Assigned tasks |
-| View tasks and task history | No | Authorized system scope | Own department | Assigned tasks |
-| Submit progress | No | No | No | Assigned tasks only |
-| Review submitted progress | No | No | Own department/managed tasks | No |
-| Upload/download task files | No | Authorized task scope | Own department | Assigned task scope |
-| Use comments/subtasks | No | Authorized task scope | Own department | Assigned task scope; management-only mutations remain blocked |
-| Export task/progress data | No | Authorized administrative scope | Own department | No |
-| Read administrative audit logs | No | Allowed | No | No |
+| Đăng ký, đăng nhập, xem phòng ban công khai | Được phép | Được phép | Được phép | Được phép |
+| Duyệt/từ chối tài khoản, đặt lại mật khẩu User khác | Không | Được phép | Không | Không |
+| Tạo/cập nhật/xóa phòng ban và membership | Không | Được phép | Không | Không |
+| Xem User | Không | Mọi tài khoản có thể xem | Phòng ban của mình | Không |
+| Đổi role hoặc phòng ban nhân sự | Không | Được phép, tuân theo quy tắc bàn giao | Không | Không |
+| Tạo/khóa kỳ KPI | Không | Được phép | Không | Không |
+| Đọc kỳ KPI | Không | Được phép | Được phép | Được phép |
+| Đọc KPI cá nhân | Không | Mọi lịch sử nhân sự được phép | Bản thân hoặc phạm vi phòng ban hiện tại/lịch sử | Bản thân |
+| Đọc KPI phòng ban | Không | Được phép | Phạm vi phòng ban hiện tại/lịch sử | Không |
+| Đọc workload/capacity | Không | Mọi phòng ban | Phòng ban hiện tại | Không |
+| Cấu hình capacity nhân viên | Không | Mọi nhân viên đang hoạt động | Nhân viên phòng ban hiện tại | Không |
+| Tạo/cập nhật/lưu trữ Project | Không | Không | Phòng ban của mình | Không |
+| Tạo/cập nhật/xóa/nhắc Task | Không | Không | Phòng ban của mình | Không |
+| Quản lý reminder policy | Không | Mọi scope | Scope phòng ban/Project của mình; Global chỉ đọc | Không |
+| Xem lịch sử reminder của Task | Không | Phạm vi Task được phép | Phòng ban của mình | Task được giao |
+| Xem Task và lịch sử Task | Không | Phạm vi hệ thống được phép | Phòng ban của mình | Task được giao |
+| Gửi Progress | Không | Không | Không | Chỉ Task được giao |
+| Review Progress đã gửi | Không | Không | Phòng ban/Task mình quản lý | Không |
+| Upload/download file Task | Không | Phạm vi Task được phép | Phòng ban của mình | Phạm vi Task được giao |
+| Dùng comment/SubTask | Không | Phạm vi Task được phép | Phòng ban của mình | Phạm vi Task được giao; thay đổi chỉ dành cho quản lý vẫn bị chặn |
+| Export dữ liệu Task/Progress | Không | Phạm vi quản trị được phép | Phòng ban của mình | Không |
+| Đọc administrative audit log | Không | Được phép | Không | Không |
 
-The only public controller actions are registration, login, and public department lookup. Liveness/readiness endpoints are also anonymous operational endpoints and expose health status rather than business data.
+Các controller action công khai duy nhất là đăng ký, đăng nhập và tra cứu phòng ban công khai. Endpoint liveness/readiness cũng là endpoint vận hành anonymous và chỉ công bố health status thay vì dữ liệu nghiệp vụ.
 
-## Project And Task Relationship
+## Quan hệ Project và Task
 
-Project is a grouping layer. Task is the actual work item.
+Project là lớp gom nhóm. Task là công việc thực tế.
 
-| Concept | Purpose | Business Effect |
+| Khái niệm | Mục đích | Tác động nghiệp vụ |
 | --- | --- | --- |
-| Project | Groups related tasks by goal, scope, or time window | Helps managers track status counts |
-| Task | Represents executable work assigned to staff | Drives progress, review, completion, KPI |
+| Project | Gom các Task liên quan theo mục tiêu, phạm vi hoặc khoảng thời gian | Giúp Manager theo dõi số lượng theo trạng thái |
+| Task | Đại diện công việc có thể thực hiện được giao cho nhân sự | Điều khiển Progress, Review, hoàn thành và KPI |
 
-Project rules:
+Quy tắc Project:
 
-- A project can exist without tasks.
-- A task may exist without a project.
-- Every project belongs to exactly one department.
-- Project department is immutable after creation.
-- A task and its linked project must belong to the same department.
-- Linking a task to a project does not change task permissions.
-- Task creator status does not bypass current role, assignment, or department scope.
-- A project does not have a separate workflow from task statuses.
-- Project status summary is derived from linked task counts.
-- Only a Manager currently belonging to the project's department can manage it; creator status does not bypass department scope.
-- A project can be archived only when all non-deleted linked tasks are `Approved`.
-- An approved task in an archived project cannot be reopened until an explicit project restore workflow exists.
+- Project có thể tồn tại mà chưa có Task.
+- Task có thể tồn tại mà không thuộc Project.
+- Mỗi Project thuộc đúng một phòng ban.
+- Phòng ban của Project là bất biến sau khi tạo.
+- Task và Project liên kết phải thuộc cùng phòng ban.
+- Liên kết Task với Project không thay đổi quyền trên Task.
+- Trạng thái người tạo Task không thể bỏ qua role, assignment hoặc phạm vi phòng ban hiện tại.
+- Project không có workflow riêng ngoài trạng thái Task.
+- Tổng hợp trạng thái Project được suy ra từ số Task liên kết.
+- Chỉ Manager hiện thuộc phòng ban của Project mới có thể quản lý Project đó; là người tạo không thể bỏ qua phạm vi phòng ban.
+- Project chỉ có thể lưu trữ khi mọi Task liên kết chưa bị xóa đều là `Approved`.
+- Task đã duyệt trong Project đã lưu trữ không thể mở lại cho đến khi có workflow khôi phục Project rõ ràng.
 
-Derived project status summary:
+Tổng hợp trạng thái Project được suy ra:
 
-| Task Status | Project Summary Meaning |
+| Trạng thái Task | Ý nghĩa trong tổng hợp Project |
 | --- | --- |
-| `NotStarted` | Linked tasks have been created but no progress was reported. |
-| `InProgress` | Staff reported partial progress. |
-| `Submitted` | Staff submitted completion and is waiting for manager review. |
-| `Approved` | Work was accepted and counts as completed. |
+| `NotStarted` | Task liên kết đã được tạo nhưng chưa có báo cáo Progress. |
+| `InProgress` | Nhân sự đã báo cáo Progress một phần. |
+| `Submitted` | Nhân sự đã gửi báo cáo hoàn thành và đang chờ Manager review. |
+| `Approved` | Công việc đã được chấp nhận và được tính là hoàn thành. |
 
-## Task Lifecycle
+## Vòng đời Task
 
-The task lifecycle is:
+Vòng đời Task:
 
 ```text
 NotStarted -> InProgress -> Submitted -> Approved
@@ -138,358 +138,358 @@ NotStarted -> InProgress -> Submitted -> Approved
                       +------ Rejected report returns task to InProgress
 ```
 
-Task state and progress-report state are separate contracts:
+Trạng thái Task và trạng thái báo cáo Progress là hai hợp đồng riêng:
 
-| State Owner | Supported States | Changed By |
+| Thành phần sở hữu trạng thái | Trạng thái hỗ trợ | Được thay đổi bởi |
 | --- | --- | --- |
-| Task | `NotStarted`, `InProgress`, `Submitted`, `Approved` | Task creation, progress reporting, and review workflow |
-| Progress report | `InProgress`, `Submitted`, `Approved`, `Rejected` | Progress submission and manager review |
-
-`Rejected` is a progress-report review result. Rejection sends an unfinished task back to `InProgress`; it must not turn the task itself into a `Rejected` terminal state.
-
-Task status is server-derived:
-
-- Creation sets `NotStarted`.
-- Partial progress sets `InProgress`.
-- A completion report that needs review sets `Submitted`.
-- Approval completes the task only when every required assignee has approved completion.
-- Completion that does not need review can become `Approved` through the progress workflow.
-- Clients and managers must not assign an arbitrary task status.
-- `Approved` is immutable until a dedicated, audited reopen workflow exists.
-
-The API does not expose a generic task-status mutation endpoint. The database limits task status values to the four supported states and normalizes the removed legacy `Rejected` value to `InProgress` during migration.
-
-### Task Creation
-
-- Only `Manager` can create tasks.
-- Manager must have `UnitId`.
-- New task starts as `NotStarted`.
-- `ProjectId` is optional.
-- If `ProjectId` is provided, the project must belong to the manager's department.
-- `UnitId` on the task is the manager's department and is used for filtering, permission checks, reports, and KPI context.
-
-### Task Assignment
-
-Task assignee rows must target exactly one side:
-
-- A specific approved user, or
-- A department legacy scope.
-
-Current creation behavior should prefer direct user assignee rows:
-
-- If selected users are provided, the system assigns directly to those users.
-- Selected users must be approved and inside the manager's department.
-- If no selected users are provided, the system snapshots the current approved staff in the manager's department into direct assignee rows.
-- Staff who join the department later are not automatically added to existing tasks.
-
-Normal task updates do not change assignees. Reassignment should be implemented later as a separate audited workflow if needed.
-
-### Task Activity Timeline
-
-- `GET /api/tasks/{taskId}/timeline` uses the same current permission scope as reading the task.
-- Events come from task history, immutable assignment snapshots, progress, review, comments, uploads, durable reminders/escalations, and task completion state.
-- Results are ordered by UTC occurrence time descending, then a fixed source order, then the source event id. The opaque cursor preserves that ordering when timestamps are equal.
-- Clients can filter by event type, actor, and an inclusive UTC date range. Page size is limited to `100`.
-- Actor lookup ignores the active-user query filter so a soft-deleted actor retains their historical display name; a missing row uses a safe fallback.
-- Deleted comments retain an activity marker but never return the deleted content.
-- Only an allowlist of non-security task-history fields is projected. `AuditLog.DetailsJson`, credentials, tokens, storage paths, and raw entity JSON are never timeline metadata.
-- Timeline metadata has a fixed DTO shape and text values are bounded. Query count is constant relative to the number of returned items.
-- Assignment timestamps are derived from task creation because assignments are immutable creation-time snapshots in the current workflow.
-
-### Recurring Task Scheduling
-
-- Only a current `Manager` can create, update, pause, resume, or delete recurring schedules in their own department.
-- Supported schedules are `Daily`, `Weekly`, and `Monthly`; complex cron expressions are intentionally unsupported.
-- `NextRunAtUtc` and `LastGeneratedAtUtc` are persisted in SQL Server. The worker never uses an in-memory queue as the scheduling source of truth.
-- A generated occurrence creates a normal `NotStarted` task. From that point onward it uses the existing assignment, progress, review, evidence, completion, workload, and KPI rules.
-- An explicit default assignee list is validated against the template department. If no default users are selected, current approved `User` staff are snapshotted when each occurrence is generated.
-- The unique key `(TemplateId, ScheduledForUtc)` is the final duplicate defense when workers race or restart.
-- Task, assignees, history, notification metadata, occurrence, audit entry, `LastGeneratedAtUtc`, and `NextRunAtUtc` are saved in one transaction.
-- Catch-up is bounded by `RecurringTasks:MaxCatchUpOccurrencesPerTemplate`. Unprocessed overdue occurrences remain due for the next batch and are not skipped.
-- Paused or soft-deleted templates never generate tasks. Resuming preserves the persisted schedule, so overdue work follows the same catch-up policy.
-- A project cannot be archived and a department cannot be deleted while a non-deleted recurring template still references it.
-- A default assignee cannot be transferred, promoted, or deleted until the template is updated or removed.
-- A monthly day such as 31 is clamped to the last valid day of shorter months while retaining day 31 for later months.
-
-### Deadline Reminder And Escalation
-
-- Policies can be scoped to the whole system, one department, or one project. The effective policy is selected in the order `Project > Unit > Global`; an inactive specific policy intentionally suppresses fallback reminders for that scope.
-- Admin can manage every policy scope. A Manager can manage only Unit and Project policies belonging to their current department and cannot change the Global policy.
-- `BeforeDueHours` controls the due-soon milestone. The overdue assignee milestone starts at the deadline, and `OverdueEscalationHours` controls escalation after the deadline.
-- Persistence uses UTC. Date/time localization belongs to presentation clients.
-- Each task has at most one `DueSoon`, `OverdueAssignee`, and `ManagerEscalation` event. Unique `(TaskId, Type)` and `EventKey` constraints are the final duplicate defense.
-- The worker persists milestone state in SQL Server. `Pending` and retryable `Failed` records survive restarts; retry count is bounded by `DeadlineReminders:MaxRetryCount`.
-- Delivery rechecks task state, effective policy, and recipients. `Approved` or soft-deleted tasks, removed deadlines, and disabled policies produce `Suppressed` events instead of inbox notifications.
-- Assignee reminders go only to current approved `User` recipients that remain in the task department. Escalation goes only to current approved `Manager` accounts in that same department.
-- Inbox notification creation and the transition to `Sent` share one database transaction. A competing worker that loses the rowversion update rolls back its duplicate inbox rows.
-- `GET /api/tasks/{taskId}/reminders` follows normal task authorization and exposes safe scheduling history without raw exception or audit payloads.
-
-### Workload And Capacity Planning
-
-- `PlannedEffortHours` is optional and is entered by the Manager as a resource-planning budget.
-- It is not an employee timesheet, does not prove time worked, and is never used by KPI calculations.
-- Remaining workload is derived as `max(PlannedEffortHours - ActualHours, 0)`; it is not stored as a duplicate column.
-- Only non-deleted tasks that are not `Approved` and overlap the selected date range contribute to workload.
-- A multi-assignee task divides its remaining workload equally across its direct assignees.
-- Weekly capacity is effective-dated. A range crossing a capacity change is prorated by the duration of each capacity segment.
-- Gaps without a user-specific capacity use `Workload:DefaultWeeklyCapacityHours`.
-- `Busy` begins at `Workload:BusyThresholdPercent`; `Overloaded` begins at `Workload:OverloadedThresholdPercent`.
-- Assignment preview and task creation may return a workload warning, but overload never blocks task creation.
-- Managers can read and configure only current employees in their own department. Admin can access all departments for system administration.
-- Workload list aggregation uses set-based SQL queries and must not execute one query per employee.
-
-### Task Completion
-
-- A task is completed only when the workflow service marks it `Approved`.
-- For multi-assignee tasks, the task should become approved only after all assigned staff have approved completion.
-- `CompletedAt` and `CompletedBy` record completion context.
-- `ActualHours` is accumulated from approved progress reports.
-- A manager cannot bypass progress evidence or review by directly marking a task `Approved`.
-- A task can be soft-deleted only while it is `NotStarted` and has no progress, review, upload, or other execution activity.
+| Task | `NotStarted`, `InProgress`, `Submitted`, `Approved` | Tạo Task, báo cáo Progress và workflow Review |
+| Báo cáo Progress | `InProgress`, `Submitted`, `Approved`, `Rejected` | Gửi Progress và Manager review |
+
+`Rejected` là kết quả review báo cáo Progress. Từ chối đưa Task chưa hoàn thành trở lại `InProgress`; nó không được biến chính Task thành trạng thái cuối `Rejected`.
+
+Trạng thái Task do server suy ra:
+
+- Khi tạo, Task là `NotStarted`.
+- Progress một phần đặt Task thành `InProgress`.
+- Báo cáo hoàn thành cần review đặt Task thành `Submitted`.
+- Review chấp thuận chỉ hoàn thành Task khi mọi assignee bắt buộc đều có lần hoàn thành đã duyệt.
+- Hoàn thành không cần review có thể chuyển thành `Approved` qua workflow Progress.
+- Client và Manager không được gán trạng thái Task tùy ý.
+- `Approved` là bất biến cho đến khi có workflow mở lại chuyên dụng, được audit.
+
+API không cung cấp generic endpoint thay đổi trạng thái Task. Database giới hạn giá trị trạng thái Task ở bốn trạng thái hỗ trợ và chuẩn hóa giá trị cũ `Rejected` đã bị loại bỏ thành `InProgress` trong migration.
+
+### Tạo Task
+
+- Chỉ `Manager` có thể tạo Task.
+- Manager phải có `UnitId`.
+- Task mới bắt đầu ở `NotStarted`.
+- `ProjectId` là tùy chọn.
+- Nếu có `ProjectId`, Project phải thuộc phòng ban của Manager.
+- `UnitId` của Task là phòng ban Manager và được dùng để lọc, kiểm tra quyền, báo cáo và ngữ cảnh KPI.
+
+### Giao Task
+
+Hàng Task assignee phải trỏ đến đúng một phía:
+
+- Một User cụ thể đã được duyệt, hoặc
+- Scope phòng ban cũ.
+
+Hành vi tạo hiện tại phải ưu tiên hàng assignee User trực tiếp:
+
+- Nếu có danh sách User được chọn, hệ thống giao trực tiếp cho những User đó.
+- User được chọn phải đã được duyệt và thuộc phòng ban Manager.
+- Nếu không chọn User, hệ thống snapshot nhân sự `User` đã được duyệt hiện tại trong phòng ban Manager thành các hàng assignee trực tiếp.
+- Nhân sự vào phòng ban sau đó không tự động được thêm vào Task hiện có.
+
+Cập nhật Task thông thường không thay đổi assignee. Nếu cần, reassignment nên được triển khai sau như workflow riêng có audit.
+
+### Activity timeline của Task
+
+- `GET /api/tasks/{taskId}/timeline` dùng cùng phạm vi quyền hiện tại với thao tác đọc Task.
+- Event đến từ lịch sử Task, assignment snapshot bất biến, Progress, Review, comment, upload, reminder/escalation bền vững và trạng thái hoàn thành Task.
+- Kết quả sắp xếp giảm dần theo thời điểm UTC xảy ra, sau đó theo thứ tự nguồn cố định rồi source event id. Opaque cursor giữ thứ tự này khi timestamp bằng nhau.
+- Client có thể lọc theo loại event, actor và khoảng ngày UTC inclusive. Page size bị giới hạn `100`.
+- Tra cứu actor bỏ qua active-user query filter để actor đã soft delete vẫn giữ display name lịch sử; nếu thiếu hàng thì dùng fallback an toàn.
+- Comment đã xóa vẫn giữ activity marker nhưng không bao giờ trả về nội dung đã xóa.
+- Chỉ allowlist field lịch sử Task không nhạy cảm được projection. `AuditLog.DetailsJson`, credential, token, storage path và JSON entity thô không bao giờ là metadata timeline.
+- Metadata timeline có DTO shape cố định và text value bị giới hạn. Số query là hằng số theo số item trả về.
+- Timestamp assignment được suy ra từ thời điểm tạo Task vì assignment là snapshot bất biến lúc tạo trong workflow hiện tại.
+
+### Lập lịch recurring Task
+
+- Chỉ `Manager` hiện tại có thể tạo, cập nhật, tạm dừng, tiếp tục hoặc xóa recurring schedule trong phòng ban của mình.
+- Schedule hỗ trợ `Daily`, `Weekly` và `Monthly`; biểu thức cron phức tạp cố ý không được hỗ trợ.
+- `NextRunAtUtc` và `LastGeneratedAtUtc` được lưu trong SQL Server. Worker không bao giờ dùng in-memory queue làm nguồn dữ liệu chuẩn của scheduling.
+- Mỗi occurrence được sinh tạo một Task `NotStarted` thông thường. Từ đó Task dùng toàn bộ quy tắc assignment, Progress, Review, evidence, completion, workload và KPI hiện có.
+- Danh sách assignee mặc định rõ ràng được kiểm tra với phòng ban template. Nếu không chọn User mặc định, nhân sự `User` hiện tại đã duyệt được snapshot khi từng occurrence được sinh.
+- Unique key `(TemplateId, ScheduledForUtc)` là lớp chống trùng cuối khi worker cạnh tranh hoặc restart.
+- Task, assignee, history, notification metadata, occurrence, audit entry, `LastGeneratedAtUtc` và `NextRunAtUtc` được lưu trong cùng một transaction.
+- Catch-up bị giới hạn bởi `RecurringTasks:MaxCatchUpOccurrencesPerTemplate`. Occurrence quá hạn chưa xử lý vẫn ở trạng thái đến hạn cho batch sau và không bị bỏ qua.
+- Template tạm dừng hoặc soft delete không bao giờ sinh Task. Resume giữ persisted schedule nên công việc quá hạn tuân theo cùng catch-up policy.
+- Không thể lưu trữ Project hoặc xóa phòng ban khi recurring template chưa xóa vẫn tham chiếu đến nó.
+- Không thể điều chuyển, thăng chức hoặc xóa assignee mặc định cho đến khi template được cập nhật hoặc xóa.
+- Ngày theo tháng như 31 được giới hạn về ngày hợp lệ cuối của tháng ngắn hơn nhưng vẫn giữ ngày 31 cho các tháng sau.
+
+### Deadline reminder và escalation
+
+- Policy có thể áp dụng cho toàn hệ thống, một phòng ban hoặc một Project. Policy hiệu lực được chọn theo thứ tự `Project > Unit > Global`; policy cụ thể không hoạt động cố ý suppress fallback reminder cho scope đó.
+- Admin có thể quản lý mọi policy scope. Manager chỉ quản lý policy Unit và Project thuộc phòng ban hiện tại, không thể thay đổi Global policy.
+- `BeforeDueHours` kiểm soát milestone sắp đến hạn. Milestone quá hạn của assignee bắt đầu tại deadline, còn `OverdueEscalationHours` kiểm soát escalation sau deadline.
+- Persistence dùng UTC. Chuyển đổi date/time theo địa phương thuộc presentation client.
+- Mỗi Task có tối đa một event `DueSoon`, `OverdueAssignee` và `ManagerEscalation`. Constraint duy nhất `(TaskId, Type)` và `EventKey` là lớp chống trùng cuối cùng.
+- Worker lưu trạng thái milestone trong SQL Server. Bản ghi `Pending` và `Failed` có thể retry tồn tại qua restart; retry count bị giới hạn bởi `DeadlineReminders:MaxRetryCount`.
+- Delivery kiểm tra lại trạng thái Task, effective policy và recipient. Task `Approved` hoặc soft delete, deadline bị xóa và policy bị tắt tạo event `Suppressed` thay vì inbox notification.
+- Reminder cho assignee chỉ gửi đến recipient `User` hiện tại đã duyệt và vẫn thuộc phòng ban Task. Escalation chỉ gửi đến tài khoản `Manager` hiện tại đã duyệt trong cùng phòng ban.
+- Tạo inbox notification và chuyển sang `Sent` dùng chung database transaction. Worker cạnh tranh thua cập nhật rowversion sẽ rollback inbox row trùng.
+- `GET /api/tasks/{taskId}/reminders` tuân theo authorization Task bình thường và trả lịch sử scheduling an toàn, không gồm exception hoặc audit payload thô.
+
+### Lập kế hoạch workload và capacity
+
+- `PlannedEffortHours` là tùy chọn và do Manager nhập làm ngân sách lập kế hoạch nguồn lực.
+- Đây không phải timesheet của nhân viên, không chứng minh thời gian đã làm và không bao giờ được dùng trong tính KPI.
+- Workload còn lại được suy ra bằng `max(PlannedEffortHours - ActualHours, 0)`; không lưu thành cột trùng.
+- Chỉ Task chưa xóa, chưa `Approved` và giao với khoảng ngày được chọn mới đóng góp vào workload.
+- Task nhiều assignee chia đều workload còn lại cho các assignee trực tiếp.
+- Weekly capacity có hiệu lực theo thời gian. Khoảng đi qua một lần thay đổi capacity được tính tỷ lệ theo độ dài từng capacity segment.
+- Khoảng trống không có capacity riêng của User dùng `Workload:DefaultWeeklyCapacityHours`.
+- `Busy` bắt đầu tại `Workload:BusyThresholdPercent`; `Overloaded` bắt đầu tại `Workload:OverloadedThresholdPercent`.
+- Assignment preview và tạo Task có thể trả về cảnh báo workload, nhưng overload không bao giờ chặn tạo Task.
+- Manager chỉ được đọc và cấu hình nhân viên hiện tại trong phòng ban mình. Admin có thể truy cập mọi phòng ban để quản trị hệ thống.
+- Tổng hợp danh sách workload dùng set-based SQL query và không được chạy một query cho mỗi nhân viên.
+
+### Hoàn thành Task
+
+- Task chỉ hoàn thành khi workflow service đánh dấu `Approved`.
+- Với Task nhiều assignee, Task chỉ được duyệt sau khi mọi nhân sự được giao đều có lần hoàn thành đã duyệt.
+- `CompletedAt` và `CompletedBy` ghi ngữ cảnh hoàn thành.
+- `ActualHours` được cộng từ báo cáo Progress đã duyệt.
+- Manager không thể bỏ qua evidence hoặc Review bằng cách đặt Task thành `Approved` trực tiếp.
+- Task chỉ có thể soft delete khi đang `NotStarted` và không có Progress, Review, upload hoặc hoạt động thực thi khác.
 
-## Progress Reporting
-
-Progress reporting rules:
-
-- Reporter must be an approved `User`.
-- Reporter must have access to the task.
-- Progress percent is constrained to 0-100.
-- Hours spent cannot be negative.
-- Partial progress moves the task to `InProgress`.
-- 100 percent progress means the user claims completion.
-
-Blocking rules:
-
-- User cannot report progress on an approved task.
-- User cannot submit another completion report while a submitted completion report is pending review.
-- Evidence file cannot be reused by another progress report.
-- Evidence file must belong to the same task when linked.
-
-## Review Flow
+## Báo cáo Progress
+
+Quy tắc báo cáo Progress:
+
+- Người báo cáo phải là `User` đã được duyệt.
+- Người báo cáo phải có quyền truy cập Task.
+- Percent Progress bị giới hạn 0-100.
+- Hours spent không được âm.
+- Progress một phần đưa Task sang `InProgress`.
+- Progress 100 phần trăm nghĩa là User khai báo hoàn thành.
+
+Quy tắc chặn:
+
+- User không thể báo cáo Progress trên Task đã duyệt.
+- User không thể gửi báo cáo hoàn thành khác khi một báo cáo hoàn thành đã gửi đang chờ review.
+- Evidence file không thể tái sử dụng cho báo cáo Progress khác.
+- Evidence file phải thuộc cùng Task khi liên kết.
+
+## Luồng Review
 
-If task review is required:
+Nếu Task yêu cầu review:
 
-1. User uploads evidence for the task.
-2. User submits 100 percent progress with the evidence file.
-3. Progress status becomes `Submitted`.
-4. Task status becomes `Submitted`.
-5. Manager reviews the report.
-6. Approval marks progress as `Approved`.
-7. Approval may complete the task if completion conditions are satisfied.
-8. Rejection marks progress as `Rejected`.
-9. If the task is not approved yet, rejection moves the task back to `InProgress` unless another report is still pending.
+1. User tải evidence cho Task lên.
+2. User gửi Progress 100 phần trăm kèm evidence file.
+3. Trạng thái Progress thành `Submitted`.
+4. Trạng thái Task thành `Submitted`.
+5. Manager review báo cáo.
+6. Chấp thuận đánh dấu Progress là `Approved`.
+7. Chấp thuận có thể hoàn thành Task nếu các điều kiện hoàn thành được đáp ứng.
+8. Từ chối đánh dấu Progress là `Rejected`.
+9. Nếu Task chưa được duyệt, từ chối đưa Task về `InProgress` trừ khi báo cáo khác vẫn đang chờ.
 
-Review invariants:
+Invariant của Review:
 
-- One progress report can have only one review result.
-- Only `Manager` can review.
-- Manager can review only tasks they manage.
-- Rejection requires a non-empty reason.
-- Invalid transitions, blocked dependencies, and out-of-scope actors fail before workflow state is persisted.
-- Every task/progress transition records old state, new state, actor, related report, reason, and UTC timestamp in task history.
-- Concurrent reviews use optimistic concurrency plus the unique review constraint; only one decision and one approved-hours contribution can commit.
-- Rejected reports affect KPI penalties.
+- Một báo cáo Progress chỉ có tối đa một kết quả Review.
+- Chỉ `Manager` có thể Review.
+- Manager chỉ có thể Review Task mình quản lý.
+- Từ chối phải có lý do không rỗng.
+- Transition không hợp lệ, dependency đang chặn và actor ngoài scope thất bại trước khi trạng thái workflow được lưu.
+- Mỗi transition Task/Progress ghi trạng thái cũ, trạng thái mới, actor, báo cáo liên quan, lý do và timestamp UTC trong lịch sử Task.
+- Review đồng thời dùng optimistic concurrency cùng unique constraint của Review; chỉ một quyết định và một lần cộng approved-hours được commit.
+- Báo cáo bị từ chối ảnh hưởng penalty KPI.
 
-The complete transition matrix and implementation ownership are documented in [task workflow](task-workflow.md).
+Ma trận transition đầy đủ và quyền sở hữu implementation được mô tả trong [workflow Task](task-workflow.md).
 
-If task review is not required:
+Nếu Task không yêu cầu review:
 
-- 100 percent progress can be approved directly.
-- The workflow service can complete the task without a manager review.
+- Progress 100 phần trăm có thể được duyệt trực tiếp.
+- Workflow service có thể hoàn thành Task mà không cần Manager review.
 
-## Upload Rules
+## Quy tắc upload
 
-Uploads are task/progress evidence, not arbitrary storage.
+Upload là evidence Task/Progress, không phải storage tùy ý.
 
-- File size is limited to 10 MB.
-- File extension and MIME type are validated.
-- File signatures are checked for common formats.
-- `.docx`, `.xlsx`, and `.pptx` must contain the expected OOXML package structure, stay within archive entry/uncompressed-size limits, and must not contain a VBA macro payload.
-- Original file names are reduced to a safe base name, stripped of control characters, and capped in length before persistence.
-- File metadata is persisted only after the physical file is accepted.
-- If persistence fails, physical file cleanup is attempted.
-- Download requires task/progress access.
-- Database metadata stores a bounded relative `StorageKey`, never an absolute server path.
-- A storage key must be a single file name and must resolve inside the configured `Uploads` root.
-- A durable periodic reconciliation deletes aged physical files that have no corresponding database row.
-- Public DTOs must not expose server file paths.
+- Kích thước file giới hạn 10 MB.
+- Extension và MIME type được kiểm tra.
+- File signature được kiểm tra cho các format phổ biến.
+- `.docx`, `.xlsx` và `.pptx` phải có đúng cấu trúc OOXML package, nằm trong giới hạn số entry/kích thước giải nén và không được chứa VBA macro payload.
+- Tên file gốc được rút thành base name an toàn, xóa control character và giới hạn độ dài trước khi lưu.
+- Metadata file chỉ được lưu sau khi file vật lý được chấp nhận.
+- Nếu lưu persistence thất bại, hệ thống cố gắng dọn file vật lý.
+- Download yêu cầu quyền truy cập Task/Progress.
+- Metadata database lưu `StorageKey` tương đối đã giới hạn độ dài, không bao giờ lưu absolute server path.
+- Storage key phải là một file name duy nhất và resolve bên trong root `Uploads` đã cấu hình.
+- Quy trình đối soát định kỳ bền vững xóa file vật lý đủ cũ mà không có database row tương ứng.
+- Public DTO không được làm lộ server file path.
 
-## KPI Rules
+## Quy tắc KPI
 
-KPI is period-based and should be explainable, not just a live score.
+KPI dựa theo kỳ và phải giải thích được, không chỉ là điểm số trực tiếp.
 
-### KPI Periods
+### Kỳ KPI
 
-- Admin creates KPI periods explicitly.
-- Read-only KPI endpoints must not create periods or write to the database.
-- New KPI periods cannot overlap existing periods.
-- Period start date must be before end date.
-- Admin can lock KPI periods.
-- Locked periods read stored `KpiResults` snapshots when available.
-- A locked snapshot stores the formula version and raw metrics used to explain its score.
-- Source task, report, user, or department changes after locking must not change the snapshot.
+- Admin tạo kỳ KPI rõ ràng.
+- Endpoint chỉ đọc KPI không được tạo kỳ hoặc ghi database.
+- Kỳ KPI mới không được giao với kỳ hiện có.
+- Ngày bắt đầu phải trước ngày kết thúc.
+- Admin có thể khóa kỳ KPI.
+- Kỳ đã khóa đọc snapshot `KpiResults` đã lưu khi có.
+- Snapshot đã khóa lưu formula version và raw metric dùng để giải thích điểm.
+- Thay đổi Task, báo cáo, User hoặc phòng ban sau khi khóa không được thay đổi snapshot.
 
-### Personal KPI
+### KPI cá nhân
 
-Personal KPI considers:
+KPI cá nhân xét:
 
-- Assigned tasks in the effective period.
-- Approved completions.
-- On-time completion.
-- Late completion.
-- Overdue unfinished work.
-- Rejected reports.
-- Bonus and penalty points.
-- Raw throughput, completion rate, overdue rate, report rejection rate, and effort-planning accuracy.
+- Task được giao trong kỳ hiệu lực.
+- Lần hoàn thành đã duyệt.
+- Hoàn thành đúng hạn.
+- Hoàn thành trễ.
+- Công việc quá hạn chưa hoàn thành.
+- Báo cáo bị từ chối.
+- Điểm bonus và penalty.
+- Raw throughput, completion rate, overdue rate, report rejection rate và độ chính xác lập kế hoạch effort.
 
-The score should never become negative.
+Điểm không bao giờ được âm.
 
-Current scoring behavior:
+Hành vi tính điểm hiện tại:
 
-- Score starts at `100`.
-- Approved on-time task with a deadline adds weighted bonus points.
-- Approved task without a deadline adds a smaller weighted bonus.
-- Consecutive on-time completions can add a small streak bonus.
-- Overdue unfinished work subtracts escalating weighted penalty points.
-- Rejected progress reports subtract penalty points.
-- Users with no tasks in the period receive a neutral new/starter score, not a punishment.
+- Điểm bắt đầu là `100`.
+- Task có deadline được duyệt đúng hạn cộng bonus point có trọng số.
+- Task không có deadline được duyệt cộng bonus nhỏ hơn.
+- Chuỗi hoàn thành đúng hạn liên tiếp có thể cộng streak bonus nhỏ.
+- Công việc quá hạn chưa hoàn thành trừ penalty point tăng dần có trọng số.
+- Báo cáo Progress bị từ chối trừ penalty point.
+- User không có Task trong kỳ nhận điểm trung lập dành cho người mới, không bị phạt.
 
-Current formula version is `1.0`. Formula version is persisted on every locked result. Derived rates use frozen raw counters and return zero when their count denominator is zero. Estimation accuracy is left unavailable when no completed task has a Manager-owned effort plan.
+Formula version hiện tại là `1.0`. Formula version được lưu trong mọi kết quả đã khóa. Derived rate dùng raw counter đã đóng băng và trả về zero khi count denominator bằng zero. Độ chính xác ước tính để trống khi không có Task hoàn thành nào có effort plan do Manager sở hữu.
 
-Effort-planning accuracy is informational only:
+Độ chính xác lập kế hoạch effort chỉ mang tính thông tin:
 
-- It uses completed tasks with `PlannedEffortHours`.
-- Planned effort is shared equally across task assignees to avoid duplicate department totals.
-- Actual effort uses only the user's approved progress reports.
-- It does not add bonus points, subtract penalty points, or otherwise affect the KPI score.
+- Dùng Task đã hoàn thành có `PlannedEffortHours`.
+- Planned effort được chia đều cho assignee để tránh nhân đôi tổng phòng ban.
+- Actual effort chỉ dùng báo cáo Progress đã duyệt của chính User.
+- Không cộng bonus point, trừ penalty point hoặc ảnh hưởng điểm KPI theo bất kỳ cách nào.
 
-### Manager KPI
+### KPI Manager
 
-Manager KPI combines:
+KPI Manager kết hợp:
 
-- Department average performance.
-- Manager's own assigned work performance.
-- Review delay/quality penalties when applicable.
+- Hiệu suất trung bình phòng ban.
+- Hiệu suất công việc cá nhân được giao cho Manager.
+- Penalty về độ trễ/chất lượng Review khi áp dụng.
 
-Current logic gives more weight to department performance than personal task performance for managers.
+Logic hiện tại đặt trọng số hiệu suất phòng ban lớn hơn hiệu suất Task cá nhân của Manager.
 
-Current weighting:
+Trọng số hiện tại:
 
-- Department average score: 70 percent.
-- Manager personal task score: 30 percent.
-- Review penalty points are subtracted after weighting.
+- Điểm trung bình phòng ban: 70 phần trăm.
+- Điểm Task cá nhân của Manager: 30 phần trăm.
+- Review penalty point được trừ sau khi áp dụng trọng số.
 
-### Management Insights
+### Insight quản lý
 
-- Admin can read the organization dashboard for a selected KPI period.
-- Manager can read only the dashboard for their current department.
-- Dashboard aggregation is performed in batches and must not issue a query per user.
-- Dashboard output groups users by department and exposes the same formula version and frozen raw metrics as personal KPI output.
-- KPI is an explainable management aid. The system must not use it to automatically promote, demote, discipline, dismiss, or otherwise make HR decisions.
+- Admin có thể đọc dashboard tổ chức theo một kỳ KPI được chọn.
+- Manager chỉ có thể đọc dashboard phòng ban hiện tại.
+- Tổng hợp dashboard được thực hiện theo batch và không được query riêng cho mỗi User.
+- Output dashboard nhóm User theo phòng ban và cung cấp cùng formula version cùng raw metric đã đóng băng như output KPI cá nhân.
+- KPI là công cụ quản trị có thể giải thích. Hệ thống không được dùng KPI để tự động thăng chức, hạ chức, kỷ luật, sa thải hoặc đưa ra quyết định nhân sự khác.
 
-## Staff Movement And KPI
+## Điều chuyển nhân sự và KPI
 
-This is the most sensitive business area.
+Đây là vùng nghiệp vụ nhạy cảm nhất.
 
-Current user row stores the latest state:
+Hàng User hiện tại lưu trạng thái mới nhất:
 
-- Current department.
-- Current role.
-- Current `JoinedUnitAt`.
+- Phòng ban hiện tại.
+- Role hiện tại.
+- `JoinedUnitAt` hiện tại.
 
-Historical state is stored in `UserWorkHistories`:
+Trạng thái lịch sử được lưu trong `UserWorkHistories`:
 
 - `UserId`
 - `UnitId`
 - `Role`
 - `EffectiveFrom`
 - `EffectiveTo`
-- Change reason and changer context
+- Lý do thay đổi và ngữ cảnh người thực hiện
 
-KPI calculation must use work history segments when a user changes department or role inside a period.
+Tính KPI phải dùng work history segment khi User đổi phòng ban hoặc role trong kỳ.
 
-Movement rules:
+Quy tắc điều chuyển:
 
-- A movement must update the current user state and work-history segments in one database transaction.
-- Work-history segments for the same user must not overlap.
-- A transfer closes the old segment immediately before opening the new segment.
-- Existing task assignment snapshots must not silently follow a user into another department.
-- Pending direct assignments, submitted reports, and manager review responsibilities must be resolved before the movement is accepted.
-- Account deletion is rejected while unfinished task or review responsibility remains.
-- Account deletion closes the active work-history segment, removes current unit membership, revokes sessions, and soft-deletes the account in one serializable transaction.
-- Completed task assignments, progress reports, reviews, uploads, and KPI history are not deleted with the account.
-- Every accepted movement must record who made the change, when it took effect, and why.
+- Một lần điều chuyển phải cập nhật trạng thái User hiện tại và work-history segment trong cùng database transaction.
+- Work-history segment của cùng User không được overlap.
+- Điều chuyển đóng segment cũ ngay trước khi mở segment mới.
+- Assignment snapshot Task hiện có không được tự động theo User sang phòng ban khác.
+- Direct assignment đang chờ, báo cáo đã gửi và trách nhiệm Manager review phải được giải quyết trước khi chấp nhận điều chuyển.
+- Xóa tài khoản bị từ chối khi còn trách nhiệm Task hoặc Review chưa hoàn thành.
+- Xóa tài khoản đóng work-history segment đang hoạt động, xóa membership Unit hiện tại, thu hồi session và soft delete tài khoản trong cùng một serializable transaction.
+- Assignment Task đã hoàn thành, Progress, Review, upload và lịch sử KPI không bị xóa cùng tài khoản.
+- Mọi lần điều chuyển được chấp nhận phải ghi ai thay đổi, thời điểm có hiệu lực và lý do.
 
-Examples:
+Ví dụ:
 
-- If a User moves from Department A to Department B in the middle of July, July KPI should be explainable as two segments.
-- If a User becomes Manager in the middle of a period, KPI should not blindly apply Manager logic to the entire period.
-- If a period is locked before a later staff movement, locked `KpiResults` should preserve the old score and context.
-- A Manager can read another user's KPI only when the selected period's locked snapshot or work-history segment belongs to the Manager's current department.
-- Current department membership must not grant access to a historical period that belongs exclusively to another department.
+- Nếu User chuyển từ Phòng ban A sang Phòng ban B giữa tháng 7, KPI tháng 7 phải giải thích được theo hai segment.
+- Nếu User trở thành Manager giữa một kỳ, KPI không được áp logic Manager cho toàn bộ kỳ một cách máy móc.
+- Nếu kỳ được khóa trước một lần điều chuyển sau đó, `KpiResults` đã khóa phải giữ điểm và ngữ cảnh cũ.
+- Manager chỉ có thể đọc KPI User khác khi snapshot đã khóa hoặc work-history segment của kỳ được chọn thuộc phòng ban hiện tại của Manager.
+- Membership phòng ban hiện tại không được cấp quyền truy cập một kỳ lịch sử chỉ thuộc phòng ban khác.
 
-## Soft Delete And Archive
+## Soft delete và lưu trữ
 
-- Users, departments, tasks, and comments use soft delete.
-- Projects use archive.
-- Query filters hide inactive records by default.
-- Historical records remain for audit, KPI, and reporting.
-- Historical assignment, progress, review, work-history, and locked KPI queries intentionally remain available after a user is soft-deleted.
+- User, phòng ban, Task và comment dùng soft delete.
+- Project dùng archive.
+- Query filter mặc định ẩn record không hoạt động.
+- Record lịch sử vẫn được giữ cho audit, KPI và báo cáo.
+- Query assignment, Progress, Review, work history và KPI đã khóa trong lịch sử vẫn cố ý khả dụng sau khi User bị soft delete.
 
-## Authentication Sessions
+## Session xác thực
 
-- Every JWT carries the user's current `TokenVersion`.
-- An authenticated request is accepted only when the account still exists, is approved, is not deleted, and the JWT version matches the database version.
-- Password changes, administrator password resets, role changes, department changes, account rejection, and account deletion invalidate all previously issued JWTs.
-- Profile-only changes such as full name, email, or phone number do not invalidate sessions.
-- Existing JWTs issued before `TokenVersion` support are intentionally rejected and users must sign in again.
-- Registration, password reset, and password change share one password policy and one BCrypt hashing service.
-- Successful login upgrades hashes created with an older BCrypt work factor.
-- Development can use an ephemeral JWT key, while every non-Development environment must supply a key externally.
-- SignalR requires the same JWT session validation as HTTP endpoints.
-- Joining a task discussion group requires current access to that task through `ITaskAccessService`.
+- Mỗi JWT mang `TokenVersion` hiện tại của User.
+- Request đã xác thực chỉ được chấp nhận khi tài khoản vẫn tồn tại, đã duyệt, chưa bị xóa và JWT version khớp version trong database.
+- Đổi mật khẩu, Admin đặt lại mật khẩu, đổi role, đổi phòng ban, từ chối tài khoản và xóa tài khoản làm mất hiệu lực toàn bộ JWT đã cấp trước đó.
+- Thay đổi chỉ ở hồ sơ như full name, email hoặc phone number không làm mất hiệu lực session.
+- JWT cũ được cấp trước khi hỗ trợ `TokenVersion` cố ý bị từ chối và User phải đăng nhập lại.
+- Đăng ký, reset mật khẩu và đổi mật khẩu dùng chung một password policy và BCrypt hashing service.
+- Đăng nhập thành công nâng cấp hash được tạo bằng BCrypt work factor cũ.
+- Development có thể dùng JWT key tạm, còn mọi môi trường không phải Development phải cung cấp key từ bên ngoài.
+- SignalR yêu cầu cùng cơ chế xác minh JWT session như HTTP endpoint.
+- Tham gia task discussion group yêu cầu quyền hiện tại trên Task thông qua `ITaskAccessService`.
 
-## Audit And History
+## Audit và lịch sử
 
-The backend keeps two kinds of history and does not duplicate their responsibilities:
+Backend giữ hai loại lịch sử và không nhân đôi trách nhiệm của chúng:
 
-- Domain history records (`TaskHistories`, `UserWorkHistories`, `Progresses`, `Reviews`, and locked `KpiResults`) explain workflow and KPI outcomes.
-- `AuditLogs` records important account and configuration actions with entity, action, actor, time, and controlled JSON details.
+- Bản ghi domain history (`TaskHistories`, `UserWorkHistories`, `Progresses`, `Reviews` và `KpiResults` đã khóa) giải thích kết quả workflow và KPI.
+- `AuditLogs` ghi action tài khoản/cấu hình quan trọng cùng entity, action, actor, thời gian và JSON detail đã kiểm soát.
 
-Audit rules:
+Quy tắc audit:
 
-- Audit rows are append-only through the public API; there is no update or delete endpoint.
-- Account approval/rejection/deletion, password changes/resets, staff assignment changes, department changes, project changes, and KPI period creation/locking are audited.
-- Audit records are added to the same database transaction as the business mutation.
-- Failed or rolled-back operations must not leave successful audit rows.
-- Passwords, password hashes, JWTs, file contents, and upload server paths must never be written to `DetailsJson`.
-- Only `Admin` can query `/api/audit-logs`.
+- Audit row là append-only qua public API; không có endpoint update hoặc delete.
+- Duyệt/từ chối/xóa tài khoản, thay đổi/reset mật khẩu, thay đổi assignment nhân sự, thay đổi phòng ban, thay đổi Project và tạo/khóa kỳ KPI đều được audit.
+- Audit record được thêm trong cùng database transaction với business mutation.
+- Thao tác thất bại hoặc rollback không được để lại audit row thành công.
+- Password, password hash, JWT, nội dung file và upload server path không bao giờ được ghi vào `DetailsJson`.
+- Chỉ `Admin` có thể query `/api/audit-logs`.
 
-## Database Integrity Rules
+## Quy tắc toàn vẹn database
 
-Database constraints protect critical invariants:
+Database constraint bảo vệ các invariant quan trọng:
 
-- Unique usernames.
-- Unique employee codes.
-- Unique department names.
-- Unique project name per department.
-- Unique task assignee rows.
-- One review per progress report.
-- Progress percent range.
-- Non-negative hours.
-- Valid KPI date ranges.
-- Non-negative KPI counters and scores.
-- Valid KPI effective date ranges.
+- Username duy nhất.
+- Employee code duy nhất.
+- Tên phòng ban duy nhất.
+- Tên Project duy nhất trong mỗi phòng ban.
+- Hàng Task assignee duy nhất.
+- Một Review cho mỗi báo cáo Progress.
+- Khoảng percent Progress hợp lệ.
+- Hours không âm.
+- Khoảng ngày KPI hợp lệ.
+- Counter và điểm KPI không âm.
+- Khoảng ngày hiệu lực KPI hợp lệ.
 
-Business services must still validate before save so API responses stay user-friendly.
+Business service vẫn phải validation trước khi save để API response thân thiện với User.
 
-## Rules For Future Refactoring
+## Quy tắc cho refactor tương lai
 
-When refactoring services, preserve these boundaries:
+Khi refactor service, phải giữ các ranh giới sau:
 
-- Controllers should stay thin and only translate HTTP/auth context to service calls.
-- Permission checks should remain centralized instead of repeated by hand.
-- Task assignment resolution should be isolated from task creation.
-- DTO building should be isolated from business mutation logic.
-- KPI period resolution, work-history segmentation, and scoring should be separate from controller logic.
-- Public API contracts should not change unless frontend and docs are updated together.
+- Controller tiếp tục mỏng và chỉ chuyển ngữ cảnh HTTP/auth thành lời gọi service.
+- Kiểm tra quyền tiếp tục được tập trung thay vì lặp thủ công.
+- Resolve assignment Task phải tách khỏi tạo Task.
+- Xây dựng DTO phải tách khỏi logic business mutation.
+- Resolve kỳ KPI, phân đoạn work history và tính điểm phải tách khỏi logic controller.
+- Hợp đồng public API không thay đổi trừ khi frontend và tài liệu được cập nhật cùng lúc.

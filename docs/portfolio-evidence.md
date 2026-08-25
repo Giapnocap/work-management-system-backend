@@ -1,128 +1,128 @@
-# Portfolio Evidence And Interview Guide
+# Bằng chứng portfolio và hướng dẫn phỏng vấn
 
-This document turns repository claims into code and test evidence. It is a preparation aid, not a substitute for understanding the implementation.
+Tài liệu này liên kết các tuyên bố về repository với bằng chứng code và test. Đây là tài liệu hỗ trợ chuẩn bị, không thay thế việc hiểu implementation.
 
-## Project Identity
+## Định vị dự án
 
-WorkManagementSystem is a layered modular monolith for department-scoped workflow, collaboration, and workforce visibility. Its engineering focus is resource authorization, task dependencies, progress/review transitions, workload capacity, durable scheduling, reminders, activity history, and explainable KPI snapshots.
+WorkManagementSystem là layered modular monolith cho workflow theo phạm vi phòng ban, cộng tác và khả năng quan sát nguồn lực. Trọng tâm kỹ thuật gồm authorization theo tài nguyên, dependency Task, transition Progress/Review, workload capacity, scheduling bền vững, reminder, activity history và KPI snapshot có thể giải thích.
 
-An e-commerce backend normally emphasizes catalog, inventory, cart, order, payment, and fulfillment consistency. Those are not this repository's domain. WorkManagementSystem also does not claim broker-backed messaging, distributed transactions, microservices, or independent layer deployment.
+Backend thương mại điện tử thường tập trung vào catalog, inventory, cart, order, payment và tính nhất quán fulfillment. Đây không phải domain của repository này. WorkManagementSystem cũng không tuyên bố có broker-backed messaging, distributed transaction, microservices hoặc layer triển khai độc lập.
 
-## Suggested CV Entry
+## Nội dung gợi ý cho CV
 
 **Work Management System Backend | ASP.NET Core 8, EF Core, SQL Server, xUnit, Docker**
 
-- Built a layered modular-monolith Web API for department-scoped project/task assignment, evidence-based progress reporting, Manager review, activity timelines, and KPI insights.
-- Enforced role and resource authorization across current department membership, task assignment, and historical KPI scope, with revocable JWT sessions.
-- Implemented explicit task workflow and DAG dependencies with cycle detection, transition history, optimistic concurrency, and relational uniqueness constraints.
-- Built SQL-backed recurring-task and deadline-reminder workers with idempotency keys, restart-safe state, bounded retry, health checks, and operational metrics.
-- Added set-based workload/KPI queries, reproducible SQL command budgets, unit/API/SQL Server integration tests, Docker migration verification, and a backup/restore drill in CI.
+- Xây dựng Web API theo kiến trúc layered modular monolith cho việc giao Project/Task theo phòng ban, báo cáo Progress có evidence, Manager review, activity timeline và KPI insight.
+- Cưỡng chế authorization theo role và tài nguyên dựa trên membership phòng ban hiện tại, assignment Task và phạm vi KPI lịch sử, với JWT session có thể thu hồi.
+- Triển khai workflow Task rõ ràng và dependency DAG có phát hiện cycle, transition history, optimistic concurrency cùng relational uniqueness constraint.
+- Xây dựng recurring-task và deadline-reminder worker lưu trạng thái trong SQL với idempotency key, trạng thái an toàn qua restart, retry có giới hạn, health check và operational metric.
+- Bổ sung query workload/KPI theo tập hợp, ngân sách SQL command tái tạo được, unit/API/SQL Server integration test, xác minh Docker migration và diễn tập backup/restore trong CI.
 
-Keep only bullets you can explain from request to database. Do not add throughput, latency, availability, or percentage-improvement claims without a reproducible benchmark and retained result.
+Chỉ giữ những bullet bạn có thể giải thích từ request đến database. Không thêm tuyên bố throughput, latency, availability hoặc phần trăm cải thiện nếu không có benchmark tái tạo được và kết quả được lưu lại.
 
-## Claim Evidence
+## Bằng chứng cho từng tuyên bố
 
-| CV claim | Implementation evidence | Test evidence |
+| Tuyên bố trong CV | Bằng chứng implementation | Bằng chứng test |
 | --- | --- | --- |
-| Layered modular monolith with a clear HTTP/application/data boundary | [Program composition root](../Program.cs), [application registrations](../Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs), [infrastructure registrations](../Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs), [architecture guide](architecture.md) | [architecture dependency tests](../WorkManagementSystem.Tests/ArchitectureDependencyTests.cs), [API contract tests](../WorkManagementSystem.Tests/ApiContractIntegrationTests.cs) |
-| Role plus resource-scoped authorization | [task access service](../Application/Services/TaskAccessService.cs), [current user service](../API/Authentication/CurrentUserService.cs), [business-rule matrix](business-rules.md) | [task access security tests](../WorkManagementSystem.Tests/TaskAccessSecurityTests.cs), [authorization contract tests](../WorkManagementSystem.Tests/ApiAuthorizationContractTests.cs), [workflow HTTP tests](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs) |
-| Explicit task/progress/review workflow with concurrency protection | [workflow policy](../Domain/Workflows/TaskWorkflowPolicy.cs), [workflow service](../Application/Services/TaskWorkflowService.cs), [review service](../Application/Services/ReviewService.cs), [transaction manager](../Infrastructure/Data/EfTransactionManager.cs) | [workflow policy tests](../WorkManagementSystem.Tests/TaskWorkflowPolicyTests.cs), [progress/review tests](../WorkManagementSystem.Tests/ProgressReviewServiceTests.cs), [SQL Server relational tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs) |
-| DAG task dependencies with cycle rejection | [dependency service](../Application/Services/TaskDependencyService.cs), [dependency entity](../Domain/Entities/TaskDependency.cs), [dependency configuration](../Infrastructure/Data/Configurations/TaskDependencyConfiguration.cs) | [dependency service tests](../WorkManagementSystem.Tests/TaskDependencyServiceTests.cs), [HTTP workflow tests](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs), [database model tests](../WorkManagementSystem.Tests/DatabaseModelTests.cs) |
-| Durable recurring tasks and deadline reminders | [recurring scheduler](../Application/Services/RecurringTaskSchedulerService.cs), [recurring worker](../Infrastructure/Scheduling/RecurringTaskWorker.cs), [deadline service](../Application/Services/DeadlineReminderService.cs), [deadline worker](../Infrastructure/Scheduling/DeadlineReminderWorker.cs) | [recurring scheduler tests](../WorkManagementSystem.Tests/RecurringTaskSchedulerTests.cs), [deadline tests](../WorkManagementSystem.Tests/DeadlineReminderServiceTests.cs), [worker metric tests](../WorkManagementSystem.Tests/BackgroundJobMetricsTests.cs), [SQL Server relational tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs) |
-| Workload planning and explainable KPI snapshots | [workload service](../Application/Services/WorkloadService.cs), [performance service](../Application/Services/UserPerformanceService.cs), [KPI formula](../Application/Common/KpiFormula.cs), [KPI service](../Application/Services/KpiService.cs) | [workload tests](../WorkManagementSystem.Tests/WorkloadServiceTests.cs), [KPI tests](../WorkManagementSystem.Tests/KpiServiceTests.cs), [staff-history KPI tests](../WorkManagementSystem.Tests/UserKpiWorkHistoryTests.cs), [query budgets](performance.md) |
-| Hardened task-scoped evidence uploads | [upload service](../Application/Services/UploadService.cs), [upload controller](../API/Controllers/UploadController.cs), [upload configuration](../Infrastructure/Data/Configurations/UploadFileConfiguration.cs) | [upload tests](../WorkManagementSystem.Tests/UploadServiceTests.cs), [orphan cleanup tests](../WorkManagementSystem.Tests/UploadOrphanCleanupTests.cs), [workflow HTTP tests](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs) |
-| Repeatable migrations, recovery verification, and operational health | [Compose stack](../compose.yml), [CI workflow](../.github/workflows/backend-ci.yml), [backup/restore drill](../scripts/backup-restore-drill.ps1), [health checks](../Infrastructure/Health/DatabaseHealthCheck.cs) | [operational tests](../WorkManagementSystem.Tests/OperationalObservabilityTests.cs), [migration and constraint tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs), [recovery guide](recovery-and-workers.md) |
+| Layered modular monolith với ranh giới HTTP/application/data rõ ràng | [Program composition root](../Program.cs), [đăng ký Application](../Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs), [đăng ký Infrastructure](../Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs), [hướng dẫn kiến trúc](architecture.md) | [architecture dependency test](../WorkManagementSystem.Tests/ArchitectureDependencyTests.cs), [API contract test](../WorkManagementSystem.Tests/ApiContractIntegrationTests.cs) |
+| Authorization theo role và phạm vi tài nguyên | [task access service](../Application/Services/TaskAccessService.cs), [current user service](../API/Authentication/CurrentUserService.cs), [ma trận quy tắc nghiệp vụ](business-rules.md) | [task access security test](../WorkManagementSystem.Tests/TaskAccessSecurityTests.cs), [authorization contract test](../WorkManagementSystem.Tests/ApiAuthorizationContractTests.cs), [workflow HTTP test](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs) |
+| Workflow Task/Progress/Review rõ ràng có bảo vệ concurrency | [workflow policy](../Domain/Workflows/TaskWorkflowPolicy.cs), [workflow service](../Application/Services/TaskWorkflowService.cs), [review service](../Application/Services/ReviewService.cs), [transaction manager](../Infrastructure/Data/EfTransactionManager.cs) | [workflow policy test](../WorkManagementSystem.Tests/TaskWorkflowPolicyTests.cs), [progress/review test](../WorkManagementSystem.Tests/ProgressReviewServiceTests.cs), [SQL Server relational test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs) |
+| Dependency Task dạng DAG có từ chối cycle | [dependency service](../Application/Services/TaskDependencyService.cs), [dependency entity](../Domain/Entities/TaskDependency.cs), [dependency configuration](../Infrastructure/Data/Configurations/TaskDependencyConfiguration.cs) | [dependency service test](../WorkManagementSystem.Tests/TaskDependencyServiceTests.cs), [HTTP workflow test](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs), [database model test](../WorkManagementSystem.Tests/DatabaseModelTests.cs) |
+| Recurring Task và deadline reminder bền vững | [recurring scheduler](../Application/Services/RecurringTaskSchedulerService.cs), [recurring worker](../Infrastructure/Scheduling/RecurringTaskWorker.cs), [deadline service](../Application/Services/DeadlineReminderService.cs), [deadline worker](../Infrastructure/Scheduling/DeadlineReminderWorker.cs) | [recurring scheduler test](../WorkManagementSystem.Tests/RecurringTaskSchedulerTests.cs), [deadline test](../WorkManagementSystem.Tests/DeadlineReminderServiceTests.cs), [worker metric test](../WorkManagementSystem.Tests/BackgroundJobMetricsTests.cs), [SQL Server relational test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs) |
+| Workload planning và KPI snapshot có thể giải thích | [workload service](../Application/Services/WorkloadService.cs), [performance service](../Application/Services/UserPerformanceService.cs), [KPI formula](../Application/Common/KpiFormula.cs), [KPI service](../Application/Services/KpiService.cs) | [workload test](../WorkManagementSystem.Tests/WorkloadServiceTests.cs), [KPI test](../WorkManagementSystem.Tests/KpiServiceTests.cs), [staff-history KPI test](../WorkManagementSystem.Tests/UserKpiWorkHistoryTests.cs), [query budget](performance.md) |
+| Upload evidence theo Task đã được gia cố | [upload service](../Application/Services/UploadService.cs), [upload controller](../API/Controllers/UploadController.cs), [upload configuration](../Infrastructure/Data/Configurations/UploadFileConfiguration.cs) | [upload test](../WorkManagementSystem.Tests/UploadServiceTests.cs), [orphan cleanup test](../WorkManagementSystem.Tests/UploadOrphanCleanupTests.cs), [workflow HTTP test](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs) |
+| Migration có thể lặp lại, xác minh phục hồi và operational health | [Compose stack](../compose.yml), [CI workflow](../.github/workflows/backend-ci.yml), [diễn tập backup/restore](../scripts/backup-restore-drill.ps1), [health check](../Infrastructure/Health/DatabaseHealthCheck.cs) | [operational test](../WorkManagementSystem.Tests/OperationalObservabilityTests.cs), [migration và constraint test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs), [hướng dẫn phục hồi](recovery-and-workers.md) |
 
-## Interview Questions And Answers
+## Câu hỏi và trả lời phỏng vấn
 
-### 1. Is this Clean Architecture?
+### 1. Đây có phải Clean Architecture không?
 
-No. It is a layered modular monolith with logical API, Application, Domain, and Infrastructure namespaces in one runtime assembly. Architecture tests protect useful dependency boundaries, but Application still exposes EF-oriented query abstractions, so claiming full persistence ignorance would be inaccurate. Evidence: [architecture guide](architecture.md) and [architecture tests](../WorkManagementSystem.Tests/ArchitectureDependencyTests.cs).
+Không. Đây là layered modular monolith với namespace logic API, Application, Domain và Infrastructure trong một runtime assembly. Architecture test bảo vệ các dependency boundary hữu ích, nhưng Application vẫn cung cấp abstraction query hướng EF nên tuyên bố persistence ignorance hoàn toàn sẽ không chính xác. Bằng chứng: [hướng dẫn kiến trúc](architecture.md) và [architecture test](../WorkManagementSystem.Tests/ArchitectureDependencyTests.cs).
 
-### 2. Why keep controllers thin?
+### 2. Tại sao giữ controller mỏng?
 
-Controllers translate HTTP input, resolve the authenticated user, call one application use case, and choose the status code. Authorization of the concrete task/project/report and transactional business changes remain in services. Evidence: [task controller](../API/Controllers/TaskController.cs) and [task service](../Application/Services/TaskService.cs).
+Controller chuyển HTTP input, resolve User đã xác thực, gọi một application use case và chọn status code. Authorization cho Task/Project/report cụ thể cùng thay đổi nghiệp vụ trong transaction vẫn nằm ở service. Bằng chứng: [task controller](../API/Controllers/TaskController.cs) và [task service](../Application/Services/TaskService.cs).
 
-### 3. Why is role authorization insufficient?
+### 3. Tại sao role authorization chưa đủ?
 
-Two Managers must not manage each other's departments. Endpoint roles reject the wrong actor category; `TaskAccessService` then checks current department, creator/assignment, management scope, and permitted history. Evidence: [task access service](../Application/Services/TaskAccessService.cs) and [security tests](../WorkManagementSystem.Tests/TaskAccessSecurityTests.cs).
+Hai Manager không được quản lý phòng ban của nhau. Role tại endpoint từ chối sai loại actor; sau đó `TaskAccessService` kiểm tra phòng ban hiện tại, creator/assignment, management scope và lịch sử được phép. Bằng chứng: [task access service](../Application/Services/TaskAccessService.cs) và [security test](../WorkManagementSystem.Tests/TaskAccessSecurityTests.cs).
 
-### 4. How are revoked JWTs rejected before expiry?
+### 4. JWT bị thu hồi được từ chối trước khi hết hạn như thế nào?
 
-The token contains a version tied to the user record. Password reset, role/unit-sensitive account changes, or deletion invalidates sessions by changing `TokenVersion`; current-user resolution rejects an old version. Evidence: [current user service](../API/Authentication/CurrentUserService.cs) and [security operation tests](../WorkManagementSystem.Tests/SecurityOperationsTests.cs).
+Token chứa version gắn với User record. Reset mật khẩu, thay đổi tài khoản nhạy cảm với role/unit hoặc xóa làm đổi `TokenVersion`; current-user resolution từ chối version cũ. Bằng chứng: [current user service](../API/Authentication/CurrentUserService.cs) và [security operation test](../WorkManagementSystem.Tests/SecurityOperationsTests.cs).
 
-### 5. Why centralize task transitions?
+### 5. Tại sao tập trung transition Task?
 
-Progress creation, review, and other use cases must not each invent their own state changes. `TaskWorkflowPolicy` defines legal transitions while `TaskWorkflowService` applies state and history changes consistently. Evidence: [workflow diagram](task-workflow.md) and [policy tests](../WorkManagementSystem.Tests/TaskWorkflowPolicyTests.cs).
+Tạo Progress, Review và các use case khác không được tự tạo cách đổi trạng thái riêng. `TaskWorkflowPolicy` định nghĩa transition hợp lệ, còn `TaskWorkflowService` áp dụng thay đổi trạng thái và history nhất quán. Bằng chứng: [sơ đồ workflow](task-workflow.md) và [policy test](../WorkManagementSystem.Tests/TaskWorkflowPolicyTests.cs).
 
-### 6. How is double review prevented?
+### 6. Review trùng được ngăn như thế nào?
 
-The service checks current report state and existing review, then updates inside a transaction. Rowversion detects stale writes and a unique database constraint on the progress review is the final race guard. Evidence: [review service](../Application/Services/ReviewService.cs), [progress configuration](../Infrastructure/Data/Configurations/ProgressConfiguration.cs), and [SQL tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
+Service kiểm tra trạng thái report và Review hiện tại rồi update trong transaction. Rowversion phát hiện write cũ và unique database constraint trên Progress Review là lớp bảo vệ cuối cho race condition. Bằng chứng: [review service](../Application/Services/ReviewService.cs), [progress configuration](../Infrastructure/Data/Configurations/ProgressConfiguration.cs) và [SQL test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
 
-### 7. Why does dependency validation need more than a foreign key?
+### 7. Tại sao validation dependency cần nhiều hơn foreign key?
 
-A foreign key proves both tasks exist but cannot prove the graph is acyclic. The service searches for an existing path before adding an edge; SQL constraints independently reject self-reference and duplicate edges. Evidence: [dependency service](../Application/Services/TaskDependencyService.cs) and [dependency tests](../WorkManagementSystem.Tests/TaskDependencyServiceTests.cs).
+Foreign key chứng minh cả hai Task tồn tại nhưng không chứng minh graph không có cycle. Service tìm path hiện có trước khi thêm cạnh; SQL constraint độc lập từ chối self-reference và cạnh trùng. Bằng chứng: [dependency service](../Application/Services/TaskDependencyService.cs) và [dependency test](../WorkManagementSystem.Tests/TaskDependencyServiceTests.cs).
 
-### 8. What happens when a blocking task completes?
+### 8. Điều gì xảy ra khi Task đang chặn hoàn thành?
 
-The dependent task is not auto-completed; it merely becomes eligible for its normal progress workflow. Dependency and unblock facts are recorded in task history and become visible in the timeline. Evidence: [task workflow service](../Application/Services/TaskWorkflowService.cs) and [workflow integration tests](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs).
+Task phụ thuộc không tự động hoàn thành; nó chỉ đủ điều kiện đi tiếp trong workflow Progress thông thường. Dữ kiện dependency và unblock được ghi trong Task history và hiển thị trên timeline. Bằng chứng: [task workflow service](../Application/Services/TaskWorkflowService.cs) và [workflow integration test](../WorkManagementSystem.Tests/BackendWorkflowIntegrationTests.cs).
 
-### 9. How does recurring scheduling survive restart?
+### 9. Recurring scheduling tồn tại qua restart như thế nào?
 
-Templates store `NextRunAtUtc`; generated occurrences store a unique `(TemplateId, ScheduledForUtc)` key. Each occurrence is created transactionally and the persisted schedule advances, so the database, not worker memory, is the source of truth. Evidence: [scheduler](../Application/Services/RecurringTaskSchedulerService.cs), [occurrence configuration](../Infrastructure/Data/Configurations/GeneratedTaskOccurrenceConfiguration.cs), and [scheduler tests](../WorkManagementSystem.Tests/RecurringTaskSchedulerTests.cs).
+Template lưu `NextRunAtUtc`; generated occurrence lưu key duy nhất `(TemplateId, ScheduledForUtc)`. Mỗi occurrence được tạo trong transaction và persisted schedule được tăng, nên database chứ không phải worker memory là nguồn chuẩn. Bằng chứng: [scheduler](../Application/Services/RecurringTaskSchedulerService.cs), [occurrence configuration](../Infrastructure/Data/Configurations/GeneratedTaskOccurrenceConfiguration.cs) và [scheduler test](../WorkManagementSystem.Tests/RecurringTaskSchedulerTests.cs).
 
-### 10. What if two scheduler instances race?
+### 10. Nếu hai scheduler instance cạnh tranh thì sao?
 
-Both may discover the same due template, but the serializable transaction, optimistic concurrency, and unique occurrence key allow only one committed occurrence. The losing attempt is handled as a conflict rather than producing duplicate work. Evidence: [scheduler](../Application/Services/RecurringTaskSchedulerService.cs) and [SQL Server tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
+Cả hai có thể phát hiện cùng template đến hạn, nhưng serializable transaction, optimistic concurrency và unique occurrence key chỉ cho phép một occurrence được commit. Lần thua được xử lý như conflict thay vì tạo công việc trùng. Bằng chứng: [scheduler](../Application/Services/RecurringTaskSchedulerService.cs) và [SQL Server test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
 
-### 11. How are reminders made idempotent?
+### 11. Reminder có tính idempotent như thế nào?
 
-The service stages a persisted milestone with a unique event key before delivery, revalidates the task/policy/recipient, and records sent, failed, or suppressed state. Retries are bounded and completed/deleted tasks suppress stale delivery. Evidence: [deadline service](../Application/Services/DeadlineReminderService.cs) and [deadline tests](../WorkManagementSystem.Tests/DeadlineReminderServiceTests.cs).
+Service stage một milestone bền vững có event key duy nhất trước delivery, kiểm tra lại Task/policy/recipient rồi ghi trạng thái sent, failed hoặc suppressed. Retry có giới hạn và Task hoàn thành/bị xóa suppress delivery cũ. Bằng chứng: [deadline service](../Application/Services/DeadlineReminderService.cs) và [deadline test](../WorkManagementSystem.Tests/DeadlineReminderServiceTests.cs).
 
-### 12. Why is workload not part of KPI score?
+### 12. Tại sao workload không thuộc điểm KPI?
 
-Planned effort is a Manager estimate used for capacity warnings. KPI measures approved outcomes and deadline/rejection facts. Mixing estimated workload into employee score would reward or punish a Manager's estimate rather than verified work. Evidence: [domain workflows](domain-workflows.md), [workload service](../Application/Services/WorkloadService.cs), and [KPI formula](../Application/Common/KpiFormula.cs).
+Planned effort là ước tính của Manager dùng cho cảnh báo capacity. KPI đo kết quả đã duyệt cùng dữ kiện deadline/từ chối. Trộn workload ước tính vào điểm nhân viên sẽ thưởng hoặc phạt theo ước tính của Manager thay vì công việc đã xác minh. Bằng chứng: [domain workflow](domain-workflows.md), [workload service](../Application/Services/WorkloadService.cs) và [KPI formula](../Application/Common/KpiFormula.cs).
 
-### 13. How are staff transfers handled in KPI?
+### 13. Điều chuyển nhân sự được xử lý trong KPI như thế nào?
 
-Effective-dated work history defines the user's role/unit during a period. Locked results preserve identity, unit, formula version, and raw metric snapshots, so later transfers or deletion cannot rewrite historical output. Evidence: [performance service](../Application/Services/UserPerformanceService.cs) and [work-history KPI tests](../WorkManagementSystem.Tests/UserKpiWorkHistoryTests.cs).
+Work history có hiệu lực theo thời gian xác định role/unit của User trong một kỳ. Kết quả đã khóa giữ identity, Unit, formula version và raw metric snapshot nên điều chuyển hoặc xóa sau đó không thể viết lại output lịch sử. Bằng chứng: [performance service](../Application/Services/UserPerformanceService.cs) và [work-history KPI test](../WorkManagementSystem.Tests/UserKpiWorkHistoryTests.cs).
 
-### 14. Do KPI GET endpoints write data?
+### 14. KPI GET endpoint có ghi dữ liệu không?
 
-No. KPI periods are explicitly created through commands and reads resolve an existing period. This avoids hidden writes, unique-key races, and surprising side effects in GET requests. Evidence: [KPI service](../Application/Services/KpiService.cs) and [KPI tests](../WorkManagementSystem.Tests/KpiServiceTests.cs).
+Không. Kỳ KPI được tạo rõ ràng qua command và luồng đọc resolve kỳ đã tồn tại. Điều này tránh hidden write, race unique key và side effect bất ngờ trong GET request. Bằng chứng: [KPI service](../Application/Services/KpiService.cs) và [KPI test](../WorkManagementSystem.Tests/KpiServiceTests.cs).
 
-### 15. How were EF Core query costs checked?
+### 15. Chi phí query EF Core được kiểm tra như thế nào?
 
-Read paths use projections, `AsNoTracking` where appropriate, and set-based aggregates. Integration tests seed a medium dataset and enforce SQL command-count budgets for task lists, workload, timeline, and KPI dashboard reads. Evidence: [performance notes](performance.md) and [SQL Server tests](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
+Luồng đọc dùng projection, `AsNoTracking` khi phù hợp và set-based aggregate. Integration test seed bộ dữ liệu trung bình và áp ngân sách số SQL command cho danh sách Task, workload, timeline và KPI dashboard. Bằng chứng: [ghi chú hiệu năng](performance.md) và [SQL Server test](../WorkManagementSystem.Tests/SqlServerRelationalTests.cs).
 
-### 16. Why are liveness and readiness separate?
+### 16. Tại sao tách liveness và readiness?
 
-Liveness answers whether the process is running. Readiness also checks database connectivity and upload-storage writability, so a dependency outage removes the instance from traffic without claiming the process itself is dead. Evidence: [Program endpoints](../Program.cs), [health checks](../Infrastructure/Health/UploadStorageHealthCheck.cs), and [operational tests](../WorkManagementSystem.Tests/OperationalObservabilityTests.cs).
+Liveness trả lời process có đang chạy không. Readiness còn kiểm tra kết nối database và khả năng ghi upload storage, để sự cố dependency loại instance khỏi traffic mà không tuyên bố chính process đã chết. Bằng chứng: [Program endpoint](../Program.cs), [health check](../Infrastructure/Health/UploadStorageHealthCheck.cs) và [operational test](../WorkManagementSystem.Tests/OperationalObservabilityTests.cs).
 
-### 17. What upload threats are addressed?
+### 17. Những mối đe dọa upload nào được xử lý?
 
-The service requires a valid task/progress context, checks resource access, bounds size/extensions, compares MIME/signature, validates OOXML contents, rejects macros, sanitizes names, keeps physical paths private, and cleans orphaned files. It does not claim antivirus scanning. Evidence: [upload service](../Application/Services/UploadService.cs) and [upload tests](../WorkManagementSystem.Tests/UploadServiceTests.cs).
+Service yêu cầu ngữ cảnh Task/Progress hợp lệ, kiểm tra quyền tài nguyên, giới hạn size/extension, so sánh MIME/signature, xác minh nội dung OOXML, từ chối macro, làm an toàn tên, giữ physical path riêng tư và dọn file mồ côi. Hệ thống không tuyên bố có antivirus scanning. Bằng chứng: [upload service](../Application/Services/UploadService.cs) và [upload test](../WorkManagementSystem.Tests/UploadServiceTests.cs).
 
-### 18. How is database recovery verified?
+### 18. Phục hồi database được xác minh thế nào?
 
-The CI drill takes a checksum backup, restores into a temporary database, compares critical row counts, and runs `DBCC CHECKDB`. It verifies the procedure for this local SQL Server topology; it is not a claim of production RPO/RTO. Evidence: [restore script](../scripts/backup-restore-drill.ps1), [CI workflow](../.github/workflows/backend-ci.yml), and [recovery guide](recovery-and-workers.md).
+Diễn tập CI tạo backup có checksum, restore vào database tạm, so sánh số record quan trọng và chạy `DBCC CHECKDB`. Nó xác minh quy trình cho topology SQL Server cục bộ này, không phải tuyên bố RPO/RTO production. Bằng chứng: [restore script](../scripts/backup-restore-drill.ps1), [CI workflow](../.github/workflows/backend-ci.yml) và [hướng dẫn phục hồi](recovery-and-workers.md).
 
-### 19. Why does the timeline not use a separate event store?
+### 19. Tại sao timeline không dùng event store riêng?
 
-The system already persists authoritative task history, progress, reviews, comments, files, and scheduled notifications. The timeline composes a permission-scoped read model from those facts, avoiding another synchronization source while using stable time/id cursor ordering. Evidence: [timeline service](../Application/Services/TaskTimelineService.cs) and [timeline tests](../WorkManagementSystem.Tests/TaskTimelineServiceTests.cs).
+Hệ thống đã lưu Task history, Progress, Review, comment, file và scheduled notification làm nguồn chuẩn. Timeline ghép read model có phân quyền từ những dữ kiện đó, tránh thêm nguồn đồng bộ khác và dùng thứ tự cursor time/id ổn định. Bằng chứng: [timeline service](../Application/Services/TaskTimelineService.cs) và [timeline test](../WorkManagementSystem.Tests/TaskTimelineServiceTests.cs).
 
-### 20. What would you improve next?
+### 20. Sẽ cải thiện gì tiếp theo?
 
-Validate KPI policy with a real organization, add refresh-token rotation if the client requires long sessions, move uploads to object storage with malware scanning for production, version public APIs, and define production infrastructure/CD. A broker or service split would be justified only by measured operational needs, not by portfolio appearance. Evidence: [README](../README.md) and [production checklist](production-checklist.md).
+Xác minh policy KPI với tổ chức thật, thêm rotation refresh token nếu client cần session dài, chuyển upload sang object storage có malware scanning cho production, version public API và định nghĩa infrastructure/CD production. Broker hoặc tách service chỉ hợp lý khi có nhu cầu vận hành đã đo, không phải để portfolio trông phức tạp. Bằng chứng: [README](../README.md) và [production checklist](production-checklist.md).
 
-## Known Limitations And Non-Goals
+## Giới hạn và non-goal đã biết
 
-- One deployable ASP.NET Core assembly; no independently deployed modules or microservices.
-- No refresh-token flow, broker, transactional outbox, distributed SignalR backplane, Redis cache, or distributed lock.
-- SQL Server is the supported database provider.
-- Local/container file storage is private and validated but has no external malware scanner or object-storage adapter.
-- KPI policy is demonstrative domain policy and must be validated before HR use.
-- CI validates build, tests, migrations, containers, and recovery, but the repository does not define cloud infrastructure or production CD.
-- Query budgets detect regressions in database round trips; they are not latency, throughput, or scale benchmarks.
+- Một ASP.NET Core assembly có thể triển khai; không có module hoặc microservice triển khai độc lập.
+- Không có refresh-token flow, broker, transactional outbox, distributed SignalR backplane, Redis cache hoặc distributed lock.
+- SQL Server là database provider được hỗ trợ.
+- File storage cục bộ/container là riêng tư và đã validation nhưng không có external malware scanner hoặc object-storage adapter.
+- KPI policy là domain policy minh họa và phải được xác minh trước khi dùng cho HR.
+- CI xác minh build, test, migration, container và recovery, nhưng repository không định nghĩa cloud infrastructure hoặc production CD.
+- Query budget phát hiện regression về lượt đi database; đây không phải benchmark latency, throughput hoặc scale.
 
-The canonical and current limitation list remains in the [README](../README.md).
+Danh sách giới hạn chuẩn và hiện hành vẫn nằm trong [README](../README.md).

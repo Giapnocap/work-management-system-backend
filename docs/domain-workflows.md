@@ -1,10 +1,10 @@
-# Domain Workflows
+# Các workflow trong domain
 
-These diagrams describe the current implementation. They are not a proposed redesign.
+Những sơ đồ này mô tả implementation hiện tại, không phải đề xuất redesign.
 
-## Task, Progress And Review
+## Task, Progress và Review
 
-Task state is server-derived. A progress report has its own review state; `Rejected` belongs to the report and returns the task to `InProgress`.
+Trạng thái Task do server suy ra. Báo cáo Progress có trạng thái review riêng; `Rejected` thuộc về báo cáo và đưa Task trở lại `InProgress`.
 
 ```mermaid
 stateDiagram-v2
@@ -20,11 +20,11 @@ stateDiagram-v2
     Approved --> [*]
 ```
 
-Completion is allowed only when all blocking dependencies are approved and every required assignee has an accepted completion. Evidence is mandatory for a 100 percent report when the task requires review. The transition matrix is implemented by [TaskWorkflowPolicy](../Domain/Workflows/TaskWorkflowPolicy.cs), orchestrated by [TaskWorkflowService](../Application/Services/TaskWorkflowService.cs), and documented in [task workflow](task-workflow.md).
+Chỉ được hoàn thành khi mọi dependency chặn đã được duyệt và mọi assignee bắt buộc đều có lần hoàn thành được chấp thuận. Task yêu cầu review bắt buộc phải có evidence khi báo cáo 100%. Ma trận chuyển trạng thái được triển khai bởi [TaskWorkflowPolicy](../Domain/Workflows/TaskWorkflowPolicy.cs), điều phối bởi [TaskWorkflowService](../Application/Services/TaskWorkflowService.cs) và mô tả trong [workflow Task](task-workflow.md).
 
-## Task Dependency Graph
+## Đồ thị dependency của Task
 
-An edge points from a prerequisite to the work it blocks. The example is a directed acyclic graph (DAG):
+Một cạnh hướng từ prerequisite đến công việc bị nó chặn. Ví dụ là directed acyclic graph (DAG):
 
 ```mermaid
 flowchart LR
@@ -35,13 +35,13 @@ flowchart LR
     D -. Proposed edge rejected: creates cycle .-> A
 ```
 
-`Implement endpoint` and `Prepare integration fixture` remain blocked until `Design API contract` is approved. `Run workflow verification` remains blocked until both predecessors are approved. Adding `D -> A` is rejected because a path already exists from `A` to `D`.
+`Implement endpoint` và `Prepare integration fixture` tiếp tục bị chặn cho đến khi `Design API contract` được duyệt. `Run workflow verification` bị chặn đến khi cả hai predecessor được duyệt. Thêm `D -> A` bị từ chối vì đã có một path từ `A` đến `D`.
 
-[TaskDependencyService](../Application/Services/TaskDependencyService.cs) detects direct and indirect cycles before persistence. SQL Server remains the final guard for self-reference and duplicate edges. Dependency completion and removal write task history so an unblock is visible in the activity timeline.
+[TaskDependencyService](../Application/Services/TaskDependencyService.cs) phát hiện cycle trực tiếp và gián tiếp trước khi lưu. SQL Server là lớp bảo vệ cuối cùng cho self-reference và cạnh trùng. Hoàn thành hoặc xóa dependency đều ghi lịch sử Task để việc gỡ chặn hiển thị trên activity timeline.
 
-## Resource Authorization
+## Authorization theo tài nguyên
 
-Role authorization is only the outer boundary. Application services must also authorize the concrete resource and current organizational scope.
+Role authorization chỉ là lớp biên ngoài. Application service còn phải kiểm tra quyền trên tài nguyên cụ thể và phạm vi tổ chức hiện tại.
 
 ```mermaid
 flowchart LR
@@ -56,9 +56,9 @@ flowchart LR
     Rule -->|Yes| Execute[Execute use case transaction]
 ```
 
-The complete role/resource authorization matrix is in [business rules](business-rules.md). In particular, Admin configures the organization but does not create projects or assign daily work; Manager owns work execution only inside the current department; User acts only on assigned task resources.
+Ma trận authorization đầy đủ theo role/tài nguyên nằm trong [quy tắc nghiệp vụ](business-rules.md). Cụ thể, Admin cấu hình tổ chức nhưng không tạo Project hoặc giao công việc hằng ngày; Manager chỉ sở hữu việc thực thi trong phòng ban hiện tại; User chỉ thao tác trên tài nguyên Task được giao.
 
-## Durable Recurring Tasks
+## Recurring Task bền vững
 
 ```mermaid
 sequenceDiagram
@@ -78,9 +78,9 @@ sequenceDiagram
     Service-->>Worker: Processed, generated and failure counts
 ```
 
-`(TemplateId, ScheduledForUtc)` is unique. The database stores the next schedule and generated occurrences, so process restarts do not lose or repeat work. The worker owns polling and metrics only; scheduling rules remain in the application service.
+`(TemplateId, ScheduledForUtc)` là duy nhất. Database lưu lịch chạy tiếp theo và các occurrence đã sinh nên process restart không làm mất hoặc lặp công việc. Worker chỉ chịu trách nhiệm polling và metric; quy tắc scheduling nằm trong application service.
 
-## Deadline Reminder And Escalation
+## Deadline reminder và escalation
 
 ```mermaid
 sequenceDiagram
@@ -104,11 +104,11 @@ sequenceDiagram
     end
 ```
 
-`EventKey` and `(TaskId, Type)` prevent duplicate milestones. Delivery state survives restart, and a completed or deleted task suppresses pending delivery. No in-memory queue is the source of truth.
+`EventKey` và `(TaskId, Type)` ngăn milestone trùng. Trạng thái delivery tồn tại qua restart, còn Task đã hoàn thành hoặc bị xóa sẽ suppress delivery đang chờ. Không có in-memory queue nào là nguồn dữ liệu chuẩn.
 
-## Workload, Capacity And KPI
+## Workload, capacity và KPI
 
-Workload planning and KPI reporting use related task data for different purposes and must not be conflated.
+Workload planning và báo cáo KPI dùng dữ liệu Task liên quan cho hai mục đích khác nhau và không được trộn lẫn.
 
 ```mermaid
 flowchart LR
@@ -126,11 +126,11 @@ flowchart LR
     Formula --> Snapshot[Immutable locked KPI snapshot]
 ```
 
-Projected workload is a non-blocking planning warning. `PlannedEffortHours` does not change KPI score. KPI uses approved workflow outcomes, deadline/rejection facts, period boundaries and historical organizational scope. Locked results store formula version, identity snapshots and raw metrics so later task or staff changes cannot rewrite history.
+Workload dự kiến là cảnh báo lập kế hoạch không chặn thao tác. `PlannedEffortHours` không thay đổi điểm KPI. KPI dùng kết quả workflow đã duyệt, dữ kiện deadline/từ chối, ranh giới kỳ và phạm vi tổ chức trong lịch sử. Kết quả đã khóa lưu formula version, identity snapshot và raw metric để thay đổi Task hoặc nhân sự sau này không thể viết lại lịch sử.
 
-Implementation and evidence:
+Implementation và bằng chứng:
 
-- [WorkloadService](../Application/Services/WorkloadService.cs) performs set-based workload calculations.
-- [UserPerformanceService](../Application/Services/UserPerformanceService.cs) calculates personal and manager performance inputs.
-- [KpiFormula](../Application/Common/KpiFormula.cs) owns formula version and deterministic score constants.
-- [query performance evidence](performance.md) records bounded SQL command counts.
+- [WorkloadService](../Application/Services/WorkloadService.cs) thực hiện tính workload theo tập hợp.
+- [UserPerformanceService](../Application/Services/UserPerformanceService.cs) tính input hiệu suất cá nhân và Manager.
+- [KpiFormula](../Application/Common/KpiFormula.cs) sở hữu formula version và hằng số điểm xác định.
+- [bằng chứng hiệu năng query](performance.md) ghi lại số SQL command bị giới hạn.

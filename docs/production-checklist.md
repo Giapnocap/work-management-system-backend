@@ -1,74 +1,74 @@
-# Production Readiness Checklist
+# Checklist sẵn sàng cho production
 
-Use this checklist before deploying the backend outside a local development environment.
+Dùng checklist này trước khi triển khai backend ra ngoài môi trường development cục bộ.
 
-## Configuration
+## Cấu hình
 
-- Set `ASPNETCORE_ENVIRONMENT=Production`.
-- Keep development secrets in .NET User Secrets.
-- Keep production secrets in environment variables or a deployment secret store.
-- Use `appsettings.Local.json` only for non-secret machine-specific Development overrides; the application does not load it in Production.
-- Do not commit `appsettings.Local.json`.
-- Supply `Jwt:Key` as a strong secret outside source control; production startup fails when it is missing.
-- Keep `Jwt:ExpirationMinutes` between 5 and 60 in production. The backend does not implement refresh tokens.
-- Passwords must contain at least eight characters, an uppercase letter, a lowercase letter, and a digit, and must not exceed the BCrypt 72-byte UTF-8 boundary.
-- Set `ConnectionStrings:Default` for the target SQL Server database.
-- Set `Cors:AllowedOrigins` to the real frontend URL(s).
-- Restrict `AllowedHosts`; production startup rejects `*`.
-- Use only HTTPS origins in production CORS configuration.
-- Use a certificate-validated encrypted SQL Server connection. Production startup rejects `Encrypt=False` and `TrustServerCertificate=True`.
-- Keep `DemoSeed:Enabled=false` in production.
-- Set `ReverseProxy:Enabled=true` only behind a reverse proxy, and configure at least one exact `KnownProxies` address or `KnownNetworks` CIDR. Production rejects an enabled but untrusted proxy configuration.
+- Đặt `ASPNETCORE_ENVIRONMENT=Production`.
+- Giữ secret development trong .NET User Secrets.
+- Giữ secret production trong environment variable hoặc secret store của nền tảng triển khai.
+- Chỉ dùng `appsettings.Local.json` cho override Development riêng của máy và không chứa secret; ứng dụng không load file này trong Production.
+- Không commit `appsettings.Local.json`.
+- Cung cấp `Jwt:Key` dưới dạng secret mạnh bên ngoài source control; production sẽ không khởi động nếu thiếu.
+- Giữ `Jwt:ExpirationMinutes` trong khoảng 5 đến 60 ở production. Backend không triển khai refresh token.
+- Mật khẩu phải có ít nhất tám ký tự, một chữ hoa, một chữ thường và một chữ số, đồng thời không vượt quá giới hạn UTF-8 72 byte của BCrypt.
+- Đặt `ConnectionStrings:Default` cho database SQL Server đích.
+- Đặt `Cors:AllowedOrigins` thành URL frontend thực tế.
+- Giới hạn `AllowedHosts`; production từ chối `*`.
+- Chỉ dùng HTTPS origin trong cấu hình CORS production.
+- Dùng kết nối SQL Server đã mã hóa và xác minh certificate. Production từ chối `Encrypt=False` và `TrustServerCertificate=True`.
+- Giữ `DemoSeed:Enabled=false` trong production.
+- Chỉ đặt `ReverseProxy:Enabled=true` khi chạy sau reverse proxy, đồng thời cấu hình ít nhất một địa chỉ `KnownProxies` chính xác hoặc CIDR `KnownNetworks`. Production từ chối cấu hình proxy đã bật nhưng không đáng tin cậy.
 
 ## Database
 
-- Apply EF Core migrations before running the application.
-- Review destructive cleanup migrations before applying them to a database with real data.
-- Keep schema changes in migrations, not runtime startup code.
-- Run the migration container or `dotnet ef database update` as a one-shot deployment step before starting the new API version.
-- Back up the database before applying a migration to an existing environment.
+- Áp dụng EF Core migration trước khi chạy ứng dụng.
+- Rà soát migration dọn dẹp có tính phá hủy trước khi áp dụng vào database chứa dữ liệu thật.
+- Lưu thay đổi schema trong migration, không chạy từ code khởi động runtime.
+- Chạy migration container hoặc `dotnet ef database update` như bước triển khai one-shot trước khi khởi động phiên bản API mới.
+- Backup database trước khi áp dụng migration vào môi trường đang có dữ liệu.
 
-## Runtime Files
+## File runtime
 
-- Keep `Uploads/` and `logs/` out of git.
-- Make sure the deployed app has write permission to its upload and log directories.
-- Back up upload files separately if they matter to business history.
-- Mount persistent storage for both `Uploads/` and `logs/` when using containers.
-- Keep the upload volume private; expose files only through the authorized download endpoint.
-- Persist only relative upload `StorageKey` values. Keep `UploadCleanup` enabled unless another durable storage reconciliation process replaces it.
-- Tune `UploadCleanup:MinimumAgeHours` and `UploadCleanup:IntervalHours` conservatively; the built-in scan deletes only aged files absent from persisted upload metadata.
-- Add a dedicated antivirus or sandbox scanner before accepting files in a real internet-facing deployment. Built-in format and OOXML checks are defense in depth, not malware detection.
+- Không đưa `Uploads/` và `logs/` vào Git.
+- Bảo đảm ứng dụng đã triển khai có quyền ghi vào thư mục upload và log.
+- Backup file upload riêng nếu chúng quan trọng với lịch sử nghiệp vụ.
+- Mount persistent storage cho cả `Uploads/` và `logs/` khi dùng container.
+- Giữ upload volume riêng tư; chỉ cung cấp file qua download endpoint có authorization.
+- Chỉ lưu `StorageKey` tương đối của upload. Giữ `UploadCleanup` hoạt động trừ khi đã có quy trình đối soát storage bền vững khác thay thế.
+- Điều chỉnh `UploadCleanup:MinimumAgeHours` và `UploadCleanup:IntervalHours` thận trọng; cơ chế scan tích hợp chỉ xóa file đủ cũ và không có trong metadata upload đã lưu.
+- Bổ sung antivirus hoặc sandbox scanner chuyên dụng trước khi nhận file trong hệ thống production truy cập từ Internet. Kiểm tra format và OOXML tích hợp chỉ là defense in depth, không phải phát hiện malware.
 
-## Observability
+## Khả năng quan sát
 
-- Preserve `X-Correlation-ID` through the reverse proxy and include it in incident reports.
-- Collect structured console logs in the deployment platform.
-- Configure log levels through `Serilog:MinimumLevel`; keep framework noise at `Warning` or above unless diagnosing an incident.
-- Treat `CorrelationId` and authenticated `UserId` as searchable structured properties. Do not add passwords, access tokens, or upload contents to log scopes.
-- File logs retain 14 daily files by default; align platform retention with incident and privacy requirements.
-- Monitor `/health/live` for process liveness. `/health/ready` verifies both database connectivity and write access to private upload storage.
-- Keep liveness independent from database and storage outages so the platform does not restart a healthy process during a dependency incident.
-- Treat client-request cancellation separately from server failures when reviewing error rates.
+- Giữ nguyên `X-Correlation-ID` qua reverse proxy và đưa nó vào báo cáo sự cố.
+- Thu thập structured console log trên nền tảng triển khai.
+- Cấu hình log level bằng `Serilog:MinimumLevel`; giữ nhiễu framework ở `Warning` trở lên trừ khi đang điều tra sự cố.
+- Xem `CorrelationId` và `UserId` đã xác thực là structured property có thể tìm kiếm. Không thêm password, access token hoặc nội dung upload vào log scope.
+- File log mặc định giữ 14 file theo ngày; điều chỉnh retention của nền tảng theo yêu cầu sự cố và quyền riêng tư.
+- Giám sát `/health/live` cho process liveness. `/health/ready` xác minh cả kết nối database và quyền ghi vào private upload storage.
+- Giữ liveness độc lập với sự cố database và storage để nền tảng không restart một process khỏe khi dependency gặp sự cố.
+- Xử lý cancellation từ client riêng với lỗi server khi xem tỷ lệ lỗi.
 
-## Containers
+## Container
 
-- `compose.yml` is for local development/demo and is not a production deployment manifest.
-- The `runtime` Docker target runs as the non-root `app` user.
-- The runtime image exposes a Docker health check backed by `/health/ready`.
-- The `migrations` Docker target contains a framework-dependent EF migration bundle, runs as non-root, performs `database update`, and exits without shipping the SDK or source tree.
-- Supply `MSSQL_SA_PASSWORD` and `JWT_KEY` through `.env` only for local Compose; use a deployment secret store in production.
-- Terminate public HTTPS at a trusted reverse proxy or platform ingress and forward `X-Forwarded-For` and `X-Forwarded-Proto`; list that proxy explicitly in `ReverseProxy` configuration.
+- `compose.yml` dành cho development/demo cục bộ, không phải manifest triển khai production.
+- Docker target `runtime` chạy bằng user `app` không phải root.
+- Runtime image cung cấp Docker health check dựa trên `/health/ready`.
+- Docker target `migrations` chứa EF migration bundle phụ thuộc framework, chạy không phải root, thực hiện `database update` rồi thoát mà không đóng gói SDK hoặc source tree.
+- Chỉ cung cấp `MSSQL_SA_PASSWORD` và `JWT_KEY` qua `.env` cho Compose cục bộ; production phải dùng secret store của nền tảng.
+- Kết thúc public HTTPS tại reverse proxy hoặc platform ingress đáng tin cậy rồi forward `X-Forwarded-For` và `X-Forwarded-Proto`; khai báo proxy đó rõ ràng trong cấu hình `ReverseProxy`.
 
 ## Continuous Integration
 
-- Require the `Backend CI` workflow to pass before merging.
-- Keep full transitive NuGet audit enabled and treat `NU1900`-`NU1904` as release-blocking restore errors.
-- Keep `dotnet-ef` aligned with the EF Core package version.
-- Do not merge model changes when `has-pending-model-changes` fails.
-- Require the SQL Server relational suite, disposable migration, container health check, and JWT authorization smoke test to pass.
-- Review the published artifact and container smoke result for the commit being deployed.
+- Bắt buộc workflow `Backend CI` thành công trước khi merge.
+- Giữ full transitive NuGet audit và xem lỗi lấy audit `NU1900` đến `NU1904` là lỗi chặn release khi restore.
+- Giữ `dotnet-ef` cùng phiên bản với package EF Core.
+- Không merge thay đổi model khi `has-pending-model-changes` thất bại.
+- Bắt buộc SQL Server relational suite, disposable migration, container health check và JWT authorization smoke test thành công.
+- Rà soát artifact được publish và kết quả container smoke của commit cần triển khai.
 
-## Verification
+## Xác minh
 
 ```powershell
 dotnet build .\WorkManagementSystem.sln --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false
@@ -77,4 +77,4 @@ dotnet ef migrations has-pending-model-changes --configuration Release --no-buil
 dotnet publish .\WorkManagementSystem.csproj --configuration Release --no-build --output .\artifacts\publish -p:UseAppHost=false
 ```
 
-Expected result: build succeeds and all automated tests pass.
+Kết quả mong đợi: build thành công và toàn bộ automated test vượt qua.

@@ -1,36 +1,36 @@
-# Database Overview
+# Tổng quan database
 
-This document summarizes the main data model for the Work Management System backend.
+Tài liệu này tóm tắt mô hình dữ liệu chính của backend Work Management System.
 
-## Core Tables
+## Các bảng lõi
 
-- `Users`: application accounts and staff profile data. A user can be `Admin`, `Manager`, or `User`; `TokenVersion` invalidates stale JWT sessions after security-sensitive account changes.
-- `Units`: departments/teams managed by managers.
-- `UserUnits`: the current one-to-one membership record between a user and a department.
-- `Projects`: work scopes owned by exactly one department. A project groups related tasks.
-- `Tasks`: concrete work items assigned by a manager and scoped to exactly one department.
-- `TaskAssignees`: user assignment snapshot for a task. Legacy rows may target a department, but new department assignments are expanded into user rows at creation time.
-- `RecurringTaskTemplates`: durable daily, weekly, or monthly task definitions with persisted next-run state and optimistic concurrency.
-- `RecurringTaskAssignees`: optional explicit default users for a recurring template; no rows means resolve the current department staff at generation time.
-- `GeneratedTaskOccurrences`: immutable link from one scheduled template occurrence to exactly one generated task.
-- `ReminderPolicies`: Global, Unit, or Project deadline policy with fixed due-soon and escalation milestones.
-- `ScheduledNotifications`: durable task-level reminder milestones, retry state, suppression reason, and sent timestamp.
-- `Progresses`: progress reports submitted by users for assigned tasks.
-- `Reviews`: manager review result for a submitted progress report.
-- `UploadFiles`: evidence/reference metadata attached to tasks or progress reports; `StorageKey` is relative to the private upload root.
-- `Notifications`: user notifications.
-- `TaskComments`, `CommentReactions`, `CommentSeens`: task discussion and read/reaction metadata.
-- `SubTasks`: checklist items inside a task.
-- `KpiPeriods`: KPI evaluation windows, usually monthly.
-- `KpiResults`: locked KPI calculation result, formula version, identity snapshot, and raw metrics per user and period.
-- `UserWorkHistories`: role/unit history used to calculate KPI correctly when staff move departments or roles.
-- `UserCapacities`: effective-dated weekly capacity history used for workload planning.
-- `TaskHistories`: field-level task changes, task/progress status transitions, reminders, creation, and soft deletion. Transition rows can store a bounded `Reason` and nullable `RelatedEntityId` for the triggering progress/dependency resource.
-- `AuditLogs`: append-only administrative audit events for accounts, departments, projects, and KPI periods.
+- `Users`: tài khoản ứng dụng và dữ liệu hồ sơ nhân sự. User có thể là `Admin`, `Manager` hoặc `User`; `TokenVersion` vô hiệu hóa JWT session cũ sau thay đổi nhạy cảm về bảo mật của tài khoản.
+- `Units`: phòng ban/nhóm do Manager quản lý.
+- `UserUnits`: bản ghi membership one-to-one hiện tại giữa User và phòng ban.
+- `Projects`: phạm vi công việc thuộc đúng một phòng ban. Project gom nhóm các Task liên quan.
+- `Tasks`: công việc cụ thể do Manager giao và thuộc đúng một phòng ban.
+- `TaskAssignees`: snapshot User được giao tại thời điểm tạo Task. Dữ liệu cũ có thể trỏ đến phòng ban, nhưng assignment phòng ban mới được mở rộng thành từng hàng User khi tạo.
+- `RecurringTaskTemplates`: định nghĩa Task lặp hằng ngày, tuần hoặc tháng, lưu trạng thái lần chạy tiếp theo và dùng optimistic concurrency.
+- `RecurringTaskAssignees`: User mặc định tùy chọn của recurring template; không có hàng nào nghĩa là lấy nhân sự hiện tại của phòng ban khi sinh Task.
+- `GeneratedTaskOccurrences`: liên kết bất biến từ một lần xuất hiện theo lịch của template đến đúng một Task đã sinh.
+- `ReminderPolicies`: policy deadline phạm vi Global, Unit hoặc Project với milestone sắp đến hạn và escalation cố định.
+- `ScheduledNotifications`: milestone reminder theo Task, trạng thái retry, lý do suppress và thời điểm đã gửi được lưu bền vững.
+- `Progresses`: báo cáo tiến độ do User được giao gửi cho Task.
+- `Reviews`: kết quả review của Manager cho một báo cáo Progress đã gửi.
+- `UploadFiles`: metadata evidence/tài liệu tham khảo gắn với Task hoặc Progress; `StorageKey` tương đối với private upload root.
+- `Notifications`: thông báo của User.
+- `TaskComments`, `CommentReactions`, `CommentSeens`: thảo luận Task cùng metadata đã đọc/reaction.
+- `SubTasks`: mục checklist bên trong Task.
+- `KpiPeriods`: khoảng đánh giá KPI, thường theo tháng.
+- `KpiResults`: kết quả tính KPI đã khóa, formula version, identity snapshot và raw metric theo User và kỳ.
+- `UserWorkHistories`: lịch sử role/phòng ban dùng để tính KPI đúng khi nhân sự chuyển phòng hoặc đổi role.
+- `UserCapacities`: lịch sử weekly capacity có hiệu lực theo thời gian dùng cho workload planning.
+- `TaskHistories`: thay đổi từng field của Task, chuyển trạng thái Task/Progress, reminder, tạo và soft delete. Hàng transition có thể lưu `Reason` giới hạn độ dài và `RelatedEntityId` nullable của tài nguyên Progress/dependency gây ra thay đổi.
+- `AuditLogs`: administrative audit event append-only cho tài khoản, phòng ban, Project và kỳ KPI.
 
-## Core Relationship Diagram
+## Sơ đồ quan hệ lõi
 
-The diagram focuses on workflow and KPI relationships. Notification and task-discussion tables are omitted here to keep the main data path readable.
+Sơ đồ tập trung vào quan hệ workflow và KPI. Bảng Notification và thảo luận Task được lược khỏi đây để luồng dữ liệu chính dễ đọc.
 
 ```mermaid
 erDiagram
@@ -63,19 +63,19 @@ erDiagram
     USERS o|--o{ AUDIT_LOGS : acts
 ```
 
-## Important Relationships
+## Các quan hệ quan trọng
 
-- `Users.UnitId -> Units.Id`: current department membership.
-- `Tasks.CreatedBy -> Users.Id`: manager who created the task.
-- `Tasks.UnitId -> Units.Id`: department scope of the task.
-- `(Tasks.ProjectId, Tasks.UnitId) -> (Projects.Id, Projects.UnitId)`: optional project grouping with enforced department consistency.
+- `Users.UnitId -> Units.Id`: membership phòng ban hiện tại.
+- `Tasks.CreatedBy -> Users.Id`: Manager tạo Task.
+- `Tasks.UnitId -> Units.Id`: phạm vi phòng ban của Task.
+- `(Tasks.ProjectId, Tasks.UnitId) -> (Projects.Id, Projects.UnitId)`: quan hệ gom nhóm Project tùy chọn có cưỡng chế đồng nhất phòng ban.
 - `TaskAssignees.TaskId -> Tasks.Id`.
-- `TaskAssignees.UserId -> Users.Id` for normal assignment snapshots.
-- `TaskAssignees.UnitId -> Units.Id` for legacy department-scope rows.
-- `RecurringTaskTemplates.UnitId -> Units.Id` and `(ProjectId, UnitId) -> (Projects.Id, UnitId)` enforce department scope.
-- `RecurringTaskAssignees.TemplateId -> RecurringTaskTemplates.Id` and `UserId -> Users.Id`.
-- `GeneratedTaskOccurrences.TemplateId -> RecurringTaskTemplates.Id` and `TaskId -> Tasks.Id`.
-- `ReminderPolicies.UnitId -> Units.Id` and `ProjectId -> Projects.Id`; a scope-shape check permits only the foreign key matching `ScopeType`.
+- `TaskAssignees.UserId -> Users.Id` cho assignment snapshot thông thường.
+- `TaskAssignees.UnitId -> Units.Id` cho hàng phạm vi phòng ban cũ.
+- `RecurringTaskTemplates.UnitId -> Units.Id` và `(ProjectId, UnitId) -> (Projects.Id, UnitId)` cưỡng chế phạm vi phòng ban.
+- `RecurringTaskAssignees.TemplateId -> RecurringTaskTemplates.Id` và `UserId -> Users.Id`.
+- `GeneratedTaskOccurrences.TemplateId -> RecurringTaskTemplates.Id` và `TaskId -> Tasks.Id`.
+- `ReminderPolicies.UnitId -> Units.Id` và `ProjectId -> Projects.Id`; check constraint hình dạng scope chỉ cho phép foreign key khớp với `ScopeType`.
 - `ScheduledNotifications.TaskId -> Tasks.Id`.
 - `Progresses.TaskId -> Tasks.Id`.
 - `Progresses.UserId -> Users.Id`.
@@ -84,105 +84,105 @@ erDiagram
 - `KpiResults.PeriodId -> KpiPeriods.Id`.
 - `KpiResults.UserId -> Users.Id`.
 - `UserWorkHistories.UserId -> Users.Id`.
-- `UserCapacities.UserId -> Users.Id` and `UserCapacities.ChangedByUserId -> Users.Id`.
+- `UserCapacities.UserId -> Users.Id` và `UserCapacities.ChangedByUserId -> Users.Id`.
 - `TaskHistories.TaskId -> Tasks.Id`.
 - `TaskHistories.ChangedBy -> Users.Id`.
-- `AuditLogs.ActorUserId -> Users.Id` when an authenticated actor exists.
+- `AuditLogs.ActorUserId -> Users.Id` khi có actor đã xác thực.
 
-## Constraints And Indexes
+## Constraint và index
 
-- `Users.Username` is unique.
-- `Users.EmployeeCode` is unique.
-- `Users.TokenVersion` is required and defaults to `0` for existing and newly created accounts.
-- `Units.Name` is unique.
-- `UserUnits.UserId` is unique, so one user has at most one current membership row.
-- `Projects` are unique by `(UnitId, Name)`.
-- `Projects.UnitId` and `Tasks.UnitId` are required.
-- `Projects` expose alternate key `(Id, UnitId)` for the composite task relationship.
-- A task linked to a project cannot carry a different `UnitId`.
-- `TaskAssignees` are unique by `(TaskId, UserId)` and `(TaskId, UnitId)`.
-- `TaskAssignees` must target exactly one side: user or unit.
-- New department assignments should be stored as direct user rows so KPI remains stable after staff transfers.
-- `RecurringTaskTemplates` constrain recurrence type, interval, schedule shape, and optional positive planning effort.
-- `RecurringTaskTemplates` use SQL Server `rowversion` and an `(IsActive, NextRunAtUtc)` due-scan index.
-- `RecurringTaskAssignees` are unique by `(TemplateId, UserId)`.
-- `GeneratedTaskOccurrences` use primary key `(TemplateId, ScheduledForUtc)` and a unique `TaskId`, preventing duplicate or multiply-linked generated tasks.
-- `ReminderPolicies` allow one Global policy, one policy per Unit, and one policy per Project through filtered unique indexes.
-- `ReminderPolicies` constrain scope shape and both hour thresholds; mutable policies use SQL Server `rowversion`.
-- `ScheduledNotifications` are unique by both `EventKey` and `(TaskId, Type)`, constrain enum/retry ranges, and use `rowversion` for competing delivery workers.
-- The `(Status, ScheduledForUtc, RetryCount)` index supports bounded pending/retry scans without loading notification history.
-- `Progresses.Percent` must be from `0` to `100`.
-- `Progresses.HoursSpent` must be non-negative.
-- `Tasks.ActualHours` must be non-negative.
-- `Tasks.PlannedEffortHours` is nullable for legacy/unplanned tasks and must be positive when provided.
-- `Tasks.Status` is limited to `NotStarted`, `InProgress`, `Submitted`, and `Approved`.
-- `Reviews.ProgressId` is unique, so each progress report has at most one review result.
-- `UploadFiles.FileName` and `UploadFiles.StorageKey` are required and bounded; server absolute paths are not persisted.
-- `KpiPeriods` are unique by `(StartDate, EndDate)`.
-- `KpiPeriods.EndDate` must be greater than `StartDate`.
-- `KpiResults` are unique by `(PeriodId, UserId)`.
-- `KpiResults` store bounded, required `FullNameSnapshot`, `EmployeeCodeSnapshot`, and `UnitNameSnapshot` values for immutable locked output.
-- `KpiResults.FormulaVersion` identifies the deterministic scoring rules used to create the snapshot.
-- `CompletedTasks`, `ProgressReportCount`, `PlannedEffortHours`, and `ActualHours` preserve the raw values needed to derive management rates without reading mutable source rows.
-- `UserWorkHistories.UserId` has a filtered unique index for rows where `EffectiveTo IS NULL`, so one user has at most one open work-history segment.
-- `UserCapacities.UserId` has a filtered unique index for rows where `EffectiveTo IS NULL`, so one user has at most one open capacity segment.
-- `UserCapacities.WeeklyCapacityHours` must be positive and `EffectiveTo` must be later than `EffectiveFrom`.
-- `TaskHistories`, `Progresses`, `TaskComments`, and `UploadFiles` have task/time/id indexes for deterministic timeline scans.
-- `TaskHistories.Reason` is limited to 1000 characters. `RelatedEntityId` is intentionally not a foreign key because it identifies different workflow resource types while the owning task foreign key remains authoritative.
-- `ScheduledNotifications` has `(TaskId, SentAtUtc, Id)` in addition to its worker indexes so sent reminder activity can be read without scanning unrelated tasks.
-- `AuditLogs` are indexed by `(EntityType, EntityId, OccurredAt)` and `(ActorUserId, OccurredAt)`.
-- `KpiResults` score/count fields must be non-negative.
-- Completed, overdue, and rejected counters cannot exceed their corresponding total counters.
-- `KpiResults.EffectiveTo` must be greater than or equal to `EffectiveFrom`.
-- Critical business relationships use `NoAction` delete behavior to avoid accidental cascade loss of task, KPI, and work-history records.
-- Soft-deleting a user does not delete `TaskAssignees`, `Progresses`, `Reviews`, `UserWorkHistories`, or `KpiResults`; current `UserUnits` membership is removed instead.
+- `Users.Username` là duy nhất.
+- `Users.EmployeeCode` là duy nhất.
+- `Users.TokenVersion` là bắt buộc và mặc định `0` cho tài khoản hiện có lẫn mới tạo.
+- `Units.Name` là duy nhất.
+- `UserUnits.UserId` là duy nhất, nên mỗi User có tối đa một membership hiện tại.
+- `Projects` duy nhất theo `(UnitId, Name)`.
+- `Projects.UnitId` và `Tasks.UnitId` là bắt buộc.
+- `Projects` cung cấp alternate key `(Id, UnitId)` cho quan hệ Task composite.
+- Task liên kết Project không thể có `UnitId` khác.
+- `TaskAssignees` duy nhất theo `(TaskId, UserId)` và `(TaskId, UnitId)`.
+- `TaskAssignees` phải trỏ đến đúng một phía: User hoặc Unit.
+- Assignment phòng ban mới phải được lưu thành từng hàng User trực tiếp để KPI ổn định sau khi nhân sự điều chuyển.
+- `RecurringTaskTemplates` giới hạn recurrence type, interval, hình dạng schedule và planning effort dương tùy chọn.
+- `RecurringTaskTemplates` dùng SQL Server `rowversion` và index due-scan `(IsActive, NextRunAtUtc)`.
+- `RecurringTaskAssignees` duy nhất theo `(TemplateId, UserId)`.
+- `GeneratedTaskOccurrences` dùng primary key `(TemplateId, ScheduledForUtc)` và `TaskId` duy nhất, ngăn Task sinh trùng hoặc liên kết nhiều lần.
+- `ReminderPolicies` cho phép một policy Global, một policy mỗi Unit và một policy mỗi Project bằng filtered unique index.
+- `ReminderPolicies` giới hạn hình dạng scope và hai ngưỡng giờ; policy có thể sửa dùng SQL Server `rowversion`.
+- `ScheduledNotifications` duy nhất theo cả `EventKey` và `(TaskId, Type)`, giới hạn enum/retry và dùng `rowversion` cho các delivery worker cạnh tranh.
+- Index `(Status, ScheduledForUtc, RetryCount)` hỗ trợ scan pending/retry có giới hạn mà không load lịch sử notification.
+- `Progresses.Percent` phải từ `0` đến `100`.
+- `Progresses.HoursSpent` không được âm.
+- `Tasks.ActualHours` không được âm.
+- `Tasks.PlannedEffortHours` nullable cho Task cũ/chưa được lập kế hoạch và phải dương khi có giá trị.
+- `Tasks.Status` chỉ nhận `NotStarted`, `InProgress`, `Submitted` và `Approved`.
+- `Reviews.ProgressId` là duy nhất, nên mỗi báo cáo Progress có tối đa một kết quả review.
+- `UploadFiles.FileName` và `UploadFiles.StorageKey` là bắt buộc và giới hạn độ dài; không lưu absolute path của server.
+- `KpiPeriods` duy nhất theo `(StartDate, EndDate)`.
+- `KpiPeriods.EndDate` phải lớn hơn `StartDate`.
+- `KpiResults` duy nhất theo `(PeriodId, UserId)`.
+- `KpiResults` lưu `FullNameSnapshot`, `EmployeeCodeSnapshot` và `UnitNameSnapshot` bắt buộc, giới hạn độ dài để tạo output đã khóa bất biến.
+- `KpiResults.FormulaVersion` định danh bộ quy tắc tính điểm xác định đã tạo snapshot.
+- `CompletedTasks`, `ProgressReportCount`, `PlannedEffortHours` và `ActualHours` giữ raw value cần để suy ra management rate mà không đọc lại dữ liệu nguồn có thể thay đổi.
+- `UserWorkHistories.UserId` có filtered unique index cho hàng `EffectiveTo IS NULL`, nên mỗi User có tối đa một work-history segment đang mở.
+- `UserCapacities.UserId` có filtered unique index cho hàng `EffectiveTo IS NULL`, nên mỗi User có tối đa một capacity segment đang mở.
+- `UserCapacities.WeeklyCapacityHours` phải dương và `EffectiveTo` phải sau `EffectiveFrom`.
+- `TaskHistories`, `Progresses`, `TaskComments` và `UploadFiles` có index task/time/id cho timeline scan xác định.
+- `TaskHistories.Reason` giới hạn 1000 ký tự. `RelatedEntityId` cố ý không là foreign key vì nó định danh nhiều loại tài nguyên workflow, còn foreign key Task sở hữu vẫn là nguồn chuẩn.
+- `ScheduledNotifications` có `(TaskId, SentAtUtc, Id)` ngoài worker index để đọc hoạt động reminder đã gửi mà không scan Task không liên quan.
+- `AuditLogs` được index theo `(EntityType, EntityId, OccurredAt)` và `(ActorUserId, OccurredAt)`.
+- Field điểm/số lượng của `KpiResults` không được âm.
+- Counter hoàn thành, quá hạn và bị từ chối không được vượt quá tổng tương ứng.
+- `KpiResults.EffectiveTo` phải lớn hơn hoặc bằng `EffectiveFrom`.
+- Quan hệ nghiệp vụ quan trọng dùng delete behavior `NoAction` để tránh cascade làm mất Task, KPI và work history ngoài ý muốn.
+- Soft delete User không xóa `TaskAssignees`, `Progresses`, `Reviews`, `UserWorkHistories` hoặc `KpiResults`; chỉ xóa membership `UserUnits` hiện tại.
 
-## Migration Notes
+## Lưu ý về migration
 
-- Runtime schema changes must not be executed from `Program.cs`.
-- Schema changes should be added as EF Core migrations.
-- Demo seed data does not change schema and is controlled separately by `DemoSeed:Enabled`.
-- `JoinedUnitAt` is ensured by migration because it is needed for KPI period calculation after unit/role changes.
-- The migration chain conditionally creates nullable task `StartDate` and `DueDate` columns before enforcing their date-range constraint, so a database can be built from empty schema as well as upgraded from older development databases.
-- The old `EstimatedHours` field was removed because KPI must not depend on an unverifiable employee time estimate.
-- `PlannedEffortHours` is a separate, Manager-owned resource-allocation value. It supports workload forecasting and non-scoring estimation insight but never contributes to the KPI score.
-- `ActualHours` remains derived only from approved progress reports.
-- Recurring schedule state and generated occurrences are durable database records; worker memory is never the scheduling source of truth.
-- Deadline reminder state, retry count, and sent/suppressed outcome are durable database records. The initial migration seeds one active Global `24h/24h` policy.
-- The task timeline is a read model over existing workflow tables; `AddTaskTimelineReadIndexes` adds read indexes only and does not duplicate events into a new table.
-- Unused prototype artifacts `Boards`, `BoardColumns`, `TaskActivities`, `TaskReminders`, `Tasks.ParentTaskId`, and `Tasks.OrderIndex` were removed. Project status summaries are derived from `Tasks.ProjectId` and `Tasks.Status`.
+- Không thực hiện thay đổi schema runtime từ `Program.cs`.
+- Thay đổi schema phải được thêm bằng EF Core migration.
+- Demo seed không thay đổi schema và được kiểm soát riêng bằng `DemoSeed:Enabled`.
+- Migration bảo đảm có `JoinedUnitAt` vì field này cần cho tính kỳ KPI sau thay đổi phòng ban/role.
+- Chuỗi migration tạo có điều kiện các cột Task `StartDate` và `DueDate` nullable trước khi áp đặt date-range constraint, nên có thể dựng database từ schema rỗng cũng như nâng cấp database development cũ.
+- Field `EstimatedHours` cũ đã bị xóa vì KPI không được phụ thuộc vào thời gian ước tính không thể xác minh do nhân viên khai báo.
+- `PlannedEffortHours` là giá trị phân bổ nguồn lực riêng do Manager sở hữu. Nó hỗ trợ dự báo workload và insight ước tính không tính điểm, tuyệt đối không tham gia điểm KPI.
+- `ActualHours` chỉ được suy ra từ báo cáo Progress đã duyệt.
+- Trạng thái recurring schedule và generated occurrence là bản ghi database bền vững; memory của worker không bao giờ là nguồn chuẩn của lịch.
+- Trạng thái deadline reminder, retry count và kết quả sent/suppressed là bản ghi database bền vững. Migration ban đầu seed một policy Global `24h/24h` đang hoạt động.
+- Timeline Task là read model trên các bảng workflow hiện có; `AddTaskTimelineReadIndexes` chỉ thêm read index và không nhân đôi event vào bảng mới.
+- Các prototype artifact không dùng `Boards`, `BoardColumns`, `TaskActivities`, `TaskReminders`, `Tasks.ParentTaskId` và `Tasks.OrderIndex` đã bị xóa. Tổng hợp trạng thái Project được suy ra từ `Tasks.ProjectId` và `Tasks.Status`.
 
-## Migration Safety Procedure
+## Quy trình migration an toàn
 
-Use this order for every schema-affecting phase:
+Dùng thứ tự này cho mọi giai đoạn ảnh hưởng schema:
 
-1. Confirm the application model matches the latest migration:
+1. Xác nhận application model khớp với migration mới nhất:
 
    ```powershell
    dotnet ef migrations has-pending-model-changes --no-build
    ```
 
-2. Create a SQL Server `COPY_ONLY` backup with `CHECKSUM`, then run `RESTORE VERIFYONLY` against that backup.
-3. Generate and inspect an idempotent migration script:
+2. Tạo backup SQL Server `COPY_ONLY` với `CHECKSUM`, sau đó chạy `RESTORE VERIFYONLY` trên backup đó.
+3. Sinh và kiểm tra idempotent migration script:
 
    ```powershell
    dotnet ef migrations script --idempotent --output artifacts/migrations.sql
    ```
 
-4. Apply the migration to a disposable or test database first.
-5. Run the complete test suite and the affected API workflow against SQL Server.
-6. Apply the reviewed script to the target database and verify `__EFMigrationsHistory`.
+4. Áp dụng migration vào database dùng một lần hoặc database test trước.
+5. Chạy toàn bộ test suite và API workflow bị ảnh hưởng trên SQL Server.
+6. Áp dụng script đã review vào database đích và xác minh `__EFMigrationsHistory`.
 
-Rollback policy:
+Chính sách rollback:
 
-- Prefer a corrective forward migration after a release has reached a shared environment.
-- Restore the verified pre-change backup if a failed migration leaves data or schema in an unsafe state.
-- Do not use ad hoc SQL edits or automatic destructive downgrade commands.
-- Keep data backfills idempotent and separate irreversible cleanup from the migration that introduces new columns or constraints.
+- Ưu tiên corrective forward migration sau khi release đã đến môi trường dùng chung.
+- Restore verified backup trước thay đổi nếu migration lỗi khiến dữ liệu hoặc schema không an toàn.
+- Không dùng chỉnh sửa SQL tùy ý hoặc command downgrade tự động có tính phá hủy.
+- Giữ data backfill có tính idempotent và tách cleanup không thể đảo ngược khỏi migration thêm cột hoặc constraint mới.
 
-## Business Rules Reflected In The Database
+## Quy tắc nghiệp vụ được phản ánh trong database
 
-- Managers can create and assign tasks only inside their department.
-- Users can report progress only for tasks they can access.
-- Completion can require manager review depending on the task setting.
-- KPI is period-based and should use `UserWorkHistories` to keep old department/role context stable.
+- Manager chỉ có thể tạo và giao Task trong phòng ban của mình.
+- User chỉ có thể báo cáo Progress cho Task mà họ được quyền truy cập.
+- Tùy cấu hình Task, hoàn thành có thể bắt buộc Manager review.
+- KPI dựa theo kỳ và phải dùng `UserWorkHistories` để giữ ổn định ngữ cảnh phòng ban/role cũ.

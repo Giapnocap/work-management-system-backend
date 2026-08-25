@@ -1,21 +1,21 @@
-# Getting Started
+# Bắt đầu sử dụng
 
-This guide covers a clean clone, local SQL Server setup, and the Docker Compose path.
+Hướng dẫn này bao gồm quy trình clone sạch, thiết lập SQL Server cục bộ và cách chạy bằng Docker Compose.
 
-## Prerequisites
+## Điều kiện cần
 
-Choose one runtime path:
+Chọn một cách chạy:
 
-- Local: Git, .NET 8 SDK, and SQL Server reachable from the host.
-- Containers: Git and Docker Desktop with Compose v2.
+- Cục bộ: Git, .NET 8 SDK và SQL Server mà máy host có thể kết nối.
+- Container: Git và Docker Desktop có Compose v2.
 
-The repository pins SDK `8.0.400` in `global.json` and permits a later .NET 8 feature band. Verify the selected SDK:
+Repository cố định SDK `8.0.400` trong `global.json` và cho phép feature band .NET 8 mới hơn. Kiểm tra SDK được chọn:
 
 ```powershell
 dotnet --version
 ```
 
-## Clean Clone
+## Clone sạch
 
 ```powershell
 git clone https://github.com/Giapnocap/work-management-system-backend.git
@@ -24,30 +24,30 @@ dotnet tool restore
 dotnet restore .\WorkManagementSystem.sln
 ```
 
-Do not commit `bin/`, `obj/`, `TestResults/`, `Uploads/`, `logs/`, `.env`, or `appsettings.Local.json`. They are local/runtime artifacts covered by `.gitignore`.
+Không commit `bin/`, `obj/`, `TestResults/`, `Uploads/`, `logs/`, `.env` hoặc `appsettings.Local.json`. Đây là artifact cục bộ/runtime đã được `.gitignore` loại trừ.
 
-## Run With Local SQL Server
+## Chạy với SQL Server cục bộ
 
-Create the ignored local configuration file:
+Tạo file cấu hình cục bộ đã bị Git bỏ qua:
 
 ```powershell
 Copy-Item .\appsettings.Local.example.json .\appsettings.Local.json
 ```
 
-Update `ConnectionStrings:Default` in `appsettings.Local.json` if the default SQL Server instance is not available. Then store the JWT key outside source control:
+Cập nhật `ConnectionStrings:Default` trong `appsettings.Local.json` nếu SQL Server instance mặc định không khả dụng. Sau đó lưu JWT key bên ngoài source control:
 
 ```powershell
 dotnet user-secrets set "Jwt:Key" "replace-with-a-random-key-of-at-least-32-characters"
 ```
 
-Restore the schema and run the API:
+Khôi phục schema và chạy API:
 
 ```powershell
 dotnet ef database update --project .\WorkManagementSystem.csproj
 dotnet run --launch-profile https
 ```
 
-Development endpoints:
+Endpoint trong Development:
 
 ```text
 Swagger:   https://localhost:7231/swagger
@@ -55,11 +55,11 @@ Liveness:  https://localhost:7231/health/live
 Readiness: https://localhost:7231/health/ready
 ```
 
-Swagger is intentionally enabled only in Development. If the development JWT key is omitted, startup uses an ephemeral key and tokens stop working after the process restarts.
+Swagger cố ý chỉ bật trong Development. Nếu không cấu hình development JWT key, ứng dụng dùng key tạm khi khởi động và token sẽ ngừng hoạt động sau khi process restart.
 
-## Optional Demo Dataset
+## Dữ liệu demo tùy chọn
 
-Set the following in `appsettings.Local.json` before starting the API:
+Thiết lập nội dung sau trong `appsettings.Local.json` trước khi khởi động API:
 
 ```json
 {
@@ -70,33 +70,33 @@ Set the following in `appsettings.Local.json` before starting the API:
 }
 ```
 
-The demo seed is idempotent and creates approved Admin, Manager, and User accounts. It is disabled by default and must remain disabled in production.
+Demo seed có tính idempotent và tạo các tài khoản Admin, Manager, User đã được duyệt. Tính năng này mặc định tắt và phải tiếp tục tắt trong production.
 
-## Run With Docker Compose
+## Chạy với Docker Compose
 
-Create the ignored environment file:
+Tạo file environment đã bị Git bỏ qua:
 
 ```powershell
 Copy-Item .\.env.example .\.env
 ```
 
-Replace both placeholder secrets in `.env`. `MSSQL_SA_PASSWORD` must satisfy SQL Server password complexity and `JWT_KEY` must contain at least 32 characters. Optionally set `DEMO_SEED_ENABLED=true` for the documented sample workflow.
+Thay cả hai secret placeholder trong `.env`. `MSSQL_SA_PASSWORD` phải đáp ứng độ phức tạp mật khẩu của SQL Server và `JWT_KEY` phải có ít nhất 32 ký tự. Có thể đặt `DEMO_SEED_ENABLED=true` để chạy workflow mẫu đã được tài liệu hóa.
 
-Validate and start the stack:
+Kiểm tra cấu hình và khởi động stack:
 
 ```powershell
 docker compose config
 docker compose up --build
 ```
 
-Compose performs these steps in order:
+Compose thực hiện lần lượt:
 
-1. Start SQL Server and wait for its health check.
-2. Run the EF Core migration bundle once.
-3. Start the non-root API container.
-4. Persist SQL data, uploads, and logs in named volumes.
+1. Khởi động SQL Server và chờ health check thành công.
+2. Chạy EF Core migration bundle một lần.
+3. Khởi động API container bằng user không phải root.
+4. Lưu bền vững dữ liệu SQL, upload và log trong named volume.
 
-Container endpoints:
+Endpoint của container:
 
 ```text
 API:       http://localhost:8080
@@ -106,7 +106,7 @@ Readiness: http://localhost:8080/health/ready
 SQL:       localhost,14333
 ```
 
-Useful checks:
+Các lệnh kiểm tra hữu ích:
 
 ```powershell
 docker compose ps
@@ -115,15 +115,15 @@ docker compose logs api
 Invoke-RestMethod http://localhost:8080/health/ready
 ```
 
-Stop containers while preserving data:
+Dừng container nhưng giữ dữ liệu:
 
 ```powershell
 docker compose down
 ```
 
-`docker compose down -v` also deletes the SQL, upload, and log volumes. Use it only when a complete local reset is intended.
+`docker compose down -v` cũng xóa volume SQL, upload và log. Chỉ dùng khi chủ động reset hoàn toàn môi trường cục bộ.
 
-## Verify A Clean Checkout
+## Xác minh checkout sạch
 
 ```powershell
 dotnet format .\WorkManagementSystem.sln --verify-no-changes --no-restore
@@ -134,12 +134,12 @@ dotnet test .\WorkManagementSystem.sln --configuration Release --no-build `
 dotnet ef migrations has-pending-model-changes --configuration Release --no-build
 ```
 
-SQL Server integration tests require `WMS_TEST_SQLSERVER_CONNECTION`; without it, only that category is skipped locally. CI supplies the variable and requires the relational tests to pass.
+SQL Server integration test yêu cầu `WMS_TEST_SQLSERVER_CONNECTION`; nếu không có, chỉ category này bị skip ở máy cục bộ. CI cung cấp biến và bắt buộc relational test phải vượt qua.
 
-## Common Startup Problems
+## Lỗi khởi động thường gặp
 
-- SQL connection failure: verify the server name, authentication mode, certificate settings, and that the database service is running.
-- `dotnet ef` not found: run `dotnet tool restore` from the repository root.
-- HTTPS certificate warning: run `dotnet dev-certs https --trust` for local development.
-- `401` after API restart: sign in again if Development used the ephemeral JWT key.
-- Readiness returns `503`: inspect both SQL connectivity and write access to `Uploads/`; liveness can remain healthy during a dependency outage.
+- Không kết nối được SQL: kiểm tra server name, authentication mode, certificate setting và database service đang chạy.
+- Không tìm thấy `dotnet ef`: chạy `dotnet tool restore` từ thư mục gốc repository.
+- Cảnh báo HTTPS certificate: chạy `dotnet dev-certs https --trust` cho development cục bộ.
+- Nhận `401` sau khi API restart: đăng nhập lại nếu Development đã dùng JWT key tạm.
+- Readiness trả về `503`: kiểm tra cả kết nối SQL và quyền ghi vào `Uploads/`; liveness vẫn có thể khỏe khi dependency gặp sự cố.

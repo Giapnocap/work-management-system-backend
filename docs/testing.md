@@ -1,21 +1,21 @@
-# Testing Guide
+# Hướng dẫn kiểm thử
 
-The backend has an xUnit test project:
+Backend có một test project xUnit:
 
 ```text
 WorkManagementSystem.Tests/
 ```
 
-Service tests use EF Core InMemory where relational behavior is not relevant. HTTP integration tests boot the real application entry point through `WebApplicationFactory<Program>` and replace only the database provider with an isolated InMemory database. SQL Server integration tests cover behavior that cannot be proven by InMemory or SQLite.
+Service test dùng EF Core InMemory khi hành vi quan hệ không liên quan. HTTP integration test khởi động entry point thật của ứng dụng qua `WebApplicationFactory<Program>` và chỉ thay database provider bằng database InMemory độc lập. SQL Server integration test bao phủ hành vi mà InMemory hoặc SQLite không thể chứng minh.
 
-## Run Tests
+## Chạy test
 
 ```powershell
 dotnet restore .\WorkManagementSystem.sln
 dotnet test .\WorkManagementSystem.sln --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false
 ```
 
-Without `WMS_TEST_SQLSERVER_CONNECTION`, the SQL Server category is reported as skipped. To run it against a disposable or dedicated test instance:
+Khi thiếu `WMS_TEST_SQLSERVER_CONNECTION`, category SQL Server được báo là skip. Để chạy với test instance dùng một lần hoặc chuyên dụng:
 
 ```powershell
 $env:WMS_TEST_SQLSERVER_CONNECTION = "Server=localhost,14333;Database=master;User Id=sa;Password=<test-password>;Encrypt=True;TrustServerCertificate=True"
@@ -23,258 +23,258 @@ dotnet test .\WorkManagementSystem.Tests\WorkManagementSystem.Tests.csproj --fil
 Remove-Item Env:WMS_TEST_SQLSERVER_CONNECTION
 ```
 
-The fixture creates a uniquely named database, applies every migration, runs the tests, and drops the database. Never point this variable at a production server account.
+Fixture tạo database có tên duy nhất, áp dụng mọi migration, chạy test rồi xóa database. Không bao giờ trỏ biến này vào tài khoản SQL Server production.
 
-## CI Release Gate
+## Release gate trên CI
 
-The repository includes `.github/workflows/backend-ci.yml`. It audits direct and transitive NuGet dependencies, verifies formatting, builds with warnings as errors, runs unit/HTTP tests, runs the SQL Server category against the Compose database, checks migration drift, publishes an artifact, and validates the complete Compose stack. Audit retrieval failures and `NU1901`-`NU1904` vulnerability findings fail the restore gate.
+Repository có `.github/workflows/backend-ci.yml`. Workflow audit dependency NuGet trực tiếp và bắc cầu, xác minh format, build với warning là error, chạy unit/HTTP test, chạy category SQL Server trên database Compose, kiểm tra migration drift, publish artifact và xác minh toàn bộ Compose stack. Lỗi lấy dữ liệu audit và phát hiện lỗ hổng `NU1901` đến `NU1904` làm restore gate thất bại.
 
-The EF CLI version is locked in `.config/dotnet-tools.json`:
+Phiên bản EF CLI được cố định trong `.config/dotnet-tools.json`:
 
 ```powershell
 dotnet tool restore
 dotnet ef migrations has-pending-model-changes --configuration Release --no-build
 ```
 
-### SQL Server Relational Tests
+### SQL Server relational test
 
-The `Category=SqlServer` suite runs against a uniquely named database and verifies:
+Suite `Category=SqlServer` chạy trên database có tên duy nhất và xác minh:
 
-1. All migrations apply from an empty database.
-2. Duplicate usernames are rejected by the unique index.
-3. Invalid memberships are rejected by foreign keys.
-4. Invalid KPI date ranges are rejected by the check constraint.
-5. Failed multi-step operations roll back persisted changes.
-6. SQL Server `rowversion` rejects stale updates and prevents lost updates.
-7. Workload aggregation translates on SQL Server and uses a constant query count for a large employee set.
-8. Capacity history constraints reject non-positive values and duplicate open periods.
-9. Two recurring-task workers racing for the same due occurrence create exactly one task.
-10. Recurring schedules survive a worker/context restart without repeating an occurrence.
-11. A failure after SQL commands execute rolls back the generated task, occurrence, and schedule update together.
-12. Reminder-policy filtered unique indexes reject duplicate Unit scopes.
-13. Two deadline workers racing for the same milestone create one scheduled event and one inbox notification.
-14. Deadline events and inbox delivery survive worker/context restart without repeating the milestone.
-15. Task timeline keyset pagination translates on SQL Server, does not duplicate equal-timestamp events, and keeps a constant query count across page sizes.
-16. Two concurrent review requests persist exactly one decision, one approved-hours contribution, and one transition history set.
-17. Progress-status history projection and filters translate on SQL Server.
-18. Task list DTO enrichment stays within a nine-command budget for both 10-item and 100-item pages on a 300-task dataset.
-19. Upgrading from the pre-KPI-insights migration preserves KPI snapshots and backfills the new explainability fields.
+1. Mọi migration áp dụng được từ database rỗng.
+2. Unique index từ chối username trùng.
+3. Foreign key từ chối membership không hợp lệ.
+4. Check constraint từ chối khoảng ngày KPI không hợp lệ.
+5. Thao tác nhiều bước thất bại rollback thay đổi đã lưu.
+6. SQL Server `rowversion` từ chối update cũ và ngăn lost update.
+7. Tổng hợp workload translate trên SQL Server và giữ số query cố định với tập nhân viên lớn.
+8. Constraint lịch sử capacity từ chối giá trị không dương và kỳ đang mở trùng.
+9. Hai recurring-task worker cạnh tranh cùng một occurrence đến hạn chỉ tạo đúng một Task.
+10. Recurring schedule tồn tại qua restart worker/context mà không lặp occurrence.
+11. Lỗi sau khi SQL command đã chạy rollback đồng thời Task sinh ra, occurrence và cập nhật schedule.
+12. Filtered unique index của reminder policy từ chối scope Unit trùng.
+13. Hai deadline worker cạnh tranh cùng milestone tạo một scheduled event và một inbox notification.
+14. Deadline event và inbox delivery tồn tại qua restart worker/context mà không lặp milestone.
+15. Keyset pagination timeline Task translate trên SQL Server, không trùng event có cùng timestamp và giữ số query cố định theo page size.
+16. Hai request Review đồng thời chỉ lưu đúng một quyết định, một lần cộng approved-hours và một tập transition history.
+17. Projection và filter lịch sử trạng thái Progress translate trên SQL Server.
+18. Làm giàu DTO danh sách Task nằm trong ngân sách chín command cho cả page 10 và 100 item trên bộ 300 Task.
+19. Nâng cấp từ migration trước KPI insight giữ nguyên KPI snapshot và backfill field giải thích mới.
 
-CI always supplies the SQL connection string, so skipped relational tests cannot make the pipeline falsely green.
+CI luôn cung cấp SQL connection string nên relational test bị skip không thể khiến pipeline xanh sai.
 
-### Runtime Container Smoke Test
+### Runtime container smoke test
 
-CI performs the database and runtime checks that EF Core InMemory cannot cover:
+CI thực hiện các kiểm tra database và runtime mà EF Core InMemory không thể bao phủ:
 
-1. Start a fresh SQL Server container.
-2. Run the non-root EF migration bundle against an empty database.
-3. Start the API only after migration completion.
-4. Wait for `/health/ready` and require the Docker container health status to become `healthy`.
-5. Login as Admin, Manager, and User with real JWT authentication.
-6. Verify Admin can read KPI periods and Manager can read projects.
-7. Verify User project creation returns `403` and anonymous project access returns `401`.
-8. Verify SQL migration history reached the expected latest migration and demo seed records exist.
-9. Backup with checksum, restore into a temporary database, compare critical records, and run `DBCC CHECKDB`.
-10. Stop SQL Server and verify liveness remains `200` while readiness becomes `503`.
-11. Remove the containers and disposable volumes even when a check fails.
+1. Khởi động SQL Server container sạch.
+2. Chạy EF migration bundle không phải root trên database rỗng.
+3. Chỉ khởi động API sau khi migration hoàn tất.
+4. Chờ `/health/ready` và bắt buộc Docker container health status thành `healthy`.
+5. Đăng nhập bằng Admin, Manager và User với JWT authentication thật.
+6. Xác minh Admin đọc được kỳ KPI và Manager đọc được Project.
+7. Xác minh User tạo Project nhận `403`, truy cập Project anonymous nhận `401`.
+8. Xác minh lịch sử SQL migration đạt migration mới nhất và demo seed record tồn tại.
+9. Backup kèm checksum, restore vào database tạm, so sánh record quan trọng và chạy `DBCC CHECKDB`.
+10. Dừng SQL Server và xác minh liveness vẫn trả `200` trong khi readiness thành `503`.
+11. Xóa container và disposable volume ngay cả khi một bước kiểm tra thất bại.
 
-This relational gate caught a historical migration that referenced task date columns missing from an empty database, a failure that model-drift checks and InMemory tests could not reproduce.
+Relational gate này từng phát hiện migration cũ tham chiếu cột ngày Task chưa tồn tại trong database rỗng, một lỗi mà model-drift check và InMemory test không thể tái hiện.
 
-Detailed query budgets are recorded in [query performance](performance.md). Recovery steps and background-worker observability are recorded in [recovery and workers](recovery-and-workers.md).
+Ngân sách query chi tiết được ghi trong [hiệu năng query](performance.md). Các bước phục hồi và khả năng quan sát background worker được ghi trong [phục hồi và worker](recovery-and-workers.md).
 
-## Current Test Coverage
+## Phạm vi test hiện tại
 
-Run the full suite to obtain the current test count. The count is intentionally not duplicated in documentation because it changes whenever a regression case is added.
+Chạy full suite để lấy số test hiện tại. Tài liệu cố ý không ghi cố định số lượng vì nó thay đổi mỗi khi thêm regression case.
 
 ### Auth
 
-- Registration creates a pending account.
-- Password policy is shared by registration, reset, and change flows.
-- Password is hashed with the configured BCrypt work factor, and older hashes are upgraded after login.
-- Duplicate username is blocked.
-- Pending users cannot login.
-- Approved users receive a JWT token.
-- Changing `TokenVersion` invalidates a previously issued JWT.
-- SignalR task groups reject authenticated users who cannot access the task.
+- Đăng ký tạo tài khoản pending.
+- Password policy dùng chung cho đăng ký, reset và đổi mật khẩu.
+- Mật khẩu được hash với BCrypt work factor đã cấu hình, hash cũ được nâng cấp sau đăng nhập.
+- Username trùng bị chặn.
+- User pending không thể đăng nhập.
+- User đã duyệt nhận JWT token.
+- Đổi `TokenVersion` làm mất hiệu lực JWT đã cấp trước đó.
+- SignalR task group từ chối User đã xác thực nhưng không có quyền truy cập Task.
 
 ### Task Service
 
-- Non-manager cannot create task.
-- Manager without department cannot create task.
-- Manager cannot assign task to staff outside their department.
-- Task without direct assignee is assigned to the manager's department.
+- Không phải Manager không thể tạo Task.
+- Manager không có phòng ban không thể tạo Task.
+- Manager không thể giao Task cho nhân sự ngoài phòng ban.
+- Task không có assignee trực tiếp được giao cho phòng ban Manager.
 
-### Workload And Capacity
+### Workload và capacity
 
-- An employee with no active task has zero workload.
-- Only active tasks overlapping the selected range contribute remaining effort.
-- Approved tasks are excluded and multi-assignee effort is split evenly.
-- Busy/Overloaded threshold boundaries are deterministic and configurable.
-- Capacity changes inside a date range are prorated from effective-dated history.
-- Assignment preview returns projected workload and does not block task creation.
-- Manager cross-department workload and capacity access is forbidden.
-- SQL Server verifies workload aggregation translation and guards against N+1 queries.
+- Nhân viên không có Task đang hoạt động có workload bằng zero.
+- Chỉ Task đang hoạt động giao với khoảng được chọn đóng góp remaining effort.
+- Task đã duyệt bị loại; effort của Task nhiều assignee được chia đều.
+- Biên threshold Busy/Overloaded xác định và có thể cấu hình.
+- Thay đổi capacity bên trong khoảng ngày được tính tỷ lệ từ lịch sử có hiệu lực theo thời gian.
+- Assignment preview trả workload dự kiến và không chặn tạo Task.
+- Cấm Manager truy cập workload/capacity khác phòng ban.
+- SQL Server xác minh translation tổng hợp workload và bảo vệ khỏi N+1 query.
 
-### Recurring Tasks
+### Recurring Task
 
-- Daily and weekly intervals preserve the scheduled UTC time.
-- Monthly schedules clamp day 29-31 to the last valid day without losing the preferred day in later months.
-- CRUD, department scope, explicit default assignees, pause/resume, and API authorization are covered.
-- A rerun and a simulated worker restart do not generate duplicate occurrences.
-- Catch-up is bounded per batch and leaves remaining overdue occurrences persisted for the next run.
-- A failed generation leaves no task, history, occurrence, or advanced schedule.
-- SQL Server verifies query translation, atomic rollback, persisted restart behavior, and two-worker race safety.
+- Interval hằng ngày và hằng tuần giữ nguyên thời gian UTC đã lên lịch.
+- Schedule hằng tháng giới hạn ngày 29-31 về ngày hợp lệ cuối mà không mất ngày ưu tiên ở tháng sau.
+- CRUD, phạm vi phòng ban, assignee mặc định rõ ràng, pause/resume và API authorization đều được bao phủ.
+- Chạy lại và mô phỏng worker restart không sinh occurrence trùng.
+- Catch-up bị giới hạn theo batch và giữ occurrence quá hạn còn lại cho lần chạy sau.
+- Lần sinh thất bại không để lại Task, history, occurrence hoặc schedule đã tăng.
+- SQL Server xác minh query translation, atomic rollback, hành vi restart đã lưu và an toàn khi hai worker cạnh tranh.
 
-### Deadline Reminder And Escalation
+### Deadline reminder và escalation
 
-- A task due in 24 hours produces one due-soon notification and does not repeat on the next scan.
-- Overdue work notifies the employee; crossing the escalation threshold notifies only Managers in the task department.
-- A task completed immediately before delivery suppresses the pending event.
-- Policy changes made before a future milestone are used by the next scan, including Project-over-Unit-over-Global precedence.
-- A transient inbox failure persists bounded retry state and succeeds on a later batch without duplicating the event.
-- In-memory restart tests verify persisted state, while SQL Server tests verify migration seed data, filtered uniqueness, query translation, restart behavior, and racing workers.
+- Task đến hạn sau 24 giờ tạo một due-soon notification và không lặp ở lần scan sau.
+- Công việc quá hạn thông báo nhân viên; vượt ngưỡng escalation chỉ thông báo Manager trong phòng ban Task.
+- Task hoàn thành ngay trước delivery suppress event đang chờ.
+- Thay đổi policy trước milestone tương lai được lần scan sau sử dụng, gồm thứ tự Project trên Unit trên Global.
+- Lỗi inbox tạm thời lưu retry state có giới hạn và thành công ở batch sau mà không nhân đôi event.
+- Test restart InMemory xác minh persisted state; test SQL Server xác minh migration seed, filtered uniqueness, query translation, restart và worker cạnh tranh.
 
-### Progress And Review
+### Progress và Review
 
-- Completing a review-required task without evidence is blocked.
-- Partial progress updates status to `InProgress`.
-- Completing a non-review task approves progress and completes task.
-- A multi-assignee task completes only after every assigned staff member has approved completion.
-- Manager approval completes a submitted task.
-- Rejected completion remains a rejected progress report and returns the task to `InProgress`.
-- A corrected completion can be resubmitted and approved after rejection.
-- Rejection without a reason fails without mutating task, progress, review, or history state.
-- A manager from another department cannot review the report.
-- Already reviewed progress cannot be reviewed again.
-- The explicit policy matrix accepts supported transitions and rejects invalid actor, scope, dependency, and terminal-state combinations.
-- Task and progress transitions record related report ids and decision reasons.
+- Không thể hoàn thành Task yêu cầu review khi thiếu evidence.
+- Progress một phần cập nhật trạng thái thành `InProgress`.
+- Hoàn thành Task không cần review sẽ duyệt Progress và hoàn thành Task.
+- Task nhiều assignee chỉ hoàn thành sau khi mọi nhân sự được giao có lần hoàn thành đã duyệt.
+- Manager chấp thuận hoàn thành Task đã gửi.
+- Từ chối completion giữ báo cáo Progress là `Rejected` và đưa Task về `InProgress`.
+- Có thể gửi lại và duyệt completion đã sửa sau khi bị từ chối.
+- Từ chối không có lý do thất bại mà không thay đổi trạng thái Task, Progress, Review hoặc history.
+- Manager khác phòng ban không thể review báo cáo.
+- Progress đã review không thể review lại.
+- Ma trận policy rõ ràng chấp nhận transition được hỗ trợ và từ chối actor, scope, dependency hoặc terminal state không hợp lệ.
+- Transition Task và Progress ghi report id liên quan cùng lý do quyết định.
 
-### Task Activity Timeline
+### Activity timeline của Task
 
-- Main task lifecycle sources are combined in deterministic descending order.
-- Equal-timestamp events paginate without duplicates or missing ids.
-- Type, actor, and UTC date filters are enforced.
-- Managers from another department cannot read the timeline.
-- Soft-deleted actors resolve to a historical snapshot or safe fallback.
-- Non-allowlisted task history fields do not leak through metadata.
-- Progress status changes expose only bounded reason/status metadata and the related progress id.
-- SQL Server verifies cursor translation and constant query count as page size grows.
+- Nguồn vòng đời Task chính được kết hợp theo thứ tự giảm dần xác định.
+- Event cùng timestamp được phân trang không trùng hoặc mất id.
+- Filter loại, actor và ngày UTC được cưỡng chế.
+- Manager khác phòng ban không thể đọc timeline.
+- Actor soft delete resolve thành snapshot lịch sử hoặc fallback an toàn.
+- Field lịch sử Task ngoài allowlist không bị lộ qua metadata.
+- Thay đổi trạng thái Progress chỉ hiển thị reason/status đã giới hạn và progress id liên quan.
+- SQL Server xác minh cursor translation và số query cố định khi page size tăng.
 
 ### Upload
 
-- Invalid or dangerous file types are blocked.
-- A ZIP file renamed to `.docx` is rejected unless it has the expected OOXML structure.
-- OOXML files containing VBA macro payloads are rejected.
-- Original file names are sanitized before metadata persistence.
-- File metadata is saved only after the physical file is accepted.
-- A failed database save cleans up the physical file.
-- Rooted or traversal storage keys cannot be downloaded.
-- Aged orphan files are reconciled against persisted storage keys while recent files are preserved.
-- Download uses authorization-aware metadata and does not expose server file paths in public DTOs.
+- File type không hợp lệ hoặc nguy hiểm bị chặn.
+- File ZIP đổi tên thành `.docx` bị từ chối trừ khi có cấu trúc OOXML mong đợi.
+- File OOXML chứa VBA macro payload bị từ chối.
+- Tên file gốc được làm an toàn trước khi lưu metadata.
+- Metadata file chỉ lưu sau khi file vật lý được chấp nhận.
+- Database save thất bại sẽ dọn file vật lý.
+- Storage key rooted hoặc traversal không thể download.
+- File mồ côi đủ cũ được đối soát với storage key đã lưu, còn file mới được giữ.
+- Download dùng metadata có authorization và không lộ server file path trong public DTO.
 
 ### KPI
 
-- KPI reads do not create a missing period.
-- KPI periods are created explicitly by Admin.
-- Invalid date ranges are blocked.
-- Overlapping KPI periods are blocked.
-- Staff unit/role movement is handled through work history during KPI calculation.
-- Locked KPI stores employee and department identity snapshots.
-- A deleted historical employee remains part of a KPI period that overlaps their employment history.
-- Locked KPI raw metrics and formula version remain stable after source task or identity changes.
-- KPI rates handle zero denominators deterministically.
-- Manager dashboard scope is limited to the current department; Admin dashboard scope is organization-wide.
-- SQL Server tests verify KPI aggregation translates and keeps a constant query count for a larger department.
-- Historical manager access follows the selected period's snapshot/history unit rather than the employee's current unit.
-- No-task users receive a neutral new/starter score.
-- On-time approved work receives bonus points.
-- Multiple overdue tasks trigger risk warning behavior.
+- Luồng đọc KPI không tạo kỳ còn thiếu.
+- Kỳ KPI được Admin tạo rõ ràng.
+- Khoảng ngày không hợp lệ bị chặn.
+- Kỳ KPI overlap bị chặn.
+- Thay đổi phòng ban/role nhân sự được xử lý bằng work history khi tính KPI.
+- KPI đã khóa lưu identity snapshot của nhân viên và phòng ban.
+- Nhân viên lịch sử đã xóa vẫn thuộc kỳ KPI giao với lịch sử làm việc của họ.
+- Raw metric và formula version KPI đã khóa giữ nguyên sau thay đổi dữ liệu nguồn Task hoặc danh tính.
+- KPI rate xử lý denominator bằng zero theo cách xác định.
+- Phạm vi dashboard Manager giới hạn trong phòng ban hiện tại; dashboard Admin là toàn tổ chức.
+- SQL Server test xác minh aggregate KPI translate và giữ số query cố định với phòng ban lớn.
+- Quyền Manager với lịch sử đi theo snapshot/history unit của kỳ được chọn thay vì Unit hiện tại của nhân viên.
+- User không có Task nhận điểm trung lập dành cho người mới.
+- Công việc được duyệt đúng hạn nhận bonus point.
+- Nhiều Task quá hạn kích hoạt hành vi cảnh báo rủi ro.
 
-### Database Model
+### Database model
 
-- Task assignee rows must target exactly one side: user or department.
-- KPI periods must have a valid date range.
-- KPI result scores and counters must be non-negative.
-- KPI result effective date ranges must be valid.
-- Critical unique indexes are configured for users, departments, assignments, projects, KPI periods, and KPI results.
-- Critical business relationships avoid accidental cascade deletes.
+- Hàng Task assignee phải trỏ đúng một phía: User hoặc phòng ban.
+- Kỳ KPI phải có khoảng ngày hợp lệ.
+- Điểm và counter của KPI result không được âm.
+- Khoảng ngày hiệu lực KPI result phải hợp lệ.
+- Unique index quan trọng được cấu hình cho User, phòng ban, assignment, Project, kỳ KPI và KPI result.
+- Quan hệ nghiệp vụ quan trọng tránh cascade delete ngoài ý muốn.
 
-### Demo Seed
+### Demo seed
 
-- Demo seed is disabled by default.
-- When enabled, it creates admin/manager/user demo accounts, a department, project, tasks, progress records, memberships, and work histories.
-- Running the seeder multiple times does not duplicate the demo dataset.
+- Demo seed mặc định tắt.
+- Khi bật, nó tạo tài khoản demo Admin/Manager/User, phòng ban, Project, Task, Progress, membership và work history.
+- Chạy seeder nhiều lần không nhân đôi demo dataset.
 
-### DTO Validation
+### DTO validation
 
-- Empty GUID values are rejected for required entity references.
-- Required text fields are validated before reaching service logic.
-- Validation failures use the standard API error contract.
+- Empty GUID bị từ chối cho entity reference bắt buộc.
+- Text field bắt buộc được validation trước khi đến logic service.
+- Lỗi validation dùng hợp đồng lỗi API chuẩn.
 
-### API Authorization Contract
+### Hợp đồng API authorization
 
-- Controllers are API controllers with explicit routes.
-- Public endpoints are limited to registration, login, and public unit lookup.
-- Manager workflow endpoints require the `Manager` role.
-- Admin workflow endpoints require the `Admin` role.
-- Removed project board endpoints stay removed from the public API surface.
+- Controller là API controller có route rõ ràng.
+- Public endpoint giới hạn ở đăng ký, đăng nhập và tra cứu Unit công khai.
+- Endpoint workflow Manager yêu cầu role `Manager`.
+- Endpoint workflow Admin yêu cầu role `Admin`.
+- Project board endpoint đã xóa tiếp tục không xuất hiện trên public API surface.
 
-### HTTP Response Contract
+### Hợp đồng HTTP response
 
-- Validation, authentication, authorization, not-found, conflict, rate-limit, and server failures use the same `application/problem+json` shape.
-- Resource creation returns `201 Created`.
-- Deletion and commands without response data return `204 No Content`.
-- Task and progress pagination use typed `PagedResult<T>` contracts while preserving the JSON fields `total`, `page`, `size`, and `data`.
-- Task history endpoints expose DTOs rather than persistence entities.
+- Lỗi validation, authentication, authorization, not-found, conflict, rate-limit và server dùng cùng cấu trúc `application/problem+json`.
+- Tạo tài nguyên trả về `201 Created`.
+- Xóa và command không có response data trả về `204 No Content`.
+- Pagination Task và Progress dùng hợp đồng typed `PagedResult<T>` nhưng giữ các JSON field `total`, `page`, `size` và `data`.
+- Endpoint lịch sử Task trả DTO thay vì persistence entity.
 
 ### Pagination
 
-- Invalid page and size values fall back to safe defaults.
-- Large page sizes are capped at the shared maximum.
-- History endpoints can use a larger default page size without bypassing the maximum cap.
+- Page và size không hợp lệ quay về giá trị mặc định an toàn.
+- Page size lớn bị giới hạn ở maximum dùng chung.
+- Endpoint history có thể dùng default page size lớn hơn mà không bỏ qua maximum cap.
 
-### Operational Middleware And Cancellation
+### Middleware vận hành và cancellation
 
-- A safe client correlation ID is reused in the request trace and response header.
-- An unsafe correlation ID is rejected in favor of the server trace identifier.
-- Authenticated request logs carry a structured `UserId` property.
-- Liveness is isolated from database/upload readiness, while readiness verifies both dependencies.
-- Client-aborted requests are not converted into false HTTP 500 responses.
-- Cancellation reaches Auth database queries.
-- Batched task DTO mapping keeps assignees, uploads, and subtasks isolated by task.
+- Correlation ID an toàn từ client được dùng lại trong request trace và response header.
+- Correlation ID không an toàn bị từ chối và thay bằng server trace identifier.
+- Request log đã xác thực chứa structured property `UserId`.
+- Liveness tách khỏi readiness của database/upload, còn readiness xác minh cả hai dependency.
+- Request bị client hủy không bị chuyển thành HTTP 500 sai.
+- Cancellation đến được database query trong Auth.
+- Ánh xạ DTO Task theo batch giữ assignee, upload và SubTask tách đúng theo Task.
 
-### HTTP Integration Workflow
+### HTTP integration workflow
 
-- `WebApplicationFactory<Program>` boots the same ASP.NET Core middleware, authentication, authorization, routing, and DI pipeline used by the application.
-- Only `AppDbContext` is replaced with an isolated InMemory provider for fast HTTP workflow tests.
-- Login uses real JWT authentication.
-- Manager creates a project.
-- Manager creates a task linked to that project.
-- User uploads evidence.
-- User submits 100 percent progress.
-- Manager approves the report.
-- Task becomes `Approved`.
-- Project status counts are updated.
-- KPI/performance endpoint can read the completed work context.
-- A normal User is forbidden from creating projects or tasks.
-- Deleting an employee revokes their existing JWT.
-- After deletion and period locking, the authorized historical Manager can still read the immutable KPI snapshot through HTTP.
+- `WebApplicationFactory<Program>` khởi động cùng ASP.NET Core middleware, authentication, authorization, routing và DI pipeline mà ứng dụng dùng.
+- Chỉ `AppDbContext` được thay bằng provider InMemory độc lập để HTTP workflow test chạy nhanh.
+- Đăng nhập dùng JWT authentication thật.
+- Manager tạo Project.
+- Manager tạo Task liên kết Project đó.
+- User tải evidence lên.
+- User gửi Progress 100 phần trăm.
+- Manager duyệt báo cáo.
+- Task thành `Approved`.
+- Số lượng trạng thái Project được cập nhật.
+- Endpoint KPI/performance đọc được ngữ cảnh công việc đã hoàn thành.
+- User thông thường bị cấm tạo Project hoặc Task.
+- Xóa nhân viên làm mất hiệu lực JWT hiện có của họ.
+- Sau khi xóa và khóa kỳ, Manager lịch sử có quyền vẫn đọc được immutable KPI snapshot qua HTTP.
 
-## Regression Risks Covered
+## Rủi ro regression được bao phủ
 
-The suite protects the following behavior from regressions:
+Suite bảo vệ các hành vi sau khỏi regression:
 
-- Permission boundaries.
-- Department isolation.
-- Task state transitions.
-- Review state transitions.
-- Upload safety.
-- KPI period integrity.
-- KPI explainability when staff data changes over time.
-- Database constraints that prevent invalid persisted state.
-- Seed-data idempotency so demos can be reset and repeated safely.
-- API request contracts that reject bad input early.
-- Endpoint authorization contracts that prevent accidental permission regressions.
-- Pagination guards that prevent accidental large list queries.
-- Request correlation and cancellation behavior that keeps production logs actionable.
-- HTTP integration tests that prove the main workflow works through controllers, middleware, authentication, DI, services, and EF Core context together.
+- Ranh giới quyền.
+- Cách ly phòng ban.
+- Transition trạng thái Task.
+- Transition trạng thái Review.
+- An toàn upload.
+- Toàn vẹn kỳ KPI.
+- Khả năng giải thích KPI khi dữ liệu nhân sự thay đổi theo thời gian.
+- Database constraint ngăn trạng thái lưu không hợp lệ.
+- Tính idempotent của seed data để demo có thể reset và lặp an toàn.
+- Hợp đồng API request từ chối input xấu sớm.
+- Hợp đồng authorization endpoint ngăn regression quyền ngoài ý muốn.
+- Pagination guard ngăn query danh sách quá lớn ngoài ý muốn.
+- Correlation và cancellation request giúp production log có thể hành động.
+- HTTP integration test chứng minh workflow chính hoạt động xuyên controller, middleware, authentication, DI, service và EF Core context.

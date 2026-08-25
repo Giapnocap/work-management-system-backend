@@ -1,55 +1,55 @@
-# Recovery and background worker operations
+# Phục hồi và vận hành background worker
 
-Last recovery drill: 2026-08-24 against the disposable `wms-phase8` SQL Server Compose project.
+Lần diễn tập phục hồi gần nhất: 2026-08-24 trên SQL Server dùng một lần của Compose project `wms-phase8`.
 
-Verified record counts after restore (`migrations|units|users|tasks|kpi`):
+Số bản ghi đã xác minh sau khi restore (`migrations|units|users|tasks|kpi`):
 
 ```text
 47|1|4|4|0
 ```
 
-## Backup and restore drill
+## Diễn tập backup và restore
 
-The drill is for test and development databases. It performs:
+Diễn tập này dành cho database test và development. Quy trình thực hiện:
 
-1. `BACKUP DATABASE` with `COPY_ONLY` and `CHECKSUM`.
-2. `RESTORE VERIFYONLY` with checksum validation.
-3. Restore into a uniquely named temporary database with discovered logical file names.
-4. Compare migration, unit, user, task and KPI record counts.
-5. Run `DBCC CHECKDB` on the restored database.
-6. Remove the temporary database and backup file in a `finally` block.
+1. `BACKUP DATABASE` với `COPY_ONLY` và `CHECKSUM`.
+2. `RESTORE VERIFYONLY` kèm xác minh checksum.
+3. Restore vào database tạm có tên duy nhất bằng các logical file name đã phát hiện.
+4. So sánh số bản ghi migration, phòng ban, user, task và KPI.
+5. Chạy `DBCC CHECKDB` trên database đã restore.
+6. Xóa database tạm và file backup trong block `finally`.
 
-With the normal Compose stack running:
+Khi Compose stack thông thường đang chạy:
 
 ```powershell
 ./scripts/backup-restore-drill.ps1
 ```
 
-For an isolated Compose project:
+Với một Compose project độc lập:
 
 ```powershell
 ./scripts/backup-restore-drill.ps1 -ComposeProjectName "wms-recovery-test"
 ```
 
-The CI workflow runs the same script after migrations and demo seeding. Backups are created inside the SQL Server container and are never stored in the repository.
+CI workflow chạy cùng script sau migration và demo seed. Backup được tạo bên trong SQL Server container và không bao giờ được lưu trong repository.
 
-## Migration recovery coverage
+## Phạm vi kiểm chứng phục hồi migration
 
-`SqlServerRelationalTests` covers both supported validation paths:
+`SqlServerRelationalTests` bao phủ cả hai đường kiểm chứng được hỗ trợ:
 
-- empty database to the latest migration;
-- `20260821020506_CentralizeTaskWorkflowStateMachine` to latest while preserving a KPI snapshot and validating the explainability backfill.
+- database rỗng lên migration mới nhất;
+- từ `20260821020506_CentralizeTaskWorkflowStateMachine` lên mới nhất, đồng thời giữ nguyên KPI snapshot và kiểm tra backfill dữ liệu giải thích.
 
-## Worker durability and observability
+## Độ bền và khả năng quan sát của worker
 
-Recurring schedules, generated occurrence keys and scheduled deadline notifications are persisted in SQL Server. Restart tests prove that a worker restart neither loses the next schedule nor duplicates an already finalized occurrence or inbox notification.
+Recurring schedule, generated occurrence key và scheduled deadline notification được lưu bền vững trong SQL Server. Các test restart chứng minh worker khởi động lại không làm mất lịch tiếp theo hoặc tạo trùng occurrence hay inbox notification đã hoàn tất.
 
-The `.NET` meter is `WorkManagementSystem.BackgroundJobs` and exposes:
+`.NET` meter là `WorkManagementSystem.BackgroundJobs` và cung cấp:
 
 - `workmanagement.background_job.executions`;
 - `workmanagement.background_job.items`;
-- `workmanagement.background_job.duration` in milliseconds.
+- `workmanagement.background_job.duration` theo millisecond.
 
-Metric tags are intentionally low-cardinality: `job.name`, `job.outcome`, `item.kind` and `item.outcome`. Resource IDs are not metric tags. Failed recurring templates are logged with `TemplateId`; failed reminders are logged with `ScheduledNotificationId`, `TaskId`, `NotificationType`, `RetryCount` and `RetryStatePersisted`.
+Metric tag được cố ý giữ low-cardinality: `job.name`, `job.outcome`, `item.kind` và `item.outcome`. Resource ID không được dùng làm metric tag. Recurring template thất bại được log cùng `TemplateId`; reminder thất bại được log cùng `ScheduledNotificationId`, `TaskId`, `NotificationType`, `RetryCount` và `RetryStatePersisted`.
 
-`/health/live` checks only process liveness. `/health/ready` checks SQL Server and upload storage. A database outage must make readiness fail without making liveness fail.
+`/health/live` chỉ kiểm tra process liveness. `/health/ready` kiểm tra SQL Server và upload storage. Sự cố database phải khiến readiness thất bại nhưng không làm liveness thất bại.
