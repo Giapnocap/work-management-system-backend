@@ -162,7 +162,7 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(result);
         }
 
-        /// <summary>Returns a stable, permission-scoped activity timeline for a task.</summary>
+        /// <summary>Trả về dòng hoạt động ổn định của công việc trong phạm vi được phân quyền.</summary>
         [HttpGet("{taskId}/timeline")]
         public async Task<ActionResult<TimelinePageDto>> GetTimeline(
             Guid taskId,

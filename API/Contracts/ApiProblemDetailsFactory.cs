@@ -36,7 +36,7 @@ public static class ApiProblemDetailsFactory
                 entry => entry.Key,
                 entry => entry.Value!.Errors
                     .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                        ? "Gia trị không hợp lệ."
+                        ? "Giá trị không hợp lệ."
                         : error.ErrorMessage)
                     .ToArray());
 
