@@ -269,7 +269,7 @@ namespace WorkManagementSystem.Application.Services
             foreach (var uid in recipients)
                 await _notificationService.AddNotification(
                     uid,
-                    $"{reminder?.FullName ?? "Quản lý"} đã nhắc bạn về công việc: {task.Title}",
+                    $"{reminder?.FullName ?? "Trưởng phòng"} đã nhắc bạn về công việc: {task.Title}",
                     cancellationToken);
 
             await _historyRepo.AddAsync(new TaskHistory

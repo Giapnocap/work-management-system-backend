@@ -80,7 +80,7 @@ namespace WorkManagementSystem.Application.Services
                 p.Status == ProgressStatusEnum.Submitted, cancellationToken);
 
             if (hasPendingCompletion)
-                throw new BusinessException("Bạn đang có báo cáo hoàn thành chờ duyệt, vui lòng cho quản lý xử lý trước khi báo cáo tiếp.");
+                throw new BusinessException("Bạn đang có báo cáo hoàn thành chờ duyệt, vui lòng chờ Trưởng phòng xử lý trước khi báo cáo tiếp.");
 
             var hasPendingSubmittedForTask = await _repo.QueryReadOnly().AnyAsync(p =>
                 p.TaskId == dto.TaskId &&

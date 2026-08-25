@@ -59,7 +59,7 @@ namespace WorkManagementSystem.Application.Services
                 throw new ForbiddenException("Bạn không có quyền xem dashboard KPI.");
 
             if (requester.Role == SystemRoles.Manager && !requester.UnitId.HasValue)
-                throw new ForbiddenException("Quản lý chưa được gắn phòng ban.");
+                throw new ForbiddenException("Trưởng phòng chưa thuộc phòng ban nào.");
 
             var period = await _periodResolver.ResolveAsync(periodId, cancellationToken);
             var performances = await _performanceService.GetUnitPerformanceAsync(
