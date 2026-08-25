@@ -5,12 +5,12 @@ Backend trả về một cấu trúc JSON thống nhất cho mọi lỗi.
 ```json
 {
   "type": "https://httpstatuses.com/400",
-  "title": "Human-readable error message",
+  "title": "Thông báo lỗi dễ hiểu",
   "status": 400,
   "detail": "",
   "instance": "/api/resource",
   "code": "business_error",
-  "message": "Human-readable error message",
+  "message": "Thông báo lỗi dễ hiểu",
   "traceId": "0HN...",
   "errors": {}
 }
@@ -55,7 +55,7 @@ Kiểu nội dung của response là `application/problem+json`. Lỗi validatio
 - Request bị client ngắt kết nối được xem là cancellation và không bị chuyển thành HTTP 500.
 - Swagger mô tả các response phổ biến `400`, `401`, `403`, `404`, `409` và `500` tại endpoint phù hợp, nhưng tài liệu này vẫn là nguồn chuẩn cho cấu trúc response body.
 
-## Status code thành công
+## Mã trạng thái thành công
 
 - Tạo tài nguyên trả về HTTP `201 Created`.
 - Xóa, lưu trữ và command không có response body trả về HTTP `204 No Content`.

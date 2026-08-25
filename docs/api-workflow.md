@@ -11,13 +11,13 @@ sequenceDiagram
     participant User
     participant API
 
-    Admin->>API: Create KPI period when needed
-    Manager->>API: Create department project
-    Manager->>API: Create and assign task
-    User->>API: Upload task evidence
-    User->>API: Submit 100% progress
-    Manager->>API: Approve progress report
-    User->>API: Read approved task and KPI
+    Admin->>API: Tạo kỳ KPI khi cần
+    Manager->>API: Tạo dự án cho phòng ban
+    Manager->>API: Tạo và giao công việc
+    User->>API: Tải minh chứng công việc lên
+    User->>API: Gửi báo cáo tiến độ 100%
+    Manager->>API: Duyệt báo cáo tiến độ
+    User->>API: Đọc công việc đã duyệt và KPI
 ```
 
 ## Điều kiện cần
@@ -65,7 +65,7 @@ $employees = Invoke-RestMethod `
     -Headers $managerHeaders
 
 $employee = @($employees) | Select-Object -First 1
-if ($null -eq $employee) { throw "Demo employee was not found." }
+if ($null -eq $employee) { throw "Không tìm thấy nhân viên demo." }
 ```
 
 Tìm kiếm của Manager chỉ trả về user mà Manager được phép xem trong phòng ban của mình.
@@ -79,8 +79,8 @@ $project = Invoke-RestMethod `
     -Headers $managerHeaders `
     -ContentType "application/json" `
     -Body (@{
-        name = "Backend API walkthrough $runId"
-        description = "Project created by the documented API flow"
+        name = "Quy trình API backend $runId"
+        description = "Dự án được tạo bởi quy trình API trong tài liệu"
     } | ConvertTo-Json)
 ```
 
@@ -95,8 +95,8 @@ $task = Invoke-RestMethod `
     -Headers $managerHeaders `
     -ContentType "application/json" `
     -Body (@{
-        title = "Verify the documented backend workflow"
-        description = "Upload evidence, report completion, and request review"
+        title = "Xác minh quy trình backend trong tài liệu"
+        description = "Tải minh chứng, báo cáo hoàn thành và yêu cầu duyệt"
         dueDate = (Get-Date).ToUniversalTime().AddDays(2).ToString("o")
         userIds = @($employee.id)
         unitIds = @()
@@ -112,7 +112,7 @@ Task mới luôn bắt đầu ở `NotStarted`. Client không thể đặt trự
 
 ```powershell
 $evidencePath = Join-Path $PWD "evidence.txt"
-Set-Content -LiteralPath $evidencePath -Value "API workflow evidence" -Encoding utf8
+Set-Content -LiteralPath $evidencePath -Value "Minh chứng cho quy trình API" -Encoding utf8
 
 $upload = Invoke-RestMethod `
     -Method Post `
@@ -134,7 +134,7 @@ $progress = Invoke-RestMethod `
     -Body (@{
         taskId = $task.id
         percent = 100
-        description = "Completed and ready for review"
+        description = "Đã hoàn thành và sẵn sàng để duyệt"
         hoursSpent = 2
         fileId = $upload.id
     } | ConvertTo-Json)
@@ -155,7 +155,7 @@ $review = Invoke-RestMethod `
     -Body (@{
         progressId = $progress.id
         approve = $true
-        comment = "Evidence accepted"
+        comment = "Minh chứng được chấp nhận"
     } | ConvertTo-Json)
 ```
 

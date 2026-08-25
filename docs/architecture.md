@@ -1,4 +1,4 @@
-# Kiến trúc
+# Kiến trúc hệ thống
 
 ## Định vị kiến trúc
 
@@ -8,7 +8,7 @@ Các folder thể hiện ranh giới logic bên trong runtime project. Chúng kh
 
 Cấu trúc này là chủ đích cho phạm vi hiện tại: một API có thể triển khai, một database SQL Server, ranh giới sở hữu rõ ràng và đủ phân tách để test quy tắc nghiệp vụ mà không tăng độ phức tạp triển khai.
 
-## Hướng dependency
+## Hướng phụ thuộc
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ Các quy tắc dependency hiện được test bảo vệ:
 
 Application layer dùng abstraction truy vấn EF Core qua `IAppDbContext`. Đây là persistence boundary thực dụng, không phải persistence ignorance. Muốn chuyển từng layer thành assembly riêng cần thay interface đó bằng query/command port hẹp hơn trước.
 
-## Trách nhiệm của folder
+## Trách nhiệm của thư mục
 
 | Path | Trách nhiệm | Không được chứa |
 | --- | --- | --- |
@@ -48,30 +48,30 @@ Application layer dùng abstraction truy vấn EF Core qua `IAppDbContext`. Đâ
 | `Infrastructure/Scheduling` | Hosted-worker loop mỏng resolve application scheduler có scope | Quy tắc nghiệp vụ hoặc scheduling state trong memory |
 | `Migrations` | Lịch sử schema SQL Server có version | Seed dữ liệu runtime |
 
-## Luồng request và dữ liệu
+## Luồng yêu cầu và dữ liệu
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Pipeline as ASP.NET Core pipeline
+    participant Client as Ứng dụng khách
+    participant Pipeline as Pipeline ASP.NET Core
     participant Controller
-    participant Service as Application service
+    participant Service as Dịch vụ Application
     participant Data as IAppDbContext / repository
     participant SQL as SQL Server
-    participant Realtime as SignalR notifier
+    participant Realtime as Trình thông báo SignalR
 
-    Client->>Pipeline: HTTP request + optional Bearer token
-    Pipeline->>Pipeline: Correlation, exception handling, authentication, authorization
-    Pipeline->>Controller: Validated request DTO
-    Controller->>Service: Command/query + current user id + CancellationToken
-    Service->>Service: Permission and business-rule checks
-    Service->>Data: Read or stage changes
-    Data->>SQL: Async EF Core query / transaction
-    SQL-->>Data: Result or constraint/concurrency error
-    Data-->>Service: Entities / persisted result
-    Service-->>Controller: Response DTO
-    Controller-->>Client: HTTP status + JSON/ProblemDetails
-    Service-->>Realtime: Best-effort event after persistence
+    Client->>Pipeline: Yêu cầu HTTP + Bearer token tùy chọn
+    Pipeline->>Pipeline: Correlation, xử lý exception, authentication và authorization
+    Pipeline->>Controller: DTO yêu cầu đã được xác thực
+    Controller->>Service: Command/query + id người dùng hiện tại + CancellationToken
+    Service->>Service: Kiểm tra quyền và quy tắc nghiệp vụ
+    Service->>Data: Đọc hoặc chuẩn bị thay đổi
+    Data->>SQL: Truy vấn EF Core bất đồng bộ / transaction
+    SQL-->>Data: Kết quả hoặc lỗi constraint/concurrency
+    Data-->>Service: Entity / kết quả đã lưu
+    Service-->>Controller: DTO phản hồi
+    Controller-->>Client: Trạng thái HTTP + JSON/ProblemDetails
+    Service-->>Realtime: Event best effort sau khi lưu dữ liệu
 ```
 
 Đặc điểm quan trọng:
@@ -87,17 +87,17 @@ Activity timeline của Task là read model trên các bảng workflow hiện c�
 
 Thay đổi trạng thái Task và Progress được tập trung trong `TaskWorkflowPolicy` riêng cho domain và `TaskWorkflowService`. Policy sở hữu ma trận transition rõ ràng; service áp dụng domain method, ngữ cảnh completion/dependency, approved hours và transition history. Kiểm tra phạm vi người báo cáo và Manager vẫn nằm trong command service tương ứng, nên chỉ có role không bao giờ đủ quyền chuyển trạng thái tài nguyên. Hệ thống không có generic status-mutation endpoint hoặc generic workflow engine.
 
-## Topology runtime
+## Cấu trúc runtime
 
 ```mermaid
 flowchart TB
     Browser[Frontend / API client] -->|HTTPS + JWT| WebApi[ASP.NET Core API]
     Browser <-->|SignalR| WebApi
     WebApi -->|EF Core| SqlServer[(SQL Server)]
-    WebApi --> Uploads[(Private Uploads volume)]
-    WebApi --> Logs[(Structured logs)]
-    Scheduler[Recurring and deadline workers] --> WebApi
-    Migration[One-shot migration container] --> SqlServer
+    WebApi --> Uploads[(Volume Uploads riêng tư)]
+    WebApi --> Logs[(Log có cấu trúc)]
+    Scheduler[Worker recurring và deadline] --> WebApi
+    Migration[Container migration chạy một lần] --> SqlServer
 ```
 
 Recurring-task và deadline-reminder worker chạy bên trong API process, nhưng SQL Server là nguồn dữ liệu chuẩn. Restart không làm mất schedule hoặc reminder đang chờ. Compose stack chạy SQL Server, một migration image one-shot và một API instance. Production topology, kết thúc TLS, backup, tổng hợp log và lưu secret là trách nhiệm của nền tảng triển khai.

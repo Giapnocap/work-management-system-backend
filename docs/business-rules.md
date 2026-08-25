@@ -2,7 +2,7 @@
 
 Tài liệu này là hợp đồng nghiệp vụ của backend WorkManagementSystem. Hãy dùng nó làm nguồn tham chiếu trước khi thay đổi logic service, database schema hoặc hành vi API.
 
-## Domain lõi
+## Miền nghiệp vụ chính
 
 WorkManagementSystem quản lý công việc theo phạm vi phòng ban:
 
@@ -12,7 +12,7 @@ WorkManagementSystem quản lý công việc theo phạm vi phòng ban:
 - Hoàn thành Progress có thể yêu cầu evidence và Manager review.
 - KPI được tính theo kỳ và phải tiếp tục giải thích được khi nhân sự chuyển phòng ban hoặc đổi role.
 
-## Invariant của hệ thống
+## Các quy tắc bất biến của hệ thống
 
 Các quy tắc sau là hợp đồng bắt buộc đối với mọi lần refactor và thay đổi schema sau này:
 
@@ -29,7 +29,7 @@ Các quy tắc sau là hợp đồng bắt buộc đối với mọi lần refac
 
 Cho đến khi có workflow bàn giao chuyên dụng, hành vi an toàn là từ chối thay đổi tổ chức nếu công việc chưa hoàn thành sẽ trở nên mơ hồ về trách nhiệm.
 
-## Trách nhiệm theo role
+## Trách nhiệm theo vai trò
 
 | Role | Chịu trách nhiệm | Không được chịu trách nhiệm |
 | --- | --- | --- |
@@ -135,7 +135,7 @@ Vòng đời Task:
 NotStarted -> InProgress -> Submitted -> Approved
                       ^          |
                       |          v
-                      +------ Rejected report returns task to InProgress
+                      +------ Báo cáo Rejected đưa Task về InProgress
 ```
 
 Trạng thái Task và trạng thái báo cáo Progress là hai hợp đồng riêng:

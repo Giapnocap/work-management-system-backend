@@ -1,4 +1,4 @@
-# Hướng dẫn demo portfolio
+# Hướng dẫn demo dự án
 
 Hướng dẫn này trình bày backend hiện có trong 10 đến 15 phút. Quy trình không yêu cầu sửa trực tiếp database, chuẩn bị trước identifier hoặc sao chép JWT thủ công.
 

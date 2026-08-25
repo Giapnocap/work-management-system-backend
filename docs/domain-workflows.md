@@ -8,15 +8,15 @@ Trạng thái Task do server suy ra. Báo cáo Progress có trạng thái review
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NotStarted: Manager creates and assigns task
-    NotStarted --> InProgress: User reports partial progress
-    NotStarted --> Submitted: User reports 100%; review required
-    NotStarted --> Approved: User reports 100%; no review required
-    InProgress --> InProgress: User reports partial progress
-    InProgress --> Submitted: User reports 100%; review required
-    InProgress --> Approved: User reports 100%; no review required
-    Submitted --> Approved: Manager approves report
-    Submitted --> InProgress: Manager rejects report with reason
+    [*] --> NotStarted: Trưởng phòng tạo và giao công việc
+    NotStarted --> InProgress: Nhân viên báo cáo một phần tiến độ
+    NotStarted --> Submitted: Nhân viên báo cáo 100%; cần duyệt
+    NotStarted --> Approved: Nhân viên báo cáo 100%; không cần duyệt
+    InProgress --> InProgress: Nhân viên báo cáo một phần tiến độ
+    InProgress --> Submitted: Nhân viên báo cáo 100%; cần duyệt
+    InProgress --> Approved: Nhân viên báo cáo 100%; không cần duyệt
+    Submitted --> Approved: Trưởng phòng duyệt báo cáo
+    Submitted --> InProgress: Trưởng phòng từ chối và nêu lý do
     Approved --> [*]
 ```
 
@@ -28,14 +28,14 @@ Một cạnh hướng từ prerequisite đến công việc bị nó chặn. Ví
 
 ```mermaid
 flowchart LR
-    A[Design API contract] --> B[Implement endpoint]
-    A --> C[Prepare integration fixture]
-    B --> D[Run workflow verification]
+    A[Thiết kế hợp đồng API] --> B[Triển khai endpoint]
+    A --> C[Chuẩn bị fixture tích hợp]
+    B --> D[Chạy xác minh workflow]
     C --> D
-    D -. Proposed edge rejected: creates cycle .-> A
+    D -. Cạnh đề xuất bị từ chối: tạo chu trình .-> A
 ```
 
-`Implement endpoint` và `Prepare integration fixture` tiếp tục bị chặn cho đến khi `Design API contract` được duyệt. `Run workflow verification` bị chặn đến khi cả hai predecessor được duyệt. Thêm `D -> A` bị từ chối vì đã có một path từ `A` đến `D`.
+`Triển khai endpoint` và `Chuẩn bị fixture tích hợp` tiếp tục bị chặn cho đến khi `Thiết kế hợp đồng API` được duyệt. `Chạy xác minh workflow` bị chặn đến khi cả hai công việc tiên quyết được duyệt. Thêm `D -> A` bị từ chối vì đã có một đường đi từ `A` đến `D`.
 
 [TaskDependencyService](../Application/Services/TaskDependencyService.cs) phát hiện cycle trực tiếp và gián tiếp trước khi lưu. SQL Server là lớp bảo vệ cuối cùng cho self-reference và cạnh trùng. Hoàn thành hoặc xóa dependency đều ghi lịch sử Task để việc gỡ chặn hiển thị trên activity timeline.
 
@@ -45,15 +45,15 @@ Role authorization chỉ là lớp biên ngoài. Application service còn phải
 
 ```mermaid
 flowchart LR
-    Request[Authenticated request] --> Role{Endpoint role allowed?}
-    Role -->|No| Forbidden[403 Forbidden]
-    Role -->|Yes| Actor[Load current user and TokenVersion]
-    Actor --> Resource[Load task, project, report, period or unit]
-    Resource --> Scope{Current unit, assignment, ownership or history scope valid?}
-    Scope -->|No| Forbidden
-    Scope -->|Yes| Rule{Business invariant valid?}
-    Rule -->|No| Problem[409 or 400 ProblemDetails]
-    Rule -->|Yes| Execute[Execute use case transaction]
+    Request[Yêu cầu đã xác thực] --> Role{Endpoint cho phép role?}
+    Role -->|Không| Forbidden[403 Forbidden]
+    Role -->|Có| Actor[Tải User hiện tại và TokenVersion]
+    Actor --> Resource[Tải Task, Project, báo cáo, kỳ hoặc phòng ban]
+    Resource --> Scope{Phạm vi phòng ban, assignment, quyền sở hữu hoặc lịch sử hợp lệ?}
+    Scope -->|Không| Forbidden
+    Scope -->|Có| Rule{Invariant nghiệp vụ hợp lệ?}
+    Rule -->|Không| Problem[409 hoặc 400 ProblemDetails]
+    Rule -->|Có| Execute[Thực thi transaction của use case]
 ```
 
 Ma trận authorization đầy đủ theo role/tài nguyên nằm trong [quy tắc nghiệp vụ](business-rules.md). Cụ thể, Admin cấu hình tổ chức nhưng không tạo Project hoặc giao công việc hằng ngày; Manager chỉ sở hữu việc thực thi trong phòng ban hiện tại; User chỉ thao tác trên tài nguyên Task được giao.
@@ -67,15 +67,15 @@ sequenceDiagram
     participant DB as SQL Server
 
     Worker->>Service: ProcessDueAsync
-    Service->>DB: Read active templates where NextRunAtUtc <= now
-    loop Bounded due templates and catch-up occurrences
-        Service->>DB: Serializable transaction
-        Service->>DB: Check occurrence key
-        Service->>DB: Insert normal task, assignees, history and occurrence
-        Service->>DB: Advance LastGeneratedAtUtc and NextRunAtUtc
+    Service->>DB: Đọc template hoạt động có NextRunAtUtc <= hiện tại
+    loop Giới hạn template đến hạn và occurrence catch-up
+        Service->>DB: Transaction serializable
+        Service->>DB: Kiểm tra khóa occurrence
+        Service->>DB: Thêm Task, assignee, history và occurrence
+        Service->>DB: Cập nhật LastGeneratedAtUtc và NextRunAtUtc
     end
-    DB-->>Service: Commit or unique/concurrency conflict
-    Service-->>Worker: Processed, generated and failure counts
+    DB-->>Service: Commit hoặc xung đột unique/concurrency
+    Service-->>Worker: Số lượng đã xử lý, đã sinh và thất bại
 ```
 
 `(TemplateId, ScheduledForUtc)` là duy nhất. Database lưu lịch chạy tiếp theo và các occurrence đã sinh nên process restart không làm mất hoặc lặp công việc. Worker chỉ chịu trách nhiệm polling và metric; quy tắc scheduling nằm trong application service.
@@ -87,20 +87,20 @@ sequenceDiagram
     participant Worker as DeadlineReminderWorker
     participant Service as DeadlineReminderService
     participant DB as SQL Server
-    participant Inbox as Notification inbox
+    participant Inbox as Hộp thư Notification
 
     Worker->>Service: ProcessDueAsync
-    Service->>DB: Stage due-soon, overdue and escalation milestones
-    Note over Service,DB: Policy precedence: Project, then Unit, then Global
-    DB-->>Service: Persist unique EventKey before delivery
-    Service->>DB: Revalidate task, policy and recipients
-    alt Task completed, deleted or policy disabled
-        Service->>DB: Mark milestone Suppressed
-    else Recipient available
-        Service->>Inbox: Persist inbox notification
-        Service->>DB: Mark milestone Sent
-    else Transient failure
-        Service->>DB: Mark Failed and increment bounded RetryCount
+    Service->>DB: Chuẩn bị milestone sắp đến hạn, quá hạn và escalation
+    Note over Service,DB: Thứ tự policy: Project, sau đó Unit, rồi Global
+    DB-->>Service: Lưu EventKey duy nhất trước khi gửi
+    Service->>DB: Kiểm tra lại Task, policy và recipient
+    alt Task đã hoàn thành, bị xóa hoặc policy bị tắt
+        Service->>DB: Đánh dấu milestone là Suppressed
+    else Có recipient
+        Service->>Inbox: Lưu notification vào hộp thư
+        Service->>DB: Đánh dấu milestone là Sent
+    else Lỗi tạm thời
+        Service->>DB: Đánh dấu Failed và tăng RetryCount có giới hạn
     end
 ```
 
@@ -112,18 +112,18 @@ Workload planning và báo cáo KPI dùng dữ liệu Task liên quan cho hai m�
 
 ```mermaid
 flowchart LR
-    Capacity[Effective-dated weekly capacity] --> Workload[Date-range workload aggregation]
-    Planned[Manager-owned PlannedEffortHours] --> Workload
-    Assignment[Proposed assignees] --> Preview[Projected workload preview]
+    Capacity[Capacity tuần có hiệu lực theo thời gian] --> Workload[Tổng hợp workload theo khoảng ngày]
+    Planned[PlannedEffortHours do Manager quản lý] --> Workload
+    Assignment[Assignee được đề xuất] --> Preview[Xem trước workload dự kiến]
     Workload --> Preview
-    Preview --> Warning[Available, Busy or Overloaded warning]
-    Warning --> Create[Manager decides whether to create task]
+    Preview --> Warning[Cảnh báo Available, Busy hoặc Overloaded]
+    Warning --> Create[Manager quyết định có tạo Task hay không]
 
-    Approved[Approved task and progress facts] --> Formula[Versioned deterministic KPI formula]
-    History[Role and unit work history] --> Formula
-    Period[Explicit KPI period] --> Formula
-    Formula --> Open[Explainable open-period insight]
-    Formula --> Snapshot[Immutable locked KPI snapshot]
+    Approved[Dữ kiện Task và Progress đã Approved] --> Formula[Công thức KPI xác định có version]
+    History[Lịch sử role và phòng ban] --> Formula
+    Period[Kỳ KPI được tạo rõ ràng] --> Formula
+    Formula --> Open[Insight có thể giải thích của kỳ đang mở]
+    Formula --> Snapshot[Snapshot KPI đã khóa và bất biến]
 ```
 
 Workload dự kiến là cảnh báo lập kế hoạch không chặn thao tác. `PlannedEffortHours` không thay đổi điểm KPI. KPI dùng kết quả workflow đã duyệt, dữ kiện deadline/từ chối, ranh giới kỳ và phạm vi tổ chức trong lịch sử. Kết quả đã khóa lưu formula version, identity snapshot và raw metric để thay đổi Task hoặc nhân sự sau này không thể viết lại lịch sử.

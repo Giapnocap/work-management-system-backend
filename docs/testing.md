@@ -8,7 +8,7 @@ WorkManagementSystem.Tests/
 
 Service test dùng EF Core InMemory khi hành vi quan hệ không liên quan. HTTP integration test khởi động entry point thật của ứng dụng qua `WebApplicationFactory<Program>` và chỉ thay database provider bằng database InMemory độc lập. SQL Server integration test bao phủ hành vi mà InMemory hoặc SQLite không thể chứng minh.
 
-## Chạy test
+## Chạy kiểm thử
 
 ```powershell
 dotnet restore .\WorkManagementSystem.sln
@@ -25,7 +25,7 @@ Remove-Item Env:WMS_TEST_SQLSERVER_CONNECTION
 
 Fixture tạo database có tên duy nhất, áp dụng mọi migration, chạy test rồi xóa database. Không bao giờ trỏ biến này vào tài khoản SQL Server production.
 
-## Release gate trên CI
+## Điều kiện kiểm tra trên CI
 
 Repository có `.github/workflows/backend-ci.yml`. Workflow audit dependency NuGet trực tiếp và bắc cầu, xác minh format, build với warning là error, chạy unit/HTTP test, chạy category SQL Server trên database Compose, kiểm tra migration drift, publish artifact và xác minh toàn bộ Compose stack. Lỗi lấy dữ liệu audit và phát hiện lỗ hổng `NU1901` đến `NU1904` làm restore gate thất bại.
 
@@ -36,7 +36,7 @@ dotnet tool restore
 dotnet ef migrations has-pending-model-changes --configuration Release --no-build
 ```
 
-### SQL Server relational test
+### Kiểm thử quan hệ với SQL Server
 
 Suite `Category=SqlServer` chạy trên database có tên duy nhất và xác minh:
 
@@ -62,7 +62,7 @@ Suite `Category=SqlServer` chạy trên database có tên duy nhất và xác mi
 
 CI luôn cung cấp SQL connection string nên relational test bị skip không thể khiến pipeline xanh sai.
 
-### Runtime container smoke test
+### Kiểm thử nhanh container khi chạy
 
 CI thực hiện các kiểm tra database và runtime mà EF Core InMemory không thể bao phủ:
 

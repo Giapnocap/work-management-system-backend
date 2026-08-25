@@ -34,33 +34,33 @@ Sơ đồ tập trung vào quan hệ workflow và KPI. Bảng Notification và t
 
 ```mermaid
 erDiagram
-    UNITS ||--o{ USERS : current_department
-    USERS ||--o| USER_UNITS : current_membership
-    UNITS ||--o{ PROJECTS : owns
-    UNITS ||--o{ TASKS : scopes
-    PROJECTS ||--o{ TASKS : groups
-    USERS ||--o{ TASKS : creates
-    TASKS ||--o{ TASK_ASSIGNEES : assigned_by_snapshot
-    USERS o|--o{ TASK_ASSIGNEES : receives
-    UNITS ||--o{ RECURRING_TASK_TEMPLATES : scopes
-    PROJECTS o|--o{ RECURRING_TASK_TEMPLATES : groups
-    USERS ||--o{ RECURRING_TASK_TEMPLATES : creates
-    RECURRING_TASK_TEMPLATES ||--o{ RECURRING_TASK_ASSIGNEES : defaults
-    USERS ||--o{ RECURRING_TASK_ASSIGNEES : receives
-    RECURRING_TASK_TEMPLATES ||--o{ GENERATED_TASK_OCCURRENCES : schedules
-    TASKS ||--o| GENERATED_TASK_OCCURRENCES : generated_as
-    TASKS ||--o{ PROGRESSES : receives
-    USERS ||--o{ PROGRESSES : reports
-    PROGRESSES ||--o| REVIEWS : reviewed_once
-    USERS ||--o{ REVIEWS : reviews
-    TASKS ||--o{ UPLOAD_FILES : evidence
-    PROGRESSES ||--o{ UPLOAD_FILES : links
-    USERS ||--o{ USER_WORK_HISTORIES : employment_segments
-    USERS ||--o{ USER_CAPACITIES : capacity_segments
-    KPI_PERIODS ||--o{ KPI_RESULTS : contains
-    USERS ||--o{ KPI_RESULTS : snapshot_for
-    TASKS ||--o{ TASK_HISTORIES : records
-    USERS o|--o{ AUDIT_LOGS : acts
+    UNITS ||--o{ USERS : "là phòng ban hiện tại"
+    USERS ||--o| USER_UNITS : "có membership hiện tại"
+    UNITS ||--o{ PROJECTS : "sở hữu"
+    UNITS ||--o{ TASKS : "xác định phạm vi"
+    PROJECTS ||--o{ TASKS : "gom nhóm"
+    USERS ||--o{ TASKS : "tạo"
+    TASKS ||--o{ TASK_ASSIGNEES : "lưu snapshot giao việc"
+    USERS o|--o{ TASK_ASSIGNEES : "được giao"
+    UNITS ||--o{ RECURRING_TASK_TEMPLATES : "xác định phạm vi"
+    PROJECTS o|--o{ RECURRING_TASK_TEMPLATES : "gom nhóm"
+    USERS ||--o{ RECURRING_TASK_TEMPLATES : "tạo"
+    RECURRING_TASK_TEMPLATES ||--o{ RECURRING_TASK_ASSIGNEES : "đặt mặc định"
+    USERS ||--o{ RECURRING_TASK_ASSIGNEES : "được giao"
+    RECURRING_TASK_TEMPLATES ||--o{ GENERATED_TASK_OCCURRENCES : "lập lịch"
+    TASKS ||--o| GENERATED_TASK_OCCURRENCES : "được sinh thành"
+    TASKS ||--o{ PROGRESSES : "nhận báo cáo"
+    USERS ||--o{ PROGRESSES : "báo cáo"
+    PROGRESSES ||--o| REVIEWS : "được duyệt một lần"
+    USERS ||--o{ REVIEWS : "duyệt"
+    TASKS ||--o{ UPLOAD_FILES : "có minh chứng"
+    PROGRESSES ||--o{ UPLOAD_FILES : "liên kết"
+    USERS ||--o{ USER_WORK_HISTORIES : "có giai đoạn làm việc"
+    USERS ||--o{ USER_CAPACITIES : "có giai đoạn sức chứa"
+    KPI_PERIODS ||--o{ KPI_RESULTS : "chứa"
+    USERS ||--o{ KPI_RESULTS : "lưu snapshot cho"
+    TASKS ||--o{ TASK_HISTORIES : "ghi lịch sử"
+    USERS o|--o{ AUDIT_LOGS : "thực hiện"
 ```
 
 ## Các quan hệ quan trọng
