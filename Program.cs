@@ -13,7 +13,6 @@ using WorkManagementSystem.Infrastructure.Data;
 using WorkManagementSystem.Infrastructure.DependencyInjection;
 using WorkManagementSystem.Infrastructure.Storage;
 
-// ================= SERILOG =================
 const string logOutputTemplate =
     "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] [{UserId}] {Message:lj}{NewLine}{Exception}";
 
@@ -80,7 +79,6 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
     serverOptions.Limits.MaxRequestBodySize = UploadFileValidator.MaxFileSizeBytes;
 });
 
-// ================= BUILD APP =================
 var app = builder.Build();
 
 if (app.Configuration.GetValue<bool>("DemoSeed:Enabled"))
@@ -92,7 +90,6 @@ if (app.Configuration.GetValue<bool>("DemoSeed:Enabled"))
         app.Lifetime.ApplicationStopping);
 }
 
-// ================= MIDDLEWARE =================
 var uploadsPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads");
 if (!Directory.Exists(uploadsPath))
 {
