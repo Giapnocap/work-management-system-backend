@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class AddExplainableKpiInsights : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropCheckConstraint(
@@ -73,7 +71,6 @@ namespace WorkManagementSystem.Migrations
                 sql: "[Score] >= 0 AND [TotalTasks] >= 0 AND [CompletedTasks] >= 0 AND [CompletedOnTime] >= 0 AND [CompletedLate] >= 0 AND [OverdueTasks] >= 0 AND [RejectedReports] >= 0 AND [ProgressReportCount] >= 0 AND [PlannedEffortHours] >= 0 AND [ActualHours] >= 0 AND [BonusPoints] >= 0 AND [PenaltyPoints] >= 0 AND [ReviewPenaltyPoints] >= 0 AND [UnitAverageScore] >= 0 AND [PersonalScore] >= 0");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropCheckConstraint(

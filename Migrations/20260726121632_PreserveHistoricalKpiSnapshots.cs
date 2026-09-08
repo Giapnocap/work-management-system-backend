@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class PreserveHistoricalKpiSnapshots : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
@@ -50,7 +48,6 @@ namespace WorkManagementSystem.Migrations
                 """);
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(

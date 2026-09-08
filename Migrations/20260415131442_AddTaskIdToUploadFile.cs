@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class AddTaskIdToUploadFile : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
@@ -19,7 +17,6 @@ namespace WorkManagementSystem.Migrations
             ");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"

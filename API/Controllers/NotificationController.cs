@@ -19,9 +19,6 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>
-        /// Lấy thông báo của user hiện tại
-        /// </summary>
         [HttpGet]
         public async Task<ActionResult<List<NotificationDto>>> GetMyNotifications()
         {
@@ -29,9 +26,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.GetMyNotifications(userId, HttpContext.RequestAborted));
         }
 
-        /// <summary>
-        /// Đếm thông báo chưa đọc
-        /// </summary>
         [HttpGet("unread-count")]
         public async Task<ActionResult<int>> GetUnreadCount()
         {
@@ -39,9 +33,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.GetUnreadCount(userId, HttpContext.RequestAborted));
         }
 
-        /// <summary>
-        /// Đánh dấu đã đọc
-        /// </summary>
         [HttpPut("{id}/read")]
         public async Task<IActionResult> MarkAsRead(Guid id)
         {

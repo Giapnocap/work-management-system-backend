@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class OptimizeKpiAndAssignmentQueries : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(
@@ -61,7 +59,6 @@ namespace WorkManagementSystem.Migrations
                 columns: new[] { "PeriodId", "UnitId" });
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(

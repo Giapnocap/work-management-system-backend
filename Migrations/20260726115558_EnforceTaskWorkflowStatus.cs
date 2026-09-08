@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class EnforceTaskWorkflowStatus : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(
@@ -25,7 +23,6 @@ namespace WorkManagementSystem.Migrations
                 sql: "[Status] >= 0 AND [Status] <= 3");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropCheckConstraint(

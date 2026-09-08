@@ -21,7 +21,6 @@ public sealed class UserCapacityController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>Cập nhật capacity tuần của nhân viên từ ngày áp dụng.</summary>
     [HttpPut("{userId:guid}/capacity")]
     public async Task<ActionResult<UserCapacityDto>> Update(
         Guid userId,

@@ -19,17 +19,11 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>
-        /// Lấy thống kê tổng quan (Admin)
-        /// </summary>
         [HttpGet]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<ActionResult<DashboardDto>> GetDashboard(CancellationToken cancellationToken)
             => Ok(await _service.GetDashboard(cancellationToken));
 
-        /// <summary>
-        /// Lấy thống kê phòng ban (Trưởng phòng)
-        /// </summary>
         [HttpGet("manager")]
         [Authorize(Roles = SystemRoles.Manager)]
         public async Task<ActionResult<ManagerDashboardDto>> GetManagerDashboard(CancellationToken cancellationToken)

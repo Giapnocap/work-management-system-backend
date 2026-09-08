@@ -5,10 +5,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class FixDataAndLogicIssues : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
 
@@ -123,7 +121,6 @@ namespace WorkManagementSystem.Migrations
                 principalColumn: "Id");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropForeignKey(

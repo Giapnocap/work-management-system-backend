@@ -18,9 +18,6 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>
-        /// Export danh sách công việc ra Excel
-        /// </summary>
         [HttpGet("tasks")]
         public async Task<IActionResult> ExportTasks(CancellationToken cancellationToken)
         {
@@ -31,9 +28,6 @@ namespace WorkManagementSystem.API.Controllers
                 $"DanhSachCongViec_{DateTime.UtcNow:yyyyMMdd}.xlsx");
         }
 
-        /// <summary>
-        /// Export tiến độ công việc ra Excel
-        /// </summary>
         [HttpGet("progress")]
         public async Task<IActionResult> ExportProgress(CancellationToken cancellationToken)
         {

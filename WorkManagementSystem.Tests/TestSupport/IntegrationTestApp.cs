@@ -353,7 +353,6 @@ internal sealed class IntegrationTestApp : IAsyncDisposable
         }
         catch
         {
-            // Temporary test files are removed on a best-effort basis.
         }
     }
 

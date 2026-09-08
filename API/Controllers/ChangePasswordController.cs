@@ -19,9 +19,6 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>
-        /// Đổi mật khẩu
-        /// </summary>
         [HttpPost]
         public async Task<IActionResult> ChangePassword(ChangePasswordDto dto, CancellationToken cancellationToken)
         {

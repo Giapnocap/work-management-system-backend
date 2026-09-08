@@ -59,7 +59,6 @@ namespace WorkManagementSystem.API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
-        /// <summary>Dự báo workload trước khi giao việc; cảnh báo không chặn thao tác tạo task.</summary>
         [HttpPost("assignments/preview")]
         [Authorize(Roles = SystemRoles.Manager)]
         public async Task<ActionResult<AssignmentPreviewDto>> PreviewAssignment(
@@ -162,7 +161,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(result);
         }
 
-        /// <summary>Trả về dòng hoạt động ổn định của công việc trong phạm vi được phân quyền.</summary>
         [HttpGet("{taskId}/timeline")]
         public async Task<ActionResult<TimelinePageDto>> GetTimeline(
             Guid taskId,

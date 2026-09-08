@@ -22,7 +22,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options =>
         {
             options.UseSqlServer(connectionString);
-            // Historical KPI and employment rows remain visible after their user is soft-deleted.
             options.ConfigureWarnings(warnings =>
                 warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
         });

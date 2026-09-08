@@ -19,19 +19,16 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>Lấy danh sách phòng ban công khai (dùng cho trang đăng ký)</summary>
         [HttpGet("public")]
         [AllowAnonymous]
         public async Task<ActionResult<List<UnitDto>>> GetPublic()
             => Ok(await _service.GetAll(HttpContext.RequestAborted));
 
-        /// <summary>Lấy danh sách tất cả phòng ban (Admin và Trưởng phòng)</summary>
         [HttpGet]
         [Authorize(Roles = SystemRoles.AdminOrManager)]
         public async Task<ActionResult<List<UnitDto>>> GetAll()
             => Ok(await _service.GetAll(HttpContext.RequestAborted));
 
-        /// <summary>Lấy phòng ban của người dùng đang đăng nhập</summary>
         [HttpGet("my-unit")]
         public async Task<ActionResult<UnitDto>> GetMyUnit()
         {
@@ -39,7 +36,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.GetMyUnit(userId, HttpContext.RequestAborted));
         }
 
-        /// <summary>Lấy danh sách thành viên trong phòng ban</summary>
         [HttpGet("{id}/users")]
         public async Task<ActionResult<List<UserDto>>> GetUsers(Guid id)
         {
@@ -47,7 +43,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.GetVisibleUsers(id, userId, HttpContext.RequestAborted));
         }
 
-        /// <summary>Tạo phòng ban mới (chỉ Admin)</summary>
         [HttpPost]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<ActionResult<UnitDto>> Create(CreateUnitDto dto)
@@ -57,7 +52,6 @@ namespace WorkManagementSystem.API.Controllers
             return StatusCode(StatusCodes.Status201Created, result);
         }
 
-        /// <summary>Cập nhật phòng ban (chỉ Admin)</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<ActionResult<UnitDto>> Update(Guid id, UpdateUnitDto dto)
@@ -66,7 +60,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.Update(id, dto, changedBy, HttpContext.RequestAborted));
         }
 
-        /// <summary>Xóa phòng ban (chỉ Admin)</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<IActionResult> Delete(Guid id)
@@ -76,7 +69,6 @@ namespace WorkManagementSystem.API.Controllers
             return NoContent();
         }
 
-        /// <summary>Thêm thành viên vào phòng ban (Admin)</summary>
         [HttpPost("{id}/members")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<IActionResult> AddMember(Guid id, [FromBody] MemberDto dto)
@@ -86,7 +78,6 @@ namespace WorkManagementSystem.API.Controllers
             return NoContent();
         }
 
-        /// <summary>Xóa thành viên khỏi phòng ban (Admin)</summary>
         [HttpDelete("{id}/members/{userId}")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<IActionResult> RemoveMember(Guid id, Guid userId)

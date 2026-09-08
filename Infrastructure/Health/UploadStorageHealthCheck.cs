@@ -57,7 +57,6 @@ public sealed class UploadStorageHealthCheck : IHealthCheck
             catch (Exception exception) when (
                 exception is IOException or UnauthorizedAccessException)
             {
-                // DeleteOnClose normally removes the probe; cleanup is best-effort.
             }
         }
     }

@@ -21,7 +21,6 @@ public sealed class ManagementWorkloadController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>Xem workload nhân viên theo tuần, tháng hoặc khoảng ngày.</summary>
     [HttpGet]
     public async Task<ActionResult<WorkloadSummaryDto>> Get(
         DateTime? from,
@@ -37,7 +36,6 @@ public sealed class ManagementWorkloadController : ControllerBase
             HttpContext.RequestAborted));
     }
 
-    /// <summary>Xem workload của một nhân viên trong phạm vi được quản lý.</summary>
     [HttpGet("{userId:guid}")]
     public async Task<ActionResult<UserWorkloadDto>> GetUser(
         Guid userId,

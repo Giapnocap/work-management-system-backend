@@ -19,7 +19,6 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>Lấy danh sách người dùng (Admin xem tất cả, Trưởng phòng xem phòng mình)</summary>
         [HttpGet]
         [Authorize(Roles = SystemRoles.AdminOrManager)]
         public async Task<ActionResult<List<UserDto>>> GetAll()
@@ -28,7 +27,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.GetVisibleUsers(requesterId, HttpContext.RequestAborted));
         }
 
-        /// <summary>Tìm kiếm nhân viên theo tên, mã nhân viên, vai trò hoặc phòng ban</summary>
         [HttpGet("search")]
         [Authorize(Roles = SystemRoles.AdminOrManager)]
         public async Task<ActionResult<List<UserDto>>> Search(
@@ -42,7 +40,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(result);
         }
 
-        /// <summary>Cập nhật người dùng (chỉ Admin)</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<ActionResult<UserDto>> Update(Guid id, UpdateUserDto dto)
@@ -51,7 +48,6 @@ namespace WorkManagementSystem.API.Controllers
             return Ok(await _service.Update(id, dto, changedBy, HttpContext.RequestAborted));
         }
 
-        /// <summary>Xóa người dùng (chỉ Admin)</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = SystemRoles.Admin)]
         public async Task<IActionResult> Delete(Guid id)
@@ -61,7 +57,6 @@ namespace WorkManagementSystem.API.Controllers
             return NoContent();
         }
 
-        /// <summary>Xem KPI cá nhân theo phạm vi được phân quyền</summary>
         [HttpGet("performance/{id}")]
         public async Task<ActionResult<PerformanceDto>> GetPerformance(Guid id, Guid? periodId = null)
         {
@@ -70,7 +65,6 @@ namespace WorkManagementSystem.API.Controllers
                 currentUserId, id, periodId, HttpContext.RequestAborted));
         }
 
-        /// <summary>Xem bảng KPI toàn phòng (Trưởng phòng xem nhân viên phòng mình)</summary>
         [HttpGet("performance/unit")]
         [Authorize(Roles = SystemRoles.ManagerOrAdmin)]
         public async Task<ActionResult<List<PerformanceDto>>> GetUnitPerformance(Guid? periodId = null)

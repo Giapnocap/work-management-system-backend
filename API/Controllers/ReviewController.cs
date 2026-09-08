@@ -19,9 +19,6 @@ namespace WorkManagementSystem.API.Controllers
             _currentUser = currentUser;
         }
 
-        /// <summary>
-        /// Phê duyệt hoặc từ chối báo cáo (Trưởng phòng)
-        /// </summary>
         [HttpPost]
         public async Task<ActionResult<ReviewDto>> Review(ReviewDto dto)
         {

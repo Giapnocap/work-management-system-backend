@@ -4,10 +4,8 @@
 
 namespace WorkManagementSystem.Migrations
 {
-    /// <inheritdoc />
     public partial class AddOptimisticConcurrencyAndMembershipIntegrity : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
@@ -101,7 +99,6 @@ namespace WorkManagementSystem.Migrations
                 sql: "[StartDate] IS NULL OR [DueDate] IS NULL OR [DueDate] >= [StartDate]");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(

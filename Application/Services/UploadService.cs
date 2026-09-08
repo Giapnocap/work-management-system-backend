@@ -177,7 +177,6 @@ namespace WorkManagementSystem.Application.Services
                     or NotSupportedException
                     or PathTooLongException)
             {
-                // Invalid persisted paths are intentionally hidden as missing files.
             }
 
             throw new NotFoundException("Không tìm thấy tệp.");
@@ -192,7 +191,6 @@ namespace WorkManagementSystem.Application.Services
             }
             catch
             {
-                // Cleanup is best-effort; the original upload failure should stay visible.
             }
         }
     }
